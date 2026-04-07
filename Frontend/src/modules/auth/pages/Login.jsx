@@ -3,9 +3,20 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Link, useNavigate } from "react-router-dom"
 import { Phone, ArrowRight, ShieldCheck, Loader2, Utensils, Star, Heart } from "lucide-react"
 import { toast } from "sonner"
-import { authAPI } from "@food/api"
+import { authAPI, userAPI } from "@food/api"
 import { setAuthData } from "@food/utils/auth"
 import logoNew from "@/assets/logo.png"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@food/components/ui/dialog"
+import { Button } from "@food/components/ui/button"
+import { Input } from "@food/components/ui/input"
+import { Label } from "@food/components/ui/label"
+import { User } from "lucide-react"
 
 export default function UnifiedOTPFastLogin() {
   const RESEND_COOLDOWN_SECONDS = 60
@@ -14,6 +25,10 @@ export default function UnifiedOTPFastLogin() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [isUpdatingName, setIsUpdatingName] = useState(false)
+  const [tempAuth, setTempAuth] = useState(null)
   const navigate = useNavigate()
   const submitting = useRef(false)
 
@@ -117,13 +132,16 @@ export default function UnifiedOTPFastLogin() {
       const refreshToken = data.refreshToken || null
       const user = data.user
 
-      if (!accessToken || !user) {
-        throw new Error("Invalid response from server")
-      }
-
       setAuthData("user", accessToken, user, refreshToken)
-      toast.success("Welcome back!")
-      navigate("/user/auth/portal", { replace: true })
+      
+      // If user has no name, show name modal instead of immediate navigation
+      if (!user.name || user.name.trim() === "") {
+        setTempAuth({ accessToken, user, refreshToken })
+        setShowNameModal(true)
+      } else {
+        toast.success("Welcome back!")
+        navigate("/user/auth/portal", { replace: true })
+      }
     } catch (err) {
       const status = err?.response?.status
       let msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Invalid OTP. Please try again."
@@ -138,6 +156,33 @@ export default function UnifiedOTPFastLogin() {
     } finally {
       setLoading(false)
       submitting.current = false
+    }
+  }
+
+  const handleNameSubmit = async (e) => {
+    e.preventDefault()
+    if (!newName.trim()) {
+      toast.error("Please enter your name")
+      return
+    }
+
+    try {
+      setIsUpdatingName(true)
+      // Call update profile API
+      await userAPI.updateProfile({ name: newName.trim() })
+      
+      // Update local storage and auth data with the new name
+      const updatedUser = { ...tempAuth.user, name: newName.trim() }
+      setAuthData("user", tempAuth.accessToken, updatedUser, tempAuth.refreshToken)
+      
+      toast.success(`Welcome, ${newName.trim()}!`)
+      setShowNameModal(false)
+      navigate("/user/auth/portal", { replace: true })
+    } catch (err) {
+      toast.error("Failed to update name. You can skip this for now or try again.")
+      console.error(err)
+    } finally {
+      setIsUpdatingName(false)
     }
   }
 
@@ -362,6 +407,68 @@ export default function UnifiedOTPFastLogin() {
           </div>
         </motion.div>
       </div>
+
+      {/* Name Collection Modal */}
+      <Dialog open={showNameModal} onOpenChange={setShowNameModal}>
+        <DialogContent className="sm:max-w-[425px] rounded-3xl border-none p-0 overflow-hidden bg-white dark:bg-[#1a1a1a]">
+          <div className="bg-[#7e3866] p-8 text-center relative">
+            <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <motion.div 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-4 border border-white/30"
+            >
+              <User className="w-10 h-10 text-white" />
+            </motion.div>
+            <DialogTitle className="text-2xl font-bold text-white mb-2">Almost there!</DialogTitle>
+            <DialogDescription className="text-white/80">
+              We'd love to know your name to personalize your experience.
+            </DialogDescription>
+          </div>
+          
+          <form onSubmit={handleNameSubmit} className="p-8 pt-6 space-y-6">
+            <div className="space-y-4">
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">
+                Full Name
+              </Label>
+              <div className="relative group">
+                <Input
+                  id="name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Enter your name"
+                  className="pl-4 h-14 bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-[#7e3866] transition-all group-hover:border-[#7e3866]/30"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Button 
+                type="submit" 
+                disabled={isUpdatingName}
+                className="w-full h-14 bg-[#7e3866] hover:bg-[#6b2f57] text-white rounded-2xl font-bold text-lg shadow-lg shadow-[#7e3866]/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {isUpdatingName ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  "Complete Profile"
+                )}
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNameModal(false)
+                  navigate("/user/auth/portal", { replace: true })
+                }}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors py-2"
+              >
+                Skip for now
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
