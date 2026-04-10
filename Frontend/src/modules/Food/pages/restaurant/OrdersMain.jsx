@@ -1923,7 +1923,7 @@ export default function OrdersMain() {
                 {isActive && (
                   <motion.div
                     layoutId="activeFilterBackground"
-                    className="absolute inset-0 bg-black rounded-full -z-10"
+                    className="absolute inset-0 bg-primary-orange rounded-full -z-10"
                     initial={false}
                     transition={{
                       type: "spring",
@@ -2488,20 +2488,20 @@ export default function OrdersMain() {
                         onClick={() => setRejectReason(reason)}
                         className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
                           rejectReason === reason
-                            ? "border-black bg-black/5"
+                            ? "border-primary-orange bg-primary-orange/10"
                             : "border-gray-200 bg-white hover:border-gray-300"
                         }`}>
                         <div className="flex items-center justify-between">
                           <span
                             className={`text-sm font-medium ${
                               rejectReason === reason
-                                ? "text-black"
+                                ? "text-primary-orange"
                                 : "text-gray-900"
                             }`}>
                             {reason}
                           </span>
                           {rejectReason === reason && (
-                            <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                            <div className="w-5 h-5 rounded-full bg-primary-orange flex items-center justify-center">
                               <svg
                                 className="w-3 h-3 text-white"
                                 fill="none"
@@ -2534,7 +2534,7 @@ export default function OrdersMain() {
                     disabled={!rejectReason}
                     className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
                       rejectReason
-                        ? "!bg-black !text-white"
+                        ? "!bg-primary-orange !text-white hover:!bg-primary-orange/90"
                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}>
                     Confirm Rejection
@@ -2753,7 +2753,7 @@ export default function OrdersMain() {
               </div>
 
               <button
-                className="w-full bg-black text-white py-2.5 rounded-xl text-sm font-medium"
+                className="w-full bg-primary-orange text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary-orange/90 transition-colors"
                 onClick={() => setIsSheetOpen(false)}>
                 Close
               </button>

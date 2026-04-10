@@ -714,9 +714,9 @@ function SimpleCalendar({ selectedDate, onDateSelect, isOpen, onClose }) {
                     className={`h-10 text-sm rounded transition-colors ${!isCurrent
                         ? 'text-gray-300'
                         : isSelectedDate
-                          ? 'bg-black text-white'
+                          ? 'bg-[#7e3866] text-white'
                           : isTodayDate
-                            ? 'bg-gray-100 text-black font-semibold'
+                            ? 'bg-[#f9f0f7] text-[#7e3866] font-semibold'
                             : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
@@ -1784,8 +1784,8 @@ export default function Inventory() {
             onClick={() => setActiveTab("all-items")}
             className={`relative overflow-hidden rounded-[24px] border px-5 py-4 text-sm font-semibold whitespace-nowrap ${
               activeTab === "all-items"
-                ? "border-slate-950 text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.8)]"
-                : "border-white/80 bg-white/80 text-slate-700 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.4)]"
+                ? "border-[#7e3866] text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.6)]"
+                : "border-[#ead6e3] bg-white/90 text-[#6d6470] shadow-[0_16px_40px_-34px_rgba(109,100,112,0.35)]"
             }`}
             animate={{
               scale: activeTab === "all-items" ? 1.02 : 1,
@@ -1795,7 +1795,7 @@ export default function Inventory() {
             {activeTab === "all-items" && (
               <motion.div
                 layoutId="activeTabBackground"
-                className="absolute inset-0 rounded-[24px] bg-slate-950 -z-10"
+                className="absolute inset-0 rounded-[24px] bg-[#7e3866] -z-10"
                 initial={false}
                 transition={{
                   type: "spring",
@@ -1807,7 +1807,7 @@ export default function Inventory() {
             <span className="relative z-10 flex items-center justify-center gap-2">
               <span>All items</span>
               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "all-items" ? "bg-white text-slate-950" : "bg-slate-100 text-slate-600"
+                activeTab === "all-items" ? "bg-white text-[#7e3866]" : "bg-[#f6ecf3] text-[#6d6470]"
               }`}>
                 {totalItems}
               </span>
@@ -1818,8 +1818,8 @@ export default function Inventory() {
             onClick={() => setActiveTab("add-ons")}
             className={`relative overflow-hidden rounded-[24px] border px-5 py-4 text-sm font-semibold whitespace-nowrap ${
               activeTab === "add-ons"
-                ? "border-slate-950 text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.8)]"
-                : "border-white/80 bg-white/80 text-slate-700 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.4)]"
+                ? "border-[#7e3866] text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.6)]"
+                : "border-[#ead6e3] bg-white/90 text-[#6d6470] shadow-[0_16px_40px_-34px_rgba(109,100,112,0.35)]"
             }`}
             animate={{
               scale: activeTab === "add-ons" ? 1.02 : 1,
@@ -1829,7 +1829,7 @@ export default function Inventory() {
             {activeTab === "add-ons" && (
               <motion.div
                 layoutId="activeTabBackground"
-                className="absolute inset-0 rounded-[24px] bg-slate-950 -z-10"
+                className="absolute inset-0 rounded-[24px] bg-[#7e3866] -z-10"
                 initial={false}
                 transition={{
                   type: "spring",
@@ -1841,7 +1841,7 @@ export default function Inventory() {
             <span className="relative z-10 flex items-center justify-center gap-2">
               <span>Add ons</span>
               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "add-ons" ? "bg-white text-slate-950" : "bg-slate-100 text-slate-600"
+                activeTab === "add-ons" ? "bg-white text-[#7e3866]" : "bg-[#f6ecf3] text-[#6d6470]"
               }`}>
                 {addons.length}
               </span>
@@ -1936,7 +1936,7 @@ export default function Inventory() {
                     setSearchQuery("")
                     setSelectedFilter("all")
                   }}
-                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  className="rounded-full border border-[#e7d5e0] px-3 py-1.5 text-xs font-semibold text-[#6b4d62] transition-colors hover:border-[#d5bdd0] hover:bg-[#f9f0f7]"
                 >
                   Clear all
                 </button>
@@ -1951,7 +1951,7 @@ export default function Inventory() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={activeTab === "add-ons" ? "Search add-ons by name or status" : "Search categories or menu items"}
-                  className="h-12 w-full rounded-[20px] border border-slate-200 bg-slate-50 pl-11 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none"
+                  className="h-12 w-full rounded-[20px] border border-[#e7d5e0] bg-[#fcf7fb] pl-11 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#c796b8] focus:bg-white focus:outline-none"
                 />
                 {searchQuery ? (
                   <button
@@ -1967,19 +1967,19 @@ export default function Inventory() {
 
               <button
                 onClick={() => setFilterOpen(true)}
-                className="relative flex h-12 items-center justify-center gap-2 rounded-[20px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                className="relative flex h-12 items-center justify-center gap-2 rounded-[20px] border border-[#e7d5e0] bg-white px-4 text-sm font-semibold text-[#55254b] transition-colors hover:border-[#d5bdd0] hover:bg-[#f9f0f7]"
               >
-                <SlidersHorizontal className="w-4 h-4 text-slate-700" />
+                <SlidersHorizontal className="w-4 h-4 text-[#7e3866]" />
                 <span>Filters</span>
                 {selectedFilter !== "all" && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-slate-950" />
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#7e3866]" />
                 )}
               </button>
 
               {activeTab === "add-ons" && (
                 <button
                   onClick={() => setIsAddAddonOpen((v) => !v)}
-                  className="h-12 rounded-[20px] bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.85)] transition-colors hover:bg-slate-800"
+                  className="h-12 rounded-[20px] bg-[#7e3866] px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.7)] transition-colors hover:bg-[#55254b]"
                   style={{ minWidth: "128px" }}
                 >
                   {isAddAddonOpen ? "Close" : "Add Add-on"}
@@ -2001,13 +2001,13 @@ export default function Inventory() {
                     onClick={() => setSelectedFilter(option.value)}
                     className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors ${
                       isActive
-                        ? "border-slate-950 bg-slate-950 text-white shadow-[0_14px_28px_-24px_rgba(15,23,42,0.9)]"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
+                        ? "border-[#7e3866] bg-[#7e3866] text-white shadow-[0_14px_28px_-24px_rgba(126,56,102,0.8)]"
+                        : "border-[#e7d5e0] bg-[#fcf7fb] text-[#6d6470] hover:border-[#d5bdd0] hover:bg-white"
                     }`}
                   >
                     <span>{option.label}</span>
                     <span className={`ml-2 inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] ${
-                      isActive ? "bg-white/15 text-white" : "bg-white text-slate-500"
+                      isActive ? "bg-white/20 text-white" : "bg-white text-[#8a7a89]"
                     }`}>
                       {count}
                     </span>
@@ -2031,7 +2031,7 @@ export default function Inventory() {
                         type="text"
                         value={addonName}
                         onChange={(e) => setAddonName(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#7e3866] focus:outline-none"
                         placeholder="e.g., Coke, Chips"
                       />
                     </div>
@@ -2040,7 +2040,7 @@ export default function Inventory() {
                       <textarea
                         value={addonDescription}
                         onChange={(e) => setAddonDescription(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none resize-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#7e3866] focus:outline-none resize-none"
                         rows={3}
                         placeholder="Describe the add-on..."
                       />
@@ -2051,7 +2051,7 @@ export default function Inventory() {
                         type="number"
                         value={addonPrice}
                         onChange={(e) => setAddonPrice(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#7e3866] focus:outline-none"
                         min="0"
                         step="0.01"
                         placeholder="0.00"
@@ -2106,7 +2106,7 @@ export default function Inventory() {
                         type="button"
                         onClick={handleSaveAddon}
                         disabled={savingAddon}
-                        className="px-4 py-2 bg-black text-white rounded-md text-sm font-medium hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 bg-[#7e3866] text-white rounded-md text-sm font-medium hover:bg-[#55254b] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {savingAddon && <Loader2 className="h-4 w-4 animate-spin" />}
                         <span>{savingAddon ? "Saving..." : "Submit for approval"}</span>
@@ -2470,7 +2470,8 @@ export default function Inventory() {
                             name="filter"
                             checked={selectedFilter === option.value}
                             onChange={() => setSelectedFilter(option.value)}
-                            className="w-5 h-5 text-black border-gray-300 focus:ring-black"
+                            style={{ accentColor: "#7e3866" }}
+                            className="w-5 h-5 border-gray-300"
                           />
                           <span className="text-base text-gray-900">{option.label}</span>
                         </div>
@@ -2493,7 +2494,7 @@ export default function Inventory() {
                   )}
                   <button
                     onClick={handleFilterApply}
-                    className={`${selectedFilter !== "all" ? 'flex-1' : 'w-full'} bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors`}
+                    className={`${selectedFilter !== "all" ? 'flex-1' : 'w-full'} bg-[#7e3866] text-white py-3 rounded-lg font-medium hover:bg-[#55254b] transition-colors`}
                   >
                     Apply
                   </button>
@@ -2576,8 +2577,8 @@ export default function Inventory() {
                         name="outOfStockOption"
                         checked={selectedOption === "specific-time"}
                         onChange={() => setSelectedOption("specific-time")}
-                        style={{ accentColor: "#000000" }}
-                        className="ml-auto w-5 h-5 !text-black !border-gray-300 !bg-black !focus:ring-black"
+                        style={{ accentColor: "#7e3866" }}
+                          className="ml-auto w-5 h-5 border-gray-300"
                       />
                     </div>
                   </label>
@@ -2592,8 +2593,8 @@ export default function Inventory() {
                         name="outOfStockOption"
                         checked={selectedOption === "next-business-day"}
                         onChange={() => setSelectedOption("next-business-day")}
-                        style={{ accentColor: "#000000" }}
-                        className="ml-auto w-5 h-5 !text-black !border-gray-300 !bg-black !focus:ring-black"
+                        style={{ accentColor: "#7e3866" }}
+                        className="ml-auto w-5 h-5 border-gray-300"
                       />
                     </div>
                   </label>
@@ -2608,8 +2609,8 @@ export default function Inventory() {
                         name="outOfStockOption"
                         checked={selectedOption === "custom-date-time"}
                         onChange={() => setSelectedOption("custom-date-time")}
-                        style={{ accentColor: "#000000" }}
-                        className="ml-auto w-5 h-5 text-black border-gray-300 focus:ring-black"
+                        style={{ accentColor: "#7e3866" }}
+                        className="ml-auto w-5 h-5 border-gray-300"
                       />
                     </div>
                   </label>
@@ -2643,8 +2644,8 @@ export default function Inventory() {
                           name="outOfStockOption"
                           checked={selectedOption === "manual"}
                           onChange={() => setSelectedOption("manual")}
-                          style={{ accentColor: "#000000" }}
-                          className="ml-auto w-5 h-5 !text-black !border-gray-300 !bg-black !focus:ring-black"
+                          style={{ accentColor: "#7e3866" }}
+                          className="ml-auto w-5 h-5 border-gray-300"
                         />
                       </div>
                       <p className="text-sm text-gray-500">
@@ -2664,7 +2665,7 @@ export default function Inventory() {
                   </button>
                   <button
                     onClick={handleToggleConfirm}
-                    className="flex-1 bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                    className="flex-1 bg-[#7e3866] text-white py-3 rounded-lg font-medium hover:bg-[#55254b] transition-colors"
                   >
                     Confirm
                   </button>
@@ -2741,7 +2742,7 @@ export default function Inventory() {
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={() => setIsAddPopupOpen(true)}
-            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
+            className="rounded-full bg-[#7e3866] px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(126,56,102,0.72)]"
           >
             + Add item
           </motion.button>
@@ -2749,13 +2750,13 @@ export default function Inventory() {
             type="button"
             whileTap={{ scale: 0.96 }}
             onClick={() => setIsMenuOpen((prev) => !prev)}
-            className="flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-4 py-3 text-sm font-semibold text-slate-800 shadow-[0_18px_36px_-28px_rgba(15,23,42,0.55)]"
+            className="flex items-center gap-2 rounded-full border border-[#ead6e3] bg-white/95 px-4 py-3 text-sm font-semibold text-[#55254b] shadow-[0_18px_36px_-28px_rgba(126,56,102,0.45)]"
           >
             <span className="w-5 h-5 flex items-center justify-center">
               {isMenuOpen ? (
-                <X className="w-4 h-4 text-slate-900" />
+                <X className="w-4 h-4 text-[#55254b]" />
               ) : (
-                <Utensils className="w-4 h-4 text-slate-900" />
+                <Utensils className="w-4 h-4 text-[#7e3866]" />
               )}
             </span>
             <span>{isMenuOpen ? "Close" : "Menu"}</span>
@@ -2779,11 +2780,11 @@ export default function Inventory() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-4 bottom-36 z-30 h-[45vh] w-[60vw] max-w-sm overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-[0_24px_60px_-30px_rgba(15,23,42,0.55)]"
+                  className="fixed right-4 bottom-36 z-30 h-[45vh] w-[60vw] max-w-sm overflow-hidden rounded-[28px] border border-[#ead6e3] bg-white shadow-[0_24px_60px_-30px_rgba(126,56,102,0.45)]"
                 >
                   <div className="h-full flex flex-col">
-                    <div className="bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_100%)] px-4 pt-4 pb-3">
-                      <p className="text-sm font-semibold text-slate-950">Jump to category</p>
+                    <div className="bg-[linear-gradient(135deg,#fcf4f9_0%,#f6e8f1_100%)] px-4 pt-4 pb-3">
+                      <p className="text-sm font-semibold text-[#55254b]">Jump to category</p>
                     </div>
                     <div className="mx-4 h-px bg-slate-200" />
                     <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">

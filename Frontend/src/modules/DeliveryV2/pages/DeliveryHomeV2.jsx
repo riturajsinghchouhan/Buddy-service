@@ -587,7 +587,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                     deliveryAPI.updateOnlineStatus(false).catch(() => {});
                  }
                }}
-               className={`relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-gray-400'}`}
+               className={`delivery-online-toggle relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'is-online bg-green-500 shadow-lg shadow-green-500/20' : 'is-offline bg-green-400 shadow-lg shadow-green-400/20'}`}
              >
                <div className={`flex items-center justify-between w-full px-2 text-[8.5px] font-black uppercase tracking-widest text-white`}>
                  <span>{isOnline ? 'Online' : ''}</span>
@@ -790,7 +790,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   />
                 )}
                 {(tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') && (
-                  <div className="absolute bottom-4 inset-x-0 z-[120] px-4">
+                  <div className="absolute inset-x-0 z-[120] px-4" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
                     {tripStatus === 'PICKED_UP' ? (
                       <div className="bg-white rounded-[3rem] p-8 shadow-[0_-20px_80px_rgba(0,0,0,0.4)] border border-gray-100 flex flex-col items-center">
                         {/* Handle / Minimize */}
@@ -834,7 +834,11 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                     ) : (
                       <button 
                         onClick={() => setShowVerification(true)} 
-                        className="w-full bg-green-500 hover:bg-green-600 text-white shadow-xl shadow-green-500/30 rounded-2xl py-5 font-bold text-sm tracking-[0.2em] transform transition-all active:scale-95 flex items-center justify-center gap-3"
+                        className="w-full text-white rounded-2xl py-4 sm:py-5 px-4 font-bold text-xs sm:text-sm tracking-[0.14em] transform transition-all active:scale-95 flex items-center justify-center gap-2.5 sm:gap-3 border border-white/20"
+                        style={{
+                          background: 'linear-gradient(33deg, #15498b 0%, #000000 100%)',
+                          boxShadow: '0 14px 34px rgba(21, 73, 139, 0.42)',
+                        }}
                       >
                         <CheckCircle2 className="w-6 h-6" /> VERIFY & COMPLETE
                       </button>

@@ -101,11 +101,11 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   const isAlreadyVerified = order?.deliveryVerification?.dropOtp?.verified;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-120 p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+    <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
       <Backdrop onClose={onClose} />
       <motion.div 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12 pointer-events-auto max-w-lg"
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
       >
         <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
         <div className="flex justify-between items-center mb-6">
@@ -123,7 +123,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
 
         <DeliveryInstructionsPanel note={order?.note} />
 
-        <div className="flex justify-center gap-3 mb-8">
+        <div className="flex justify-center gap-2.5 sm:gap-3 mb-6 sm:mb-8">
           {otp.map((digit, i) => (
             <input
               key={i}
@@ -133,7 +133,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
               value={digit}
               onChange={(e) => handleOtpChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
-              className={`w-14 h-18 bg-gray-50 border-2 rounded-2xl text-center text-3xl font-bold transition-all ${
+              className={`w-12 sm:w-14 h-16 sm:h-18 bg-gray-50 border-2 rounded-2xl text-center text-2xl sm:text-3xl font-bold transition-all ${
                 isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 focus:border-green-600 text-gray-700'
               }`}
             />
@@ -218,11 +218,11 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
 
   return (
     <>
-      <div className="absolute inset-x-0 bottom-0 z-120 p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+      <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
         <Backdrop onClose={onClose} />
         <motion.div 
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12 pointer-events-auto max-w-lg"
+          className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
         >
           <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
           <div className="flex justify-between items-center mb-6">
@@ -240,13 +240,13 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
 
           <DeliveryInstructionsPanel note={order?.note} />
 
-          <div className="bg-amber-50 rounded-3xl p-6 border border-amber-100 mb-8">
+          <div className="bg-amber-50 rounded-3xl p-4 sm:p-6 border border-amber-100 mb-6 sm:mb-8">
              <div className="flex justify-between items-center mb-6">
                <div>
                  <p className="text-amber-700 text-[10px] font-bold uppercase tracking-widest mb-1">
                     {isPaid ? "Amount Paid Online" : "Cash to Collect"}
                  </p>
-                 <p className="text-amber-950 text-4xl font-bold">₹{amountToCollect.toFixed(2)}</p>
+                 <p className="text-amber-950 text-3xl sm:text-4xl font-bold">₹{amountToCollect.toFixed(2)}</p>
                </div>
                {isPaid && <div className="bg-green-500 text-white px-4 py-2 rounded-full text-[10px] font-bold">PAID ✓</div>}
              </div>
@@ -256,7 +256,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
                  <button 
                    onClick={generateQr}
                    disabled={isGeneratingQr}
-                   className="w-full py-4 bg-white border-2 border-amber-200 text-amber-800 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                   className="w-full py-3.5 sm:py-4 bg-white border-2 border-amber-200 text-amber-800 rounded-2xl font-bold text-[11px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-2"
                  >
                    {isGeneratingQr ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" />}
                    Show Payment QR
@@ -288,12 +288,12 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
         {showQrModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-200 bg-black/80 flex items-center justify-center p-6 pointer-events-auto"
+            className="fixed inset-0 z-200 bg-black/80 flex items-center justify-center p-4 sm:p-6 pointer-events-auto"
             onClick={() => setShowQrModal(false)}
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
-              className="bg-white w-full max-w-sm rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl"
+              className="bg-white w-full max-w-sm rounded-3xl p-5 sm:p-8 flex flex-col items-center text-center shadow-2xl"
               onClick={e => e.stopPropagation()}
             >
               <h3 className="text-gray-950 font-bold text-xl mb-2">Scan to Pay</h3>
@@ -303,7 +303,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
                  <img 
                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(collectQrLink)}`} 
                    alt="Razorpay QR"
-                   className="w-56 h-56"
+                   className="w-44 h-44 sm:w-56 sm:h-56"
                  />
                  <button 
                     onClick={handleManualCheck}
@@ -384,12 +384,12 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
         />
       )}
       {step === 'complete' && (
-        <div className="absolute inset-x-0 bottom-0 z-120 p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+        <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
           <Backdrop onClose={onClose || (() => {})} />
           <motion.div 
             key="complete-modal"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12 pointer-events-auto max-w-lg"
+            className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
           >
             <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
             <div className="flex items-center gap-3 mb-8">

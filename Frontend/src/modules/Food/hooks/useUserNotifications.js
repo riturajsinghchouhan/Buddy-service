@@ -19,6 +19,13 @@ export const useUserNotifications = () => {
   const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
   const [userId, setUserId] = useState(null);
+  const lastDropOtpToastRef = useRef({ key: '', at: 0 });
+  const lastOrderStatusToastRef = useRef({ key: '', at: 0 });
+
+  const DROP_OTP_TOAST_ID = 'user-delivery-drop-otp';
+  const DROP_OTP_DEDUPE_MS = 15000;
+  const ORDER_STATUS_TOAST_ID = 'user-order-status-update';
+  const ORDER_STATUS_DEDUPE_MS = 4000;
 
   // Fetch current user ID
   useEffect(() => {
@@ -87,10 +94,24 @@ export const useUserNotifications = () => {
 
       // Optional: Show toast for important updates (Cancel, Ready, etc.)
       const isImportant = String(data.orderStatus).includes('cancel') || ['ready_for_pickup', 'ready', 'confirmed'].includes(data.orderStatus);
-      if (isImportant) {
+      const isOrderTrackingScreen =
+        typeof window !== 'undefined' &&
+        String(window.location?.pathname || '').includes('/user/orders/');
+
+      const statusKey = `${String(data.orderId || '')}:${String(data.orderStatus || '')}`;
+      const now = Date.now();
+      const isDuplicateStatusToast =
+        statusKey &&
+        statusKey === lastOrderStatusToastRef.current.key &&
+        now - lastOrderStatusToastRef.current.at < ORDER_STATUS_DEDUPE_MS;
+
+      if (isImportant && !isOrderTrackingScreen && !isDuplicateStatusToast) {
+        lastOrderStatusToastRef.current = { key: statusKey, at: now };
+        toast.dismiss(ORDER_STATUS_TOAST_ID);
         toast.message(title, {
+          id: ORDER_STATUS_TOAST_ID,
           description: message,
-          duration: 10000
+          duration: 6000
         });
       }
 
@@ -117,6 +138,21 @@ export const useUserNotifications = () => {
       const otp = payload?.otp != null ? String(payload.otp) : '';
       const orderId = payload?.orderId != null ? String(payload.orderId) : '';
       const message = payload?.message != null ? String(payload.message) : '';
+
+      const otpKey = `${orderId}:${otp}`;
+      const now = Date.now();
+      const lastToast = lastDropOtpToastRef.current;
+      const isDuplicateOtp =
+        otpKey &&
+        otpKey === lastToast.key &&
+        now - lastToast.at < DROP_OTP_DEDUPE_MS;
+
+      if (isDuplicateOtp) {
+        return;
+      }
+
+      lastDropOtpToastRef.current = { key: otpKey, at: now };
+
       window.dispatchEvent(
         new CustomEvent('deliveryDropOtp', {
           detail: {
@@ -129,9 +165,12 @@ export const useUserNotifications = () => {
       );
       const title = orderId ? `Order ${orderId}` : 'Delivery OTP';
       const parts = [message, otp ? `OTP: ${otp}` : ''].filter(Boolean);
+
+      toast.dismiss(DROP_OTP_TOAST_ID);
       toast.message(title, {
+        id: DROP_OTP_TOAST_ID,
         description: parts.join(' — ') || 'Handover OTP from your delivery partner.',
-        duration: 90_000
+        duration: 12_000
       });
     });
 

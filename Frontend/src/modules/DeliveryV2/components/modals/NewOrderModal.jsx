@@ -107,47 +107,51 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-x-0 bottom-0 h-full z-150 bg-black/60 flex items-end justify-center p-0"
+      className="fixed inset-0 z-1000 bg-black/60 flex items-end justify-center p-0"
     >
       <motion.div 
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        className="w-full max-w-lg bg-white rounded-t-[3rem] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.5)] flex flex-col pt-2"
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[3rem] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.5)] flex flex-col pt-1 sm:pt-2"
       >
         {/* Handle / Minimize */}
-        <div className="w-full flex justify-center pb-2 pt-1 bg-white relative z-10 rounded-t-[3rem] -mb-[4px]">
+        <div className="w-full flex justify-center pb-1.5 pt-1 bg-white relative z-10 rounded-t-3xl sm:rounded-t-[3rem] -mb-1">
           <button onClick={onMinimize} className="p-1 hover:bg-gray-100 active:scale-95 transition-all rounded-full flex flex-col items-center">
              <ChevronDown className="w-6 h-6 text-gray-400 stroke-3" />
           </button>
         </div>
 
         {/* Header Ribbon (Old Green Style) */}
-        <div className="bg-green-500 p-8 flex justify-between items-center text-white border-b border-green-600/20">
+        <div 
+          className="p-4 sm:p-8 flex justify-between items-center text-white border-b border-white/10"
+          style={{ background: 'linear-gradient(33deg, #15498b 0%, #000000 100%)' }}
+        >
           <div>
             <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mb-1">Incoming Request</p>
-            <h2 className="text-4xl font-bold tracking-tighter">₹{Number(earnings || 0).toFixed(2)}</h2>
+            <h2 className="text-2xl sm:text-4xl font-bold tracking-tighter">₹{Number(earnings || 0).toFixed(2)}</h2>
           </div>
-          <div className="bg-white/20 border border-white/30 rounded-3xl px-6 py-3 text-white font-bold text-2xl shadow-inner tabular-nums">
+          <div className="bg-white/20 border border-white/30 rounded-2xl sm:rounded-3xl px-3 sm:px-6 py-2 sm:py-3 text-white font-bold text-lg sm:text-2xl shadow-inner tabular-nums">
             {timeLeft}s
           </div>
         </div>
 
         {/* Info Body */}
-        <div className="p-8 pb-12 space-y-10">
-          <div className="flex gap-6">
+        <div className="p-4 sm:p-8 pb-6 sm:pb-12 space-y-5 sm:space-y-10 overflow-y-auto max-h-[78vh]">
+          <div className="flex gap-3 sm:gap-6">
             <div className="flex flex-col items-center gap-1.5 mt-2 py-1">
               <div className="w-5 h-5 rounded-full bg-green-500 border-4 border-green-50 shadow-lg shadow-green-500/20" />
               <div className="w-0.5 h-16 bg-dashed border-l-2 border-gray-100" />
               <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-blue-50 shadow-lg shadow-blue-500/20" />
             </div>
-            <div className="flex-1 space-y-10">
+            <div className="flex-1 space-y-5 sm:space-y-10">
               <div>
                 <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-green-600">
                   <ChefHat className="w-4 h-4" />
                   <span>Restaurant Pickup</span>
                 </div>
-                <p className="text-gray-950 font-bold text-xl leading-tight">{restaurantName}</p>
+                <p className="text-gray-950 font-bold text-base sm:text-xl leading-tight">{restaurantName}</p>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed">{restaurantAddress}</p>
               </div>
               <div>
@@ -155,7 +159,7 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
                   <MapPin className="w-4 h-4" />
                   <span>Customer Drop</span>
                 </div>
-                <p className="text-gray-950 font-bold text-xl leading-tight">Customer Location</p>
+                <p className="text-gray-950 font-bold text-base sm:text-xl leading-tight">Customer Location</p>
                 <p className="text-gray-500 text-sm font-medium line-clamp-2">{customerAddress}</p>
                 {mapsLink && (
                   <a
@@ -171,15 +175,15 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
+           <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
+             <div className="p-3 sm:p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-2.5 sm:gap-3">
                <Clock className="w-5 h-5 text-orange-500" />
                <div className="flex flex-col">
                   <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Time</span>
                   <span className="text-sm font-bold text-gray-900">{etaMins} MINS</span>
                </div>
              </div>
-             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
+             <div className="p-3 sm:p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-2.5 sm:gap-3">
                <MapPin className="w-5 h-5 text-gray-400" />
                <div className="flex flex-col">
                   <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Distance</span>
@@ -188,12 +192,12 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
              </div>
           </div>
 
-          {/* Action Area */}
-          <div className="space-y-6">
+        {/* Action Area */}
+          <div className="space-y-4 sm:space-y-6 pt-1 sm:pt-2">
             <ActionSlider 
               label="Slide to Accept" 
               onConfirm={() => onAccept(order)} 
-              color="bg-green-600"
+              color="bg-black"
               successLabel="Order Accepted ✓"
             />
 

@@ -70,7 +70,7 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     /^\/outlet-timings\/[^/]+$/.test(normalizedPath) ||
     normalizedPath === "/zone-setup"
   ) {
-    return explicitBackPath || "/food/restaurant/details"
+    return explicitBackPath || "/food/restaurant/explore"
   }
 
   if (

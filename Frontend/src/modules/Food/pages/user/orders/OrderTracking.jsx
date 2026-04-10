@@ -36,7 +36,6 @@ import DeliveryTrackingMap from "@food/components/user/DeliveryTrackingMap"
 import { orderAPI, restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { useUserNotifications } from "@food/hooks/useUserNotifications"
-import circleIcon from "@food/assets/circleicon.png"
 import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/constants/mapIcons"
 
 // Fallback definitions in case imports fail at runtime or are shadowed
@@ -146,6 +145,21 @@ const DeliveryMap = memo(({ orderId, order, isVisible, fallbackCustomerCoords = 
     avatar: order.deliveryPartner.avatar || null
   } : null, [order?.deliveryPartner]);
 
+  const effectiveCustomerCoords = useMemo(() => {
+    if (customerCoords) return customerCoords;
+    if (userLiveCoords && Number.isFinite(userLiveCoords.lat) && Number.isFinite(userLiveCoords.lng)) {
+      return userLiveCoords;
+    }
+    if (restaurantCoords) return restaurantCoords;
+    return null;
+  }, [customerCoords, userLiveCoords, restaurantCoords]);
+
+  const effectiveRestaurantCoords = useMemo(() => {
+    if (restaurantCoords) return restaurantCoords;
+    if (effectiveCustomerCoords) return effectiveCustomerCoords;
+    return null;
+  }, [restaurantCoords, effectiveCustomerCoords]);
+
   // Firebase and backend write tracking under order.orderId (string) or mongoId; subscribe to all so we receive updates
   const orderTrackingIdsList = useMemo(() => [
     order?.orderId,
@@ -155,7 +169,7 @@ const DeliveryMap = memo(({ orderId, order, isVisible, fallbackCustomerCoords = 
     order?.id
   ].filter(Boolean), [order?.orderId, order?.mongoId, order?._id, orderId, order?.id]);
 
-  if (!isVisible || !orderId || !order || !restaurantCoords || !customerCoords) {
+  if (!isVisible || !orderId || !order || !effectiveRestaurantCoords || !effectiveCustomerCoords) {
     return (
       <div
         className="relative min-h-[450px] bg-gradient-to-b from-gray-100 to-gray-200"
@@ -172,8 +186,8 @@ const DeliveryMap = memo(({ orderId, order, isVisible, fallbackCustomerCoords = 
       <DeliveryTrackingMap
         orderId={orderId}
         orderTrackingIds={orderTrackingIdsList}
-        restaurantCoords={restaurantCoords}
-        customerCoords={customerCoords}
+        restaurantCoords={effectiveRestaurantCoords}
+        customerCoords={effectiveCustomerCoords}
 
         userLiveCoords={userLiveCoords}
         userLocationAccuracy={userLocationAccuracy}
@@ -290,6 +304,13 @@ const getCustomerCoordsFromApiOrder = (apiOrder, previousOrder = null) => {
   if (Array.isArray(fromLoc) && fromLoc.length >= 2) return fromLoc
   const flat = addr?.coordinates
   if (Array.isArray(flat) && flat.length >= 2) return flat
+
+  // Some payloads provide plain object coordinates instead of GeoJSON arrays.
+  const objectCoord = addr?.location || addr
+  const objLat = Number(objectCoord?.lat ?? objectCoord?.latitude)
+  const objLng = Number(objectCoord?.lng ?? objectCoord?.longitude)
+  if (Number.isFinite(objLat) && Number.isFinite(objLng)) return [objLng, objLat]
+
   const prev = previousOrder?.address?.coordinates || previousOrder?.address?.location?.coordinates
   if (Array.isArray(prev) && prev.length >= 2) return prev
   return null
@@ -486,6 +507,10 @@ export default function OrderTracking() {
   const lookupIdsRef = useRef([])
   const isInitialPollRequestedRef = useRef(null)
   const lastPollExecutionRef = useRef(0) // New: Hard throttle for extreme cases
+  const lastStatusToastRef = useRef({ key: '', at: 0 })
+
+  const ORDER_STATUS_TOAST_ID = 'order-tracking-status-update'
+  const ORDER_STATUS_TOAST_DEDUPE_MS = 4000
 
   // Delivery handover OTP received via socket event.
   // Kept separately so UI still renders even if the event arrives
@@ -661,6 +686,13 @@ export default function OrderTracking() {
       }
     }
 
+    const orderLocObj = order?.address?.location || order?.address
+    const orderObjLat = Number(orderLocObj?.lat ?? orderLocObj?.latitude)
+    const orderObjLng = Number(orderLocObj?.lng ?? orderLocObj?.longitude)
+    if (Number.isFinite(orderObjLat) && Number.isFinite(orderObjLng)) {
+      return { lat: orderObjLat, lng: orderObjLng }
+    }
+
     const defaultCoords = defaultAddress?.location?.coordinates
     if (Array.isArray(defaultCoords) && defaultCoords.length >= 2) {
       const lng = Number(defaultCoords[0])
@@ -668,6 +700,13 @@ export default function OrderTracking() {
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         return { lat, lng }
       }
+    }
+
+    const defaultLocObj = defaultAddress?.location || defaultAddress
+    const defaultObjLat = Number(defaultLocObj?.lat ?? defaultLocObj?.latitude)
+    const defaultObjLng = Number(defaultLocObj?.lng ?? defaultLocObj?.longitude)
+    if (Number.isFinite(defaultObjLat) && Number.isFinite(defaultObjLng)) {
+      return { lat: defaultObjLat, lng: defaultObjLng }
     }
 
     const liveLat = Number(userLiveLocation?.latitude)
@@ -979,11 +1018,22 @@ export default function OrderTracking() {
         }
       }
 
-      // Show notification toast
-      if (message) {
+      // Show a single deduped notification toast
+      if (message && idMatches) {
+        const toastKey = `${String(evtOrderId || orderMongoId || orderId)}:${String(status || payload.orderStatus || '')}`
+        const now = Date.now()
+        const isDuplicateToast =
+          toastKey &&
+          toastKey === lastStatusToastRef.current.key &&
+          now - lastStatusToastRef.current.at < ORDER_STATUS_TOAST_DEDUPE_MS
+
+        if (isDuplicateToast) return
+
+        lastStatusToastRef.current = { key: toastKey, at: now }
+        toast.dismiss(ORDER_STATUS_TOAST_ID)
         toast.success(message, {
+          id: ORDER_STATUS_TOAST_ID,
           duration: 5000,
-          icon: '???',
           position: 'top-center',
           description: estimatedDeliveryTime
             ? `Estimated delivery in ${Math.round(estimatedDeliveryTime / 60)} minutes`
@@ -1469,11 +1519,9 @@ export default function OrderTracking() {
                   <Check className="w-full h-full" />
                 </div>
               ) : (
-                <img
-                  src={circleIcon}
-                  alt={currentStatus.title}
-                  className="w-10 h-10 object-contain"
-                />
+                <div className="w-full h-full flex items-center justify-center p-2 text-orange-500">
+                  <Receipt className="w-full h-full" />
+                </div>
               )}
             </div>
             <div className="flex-1">

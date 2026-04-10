@@ -78,7 +78,7 @@ export const PickupActionModal = ({
   const restaurantLogo = order.restaurantImage || order.restaurant?.logo || order.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-[110] p-0 sm:p-4 h-full flex items-end">
+    <div className="fixed inset-0 z-110 p-0 sm:p-4 flex items-end justify-center">
       {/* Background Dim */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -89,23 +89,23 @@ export const PickupActionModal = ({
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12"
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 max-h-[84vh] overflow-y-auto"
       >
         {/* Handle / Minimize */}
-        <div className="w-full flex justify-center pb-4 pt-1">
+        <div className="w-full flex justify-center pb-2 sm:pb-4 pt-1">
           <button onClick={onMinimize} className="p-1 hover:bg-gray-100 active:scale-95 transition-all rounded-full flex flex-col items-center">
-             <ChevronDown className="w-6 h-6 text-gray-400 stroke-[3]" />
+             <ChevronDown className="w-6 h-6 text-gray-400 stroke-3" />
           </button>
         </div>
 
         {/* Restaurant Header */}
-        <div className="flex items-start justify-between mb-8 pb-4 border-b border-gray-50">
-          <div className="flex gap-4">
+        <div className="flex items-start justify-between mb-5 sm:mb-8 pb-3 sm:pb-4 border-b border-gray-50">
+          <div className="flex gap-3 sm:gap-4">
             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/5 overflow-hidden border border-gray-100">
               <img src={restaurantLogo} alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h3 className="text-gray-950 text-xl font-bold">{restaurantName}</h3>
+              <h3 className="text-gray-950 text-lg sm:text-xl font-bold">{restaurantName}</h3>
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
                 {isAtPickup ? (
                   <span className="text-green-600">Reached Location √</span>
@@ -137,7 +137,7 @@ export const PickupActionModal = ({
         </div>
 
         {/* Action Sliders */}
-        <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
           {!isAtPickup ? (
             <div>
               <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 transition-colors ${
@@ -161,14 +161,14 @@ export const PickupActionModal = ({
                    <>
                       <button
                         onClick={handleTakeCameraPhoto}
-                        className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-gray-900 text-white font-bold text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl bg-gray-900 text-white font-bold text-[11px] sm:text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
                       >
                         <Camera className="w-5 h-5" />
                         <span>Camera</span>
                       </button>
                       <button
                         onClick={handlePickFromGallery}
-                        className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 font-bold text-xs uppercase tracking-widest active:scale-95 transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 font-bold text-[11px] sm:text-xs uppercase tracking-widest active:scale-95 transition-all"
                       >
                         <ImageIcon className="w-5 h-5" />
                         <span>Gallery</span>
@@ -177,14 +177,14 @@ export const PickupActionModal = ({
                  )}
 
                  {isUploadingBill && (
-                    <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gray-50 text-gray-400 font-bold text-xs uppercase tracking-widest">
+                    <div className="w-full flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl bg-gray-50 text-gray-400 font-bold text-[11px] sm:text-xs uppercase tracking-widest">
                        <Loader2 className="w-4 h-4 animate-spin" />
                        <span>Uploading...</span>
                     </div>
                  )}
 
                  {billImageUploaded && (
-                    <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-green-100 text-green-700 font-bold text-xs uppercase tracking-widest">
+                    <div className="w-full flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl bg-green-100 text-green-700 font-bold text-[11px] sm:text-xs uppercase tracking-widest">
                        <CheckCircle2 className="w-4 h-4" />
                        <span>Bill Uploaded</span>
                     </div>
@@ -217,7 +217,7 @@ export const PickupActionModal = ({
 
           {/* Delivery Instructions (User Note) */}
           {order?.note && (
-            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 flex gap-3 items-start">
+            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3.5 sm:p-4 flex gap-3 items-start">
               <ChefHat className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-1.5">User Instructions</p>
@@ -229,7 +229,7 @@ export const PickupActionModal = ({
           {/* Collapsible Order Summary */}
           <button 
             onClick={() => setShowItems(!showItems)}
-            className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors"
+            className="w-full flex items-center justify-between p-3.5 sm:p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors"
           >
             <div className="flex items-center gap-3 text-gray-900 font-bold text-xs uppercase tracking-widest">
               <Package className="w-5 h-5 text-gray-400" />

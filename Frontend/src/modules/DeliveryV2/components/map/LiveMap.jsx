@@ -49,6 +49,7 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
   });
 
   const [directions, setDirections] = useState(null);
+  const [baselineDirections, setBaselineDirections] = useState(null);
   const [map, setMapInternal] = useState(null);
   const [zones, setZones] = useState([]);
   const [lastDirectionsAt, setLastDirectionsAt] = useState(0);
@@ -70,7 +71,18 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
   useEffect(() => {
     setLastDirectionsAt(0);
     setDirections(null);
+    setBaselineDirections(null);
   }, [tripStatus, activeOrder?._id]);
+
+  const parsePoint = useCallback((raw) => {
+    if (!raw) return null;
+    const lat = parseFloat(raw.lat ?? raw.latitude);
+    const lng = parseFloat(raw.lng ?? raw.longitude);
+    return (Number.isFinite(lat) && Number.isFinite(lng)) ? { lat, lng } : null;
+  }, []);
+
+  const restaurantPoint = useMemo(() => parsePoint(activeOrder?.restaurantLocation), [activeOrder?.restaurantLocation, parsePoint]);
+  const customerPoint = useMemo(() => parsePoint(activeOrder?.customerLocation), [activeOrder?.customerLocation, parsePoint]);
 
   const targetLocation = useMemo(() => {
     if (!activeOrder) return null;
@@ -81,10 +93,8 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
       rawLoc = activeOrder.customerLocation;
     }
     if (!rawLoc) return null;
-    const lat = parseFloat(rawLoc.lat || rawLoc.latitude);
-    const lng = parseFloat(rawLoc.lng || rawLoc.longitude);
-    return (Number.isFinite(lat) && Number.isFinite(lng)) ? { lat, lng } : null;
-  }, [activeOrder, tripStatus]);
+    return parsePoint(rawLoc);
+  }, [activeOrder, tripStatus, parsePoint]);
 
   const parsedRiderLocation = useMemo(() => {
     if (!riderLocation) return null;
@@ -134,6 +144,12 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
     }
   }, [onPolylineReceived]);
 
+  const baselineDirectionsCallback = useCallback((result, status) => {
+    if (status === 'OK' && result) {
+      setBaselineDirections(result);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -160,23 +176,28 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
   }, [activeOrder]);
 
   const lastCenteredPosRef = useRef(null);
+  const lastBoundsUpdateRef = useRef(0);
   useEffect(() => {
-    if (map && parsedRiderLocation) {
-      if (!lastCenteredPosRef.current) {
-        map.panTo(parsedRiderLocation);
-        lastCenteredPosRef.current = parsedRiderLocation;
-        return;
-      }
-      const dist = window.google.maps.geometry.spherical.computeDistanceBetween(
-        new window.google.maps.LatLng(parsedRiderLocation.lat, parsedRiderLocation.lng),
-        new window.google.maps.LatLng(lastCenteredPosRef.current.lat, lastCenteredPosRef.current.lng)
-      );
-      if (dist > 30) {
-        map.panTo(parsedRiderLocation);
-        lastCenteredPosRef.current = parsedRiderLocation;
-      }
+    if (!map || !window.google?.maps) return;
+
+    const hasAnchors = restaurantPoint || customerPoint;
+    if (!hasAnchors && !parsedRiderLocation) return;
+
+    const now = Date.now();
+    if (now - lastBoundsUpdateRef.current < 12000) return;
+    lastBoundsUpdateRef.current = now;
+
+    const bounds = new window.google.maps.LatLngBounds();
+    if (restaurantPoint) bounds.extend(restaurantPoint);
+    if (customerPoint) bounds.extend(customerPoint);
+    if (parsedRiderLocation) bounds.extend(parsedRiderLocation);
+
+    map.fitBounds(bounds, { top: 70, right: 70, bottom: 120, left: 70 });
+
+    if (parsedRiderLocation) {
+      lastCenteredPosRef.current = parsedRiderLocation;
     }
-  }, [map, parsedRiderLocation]);
+  }, [map, parsedRiderLocation, restaurantPoint, customerPoint]);
 
   const remainingPath = useMemo(() => {
     if (!directions || !parsedRiderLocation) return [];
@@ -200,6 +221,12 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
     travelMode: 'DRIVING',
   } : null;
 
+  const baselineServiceOptions = (restaurantPoint && customerPoint) ? {
+    origin: restaurantPoint,
+    destination: customerPoint,
+    travelMode: 'DRIVING',
+  } : null;
+
   return (
     <div className="absolute inset-0 z-0 text-gray-900 overflow-hidden flex flex-col">
       <GoogleMap
@@ -213,12 +240,24 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
           <DirectionsService options={directionsServiceOptions} callback={directionsCallback} />
         )}
 
-        {remainingPath.length > 0 && (
-          <Polyline path={remainingPath} options={{ strokeColor: '#22c55e', strokeOpacity: 0.9, strokeWeight: 6, zIndex: 10 }} />
+        {baselineServiceOptions && !baselineDirections && (
+          <DirectionsService options={baselineServiceOptions} callback={baselineDirectionsCallback} />
         )}
 
-        {directions && (
-          <Polyline path={directions.routes[0].overview_path} options={{ strokeColor: '#94a3b8', strokeOpacity: 0, strokeWeight: 4, zIndex: 1, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.3, scale: 3, strokeWeight: 4, strokeColor: '#64748b' }, offset: '0', repeat: '15px' }] }} />
+        {remainingPath.length > 0 && (
+          <Polyline path={remainingPath} options={{ strokeColor: '#22c55e', strokeOpacity: 0.98, strokeWeight: 7, zIndex: 12 }} />
+        )}
+
+        {baselineDirections && (
+          <Polyline
+            path={baselineDirections.routes[0].overview_path}
+            options={{
+              strokeColor: '#9ca3af',
+              strokeOpacity: 0.9,
+              strokeWeight: 5,
+              zIndex: 4,
+            }}
+          />
         )}
 
         {parsedRiderLocation && (
@@ -229,8 +268,26 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
           </OverlayView>
         )}
 
-        {targetLocation && (
-          <Marker position={targetLocation} icon={{ url: (tripStatus === 'PICKING_UP' || tripStatus === 'REACHED_PICKUP') ? restaurantMarkerUrl : customerMarkerUrl, scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) }} />
+        {restaurantPoint && (
+          <Marker
+            position={restaurantPoint}
+            icon={{
+              url: restaurantMarkerUrl,
+              scaledSize: new window.google.maps.Size(44, 44),
+              anchor: new window.google.maps.Point(22, 22)
+            }}
+          />
+        )}
+
+        {customerPoint && (
+          <Marker
+            position={customerPoint}
+            icon={{
+              url: customerMarkerUrl,
+              scaledSize: new window.google.maps.Size(44, 44),
+              anchor: new window.google.maps.Point(22, 22)
+            }}
+          />
         )}
 
         {zones.map((zone) => (

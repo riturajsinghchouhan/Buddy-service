@@ -55,10 +55,18 @@ const DeliveryTrackingMap = ({
   const socketRef = useRef(null);
   const interpStateRef = useRef({ lastPos: null, nextPos: null, startTime: 0 });
 
-  const { isLoaded } = useJsApiLoader({
+  const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: LIBRARIES,
   });
+
+  if (loadError) {
+    return (
+      <div className="w-full h-full bg-red-50 border border-red-200 rounded-2xl flex items-center justify-center px-4 text-center">
+        <p className="text-sm text-red-700">Google Map load failed. Please verify Maps API key and allowed localhost referrers.</p>
+      </div>
+    );
+  }
 
   const trackingIds = useMemo(() => {
     const ids = [orderId, ...(Array.isArray(orderTrackingIds) ? orderTrackingIds : [])]
@@ -203,13 +211,11 @@ const DeliveryTrackingMap = ({
 
     const bounds = new window.google.maps.LatLngBounds();
     
-    if (isOrderPickedUp) {
-      if (riderLocation) bounds.extend(riderLocation);
-      bounds.extend(customerCoords);
-    } else {
-      if (riderLocation) bounds.extend(riderLocation);
-      bounds.extend(restaurantCoords);
-    }
+    // Keep both anchor points in view from order placed stage,
+    // then include rider when available for Swiggy-like tracking feel.
+    bounds.extend(restaurantCoords);
+    bounds.extend(customerCoords);
+    if (riderLocation) bounds.extend(riderLocation);
 
     map.fitBounds(bounds, { 
       top: 100, 
@@ -318,21 +324,10 @@ const DeliveryTrackingMap = ({
           <Polyline
             path={baselineDirections.routes[0].overview_path}
             options={{
-              strokeColor: '#94a3b8', 
-              strokeOpacity: 0, // Dotted
-              strokeWeight: 4,
+              strokeColor: '#9ca3af',
+              strokeOpacity: 0.9,
+              strokeWeight: 5,
               zIndex: 5,
-              icons: [{
-                icon: { 
-                  path: 'M 0,-1 0,1', 
-                  strokeOpacity: 0.5, 
-                  scale: 3, 
-                  strokeWeight: 4,
-                  strokeColor: '#64748b'
-                },
-                offset: '0',
-                repeat: '15px'
-              }]
             }}
           />
         )}
@@ -349,7 +344,7 @@ const DeliveryTrackingMap = ({
             })()}
             options={{
               strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
-              strokeWeight: 6,
+              strokeWeight: 7,
               strokeOpacity: 1,
               zIndex: 10
             }}
@@ -372,8 +367,8 @@ const DeliveryTrackingMap = ({
               preserveViewport: true,
               polylineOptions: {
                 strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
-                strokeWeight: 6,
-                strokeOpacity: 0.8,
+                strokeWeight: 7,
+                strokeOpacity: 0.95,
                 zIndex: 10
               }
             }}
