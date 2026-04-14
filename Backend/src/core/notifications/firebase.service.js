@@ -216,6 +216,12 @@ const normalizeTokenList = (tokens = []) => {
     return normalized.slice(-10);
 };
 
+const pickLatestTokenOnly = (tokens = []) => {
+    const normalized = normalizeTokenList(tokens);
+    if (!normalized.length) return [];
+    return [normalized[normalized.length - 1]];
+};
+
 const readTokensFromDoc = (doc, platform) => {
     if (!doc) return [];
     if (platform) {
@@ -373,12 +379,16 @@ export const sendNotificationToOwner = async ({ ownerType, ownerId, payload, pla
     }
 
     const tokens = await listOwnerTokens({ ownerType, ownerId, platform });
-    if (!tokens.length) {
+    // Default behavior: send to latest active token only to avoid duplicate pushes
+    // from stale token history on the same device/account.
+    const shouldFanoutAllDevices = payload?.sendToAllDevices === true;
+    const targetTokens = shouldFanoutAllDevices ? normalizeTokenList(tokens) : pickLatestTokenOnly(tokens);
+    if (!targetTokens.length) {
         return { successCount: 0, failureCount: 0, results: [] };
     }
     try {
         console.log(`[FCM] Sending to ${ownerType}:${ownerId}. Title: "${enrichedPayload.title || 'Data Only'}"`);
-        const response = await sendPushNotification(tokens, enrichedPayload);
+        const response = await sendPushNotification(targetTokens, enrichedPayload);
         const invalidTokens = (response.results || [])
 
             .filter((item) => !item.ok && item.remove)
@@ -403,7 +413,7 @@ export const sendNotificationToOwner = async ({ ownerType, ownerId, payload, pla
         return response;
     } catch (error) {
         logger.warn(`FCM push failed for ${ownerType}:${ownerId}: ${error.message}`);
-        return { successCount: 0, failureCount: tokens.length, error: error.message };
+        return { successCount: 0, failureCount: targetTokens.length, error: error.message };
     }
 };
 

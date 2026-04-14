@@ -33,6 +33,24 @@ import {
   isStatusAdvance,
 } from './order.helpers.js';
 
+function normalizeOtpValue(value) {
+  return String(value ?? '').replace(/\D/g, '').trim();
+}
+
+function isOtpMatch(expectedOtp, enteredOtp) {
+  const expected = normalizeOtpValue(expectedOtp);
+  const entered = normalizeOtpValue(enteredOtp);
+  if (!expected || !entered) return false;
+  if (entered === expected) return true;
+
+  // Accept last 4 digits if client sends prefixed/padded OTP.
+  if (expected.length === 4 && entered.length > 4) {
+    return entered.slice(-4) === expected;
+  }
+
+  return false;
+}
+
 async function getPartnerCashCapacity(deliveryPartnerId) {
   const partnerObjectId = new mongoose.Types.ObjectId(deliveryPartnerId);
   const limitDoc = await FoodDeliveryCashLimit.findOne({ isActive: true })
@@ -95,7 +113,8 @@ async function getPartnerCashCapacity(deliveryPartnerId) {
   };
 }
 
-function emitOrderUpdate(order, deliveryPartnerId) {
+function emitOrderUpdate(order, deliveryPartnerId, options = {}) {
+  const shouldSendMilestonePush = options?.sendMilestonePush !== false;
   try {
     const io = getIO();
     if (io) {
@@ -118,6 +137,9 @@ function emitOrderUpdate(order, deliveryPartnerId) {
       );
       io.to(rooms.user(order.userId)).emit('order_status_update', payload);
     }
+
+    // Only send push notifications for key delivery milestones when explicitly allowed.
+    if (!shouldSendMilestonePush) return;
 
     // Only send push notifications for key delivery milestones
     const status = order.orderStatus;
@@ -154,11 +176,8 @@ function emitOrderUpdate(order, deliveryPartnerId) {
     }
 
     if (userTitle) {
-      void notifyOwnersSafely(
-        [
-          { ownerType: 'RESTAURANT', ownerId: order.restaurantId },
-          { ownerType: 'USER', ownerId: order.userId },
-        ],
+      void notifyOwnerSafely(
+        { ownerType: 'USER', ownerId: order.userId },
         {
           title: userTitle,
           body: userBody,
@@ -276,6 +295,15 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
 export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
   const partnerCapacity = await getPartnerCashCapacity(deliveryPartnerId);
+  const cashLimit = {
+    blocked: !partnerCapacity.hasCapacity,
+    message: !partnerCapacity.hasCapacity
+      ? 'Please deposit your amount to get new orders.'
+      : '',
+    totalCashLimit: Number(partnerCapacity.totalCashLimit || 0),
+    cashInHand: Number(partnerCapacity.cashInHand || 0),
+    availableCashLimit: Number(partnerCapacity.availableCashLimit || 0),
+  };
 
   const activeOwnOrderFilter = {
     'dispatch.deliveryPartnerId': new mongoose.Types.ObjectId(deliveryPartnerId),
@@ -334,19 +362,42 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
     };
   });
 
-  return buildPaginatedResult({ docs: enriched, total, page, limit });
+  return {
+    ...buildPaginatedResult({ docs: enriched, total, page, limit }),
+    cashLimit,
+  };
 }
 
 export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
   const identity = buildOrderIdentityFilter(orderId);
   if (!identity) throw new ValidationError('Order id required');
 
+  const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+
+  const existingOrder = await FoodOrder.findOne(identity)
+    .select('pricing payment dispatch orderStatus')
+    .lean();
+  if (!existingOrder) throw new NotFoundError('Order not found');
+
+  const paymentMethod = String(existingOrder?.payment?.method || 'cash').toLowerCase();
+  const isCashOrder = paymentMethod === 'cash';
+  const orderAmount = Math.max(0, Number(existingOrder?.pricing?.total || 0));
+  const offeredEntry = (existingOrder?.dispatch?.offeredTo || []).find(
+    (entry) => String(entry?.partnerId || '') === String(deliveryPartnerId),
+  );
+  const canBypassCashLimit = Boolean(offeredEntry?.allowOverLimit);
+
   const partnerCapacity = await getPartnerCashCapacity(deliveryPartnerId);
-  if (!partnerCapacity.hasCapacity) {
-    throw new ValidationError('Cash limit reached. Settle your cash-in-hand before accepting new orders.');
+  const hasAmountCapacity = Number(partnerCapacity.availableCashLimit || 0) >= orderAmount;
+
+  if (isCashOrder && !hasAmountCapacity && !canBypassCashLimit) {
+    throw new ValidationError('Cash limit is not enough for this order amount. Please deposit your amount to get orders.');
   }
 
-  const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+  if (!partnerCapacity.hasCapacity && !canBypassCashLimit) {
+    throw new ValidationError('Cash limit reached. Please deposit your amount to get orders.');
+  }
+
   const now = new Date();
   const acceptedStatuses = ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up'];
   const cancellableStatuses = [
@@ -506,21 +557,32 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
         logger.info(`[DeliveryDispatch] Broadcasted order_claimed to ${offeredPartners.length - 1} other partners for order ${order._id.toString()}`);
       }
 
-      await notifyOwnersSafely(
-        [
-          { ownerType: 'USER', ownerId: order.userId },
-          { ownerType: 'RESTAURANT', ownerId: order.restaurantId },
-          { ownerType: 'DELIVERY_PARTNER', ownerId: deliveryPartnerId },
-        ],
+      await notifyOwnerSafely(
+        { ownerType: 'USER', ownerId: order.userId },
         {
-          title: `Order ${order._id.toString()} accepted`,
-          body: 'A delivery partner has accepted your order.',
+          title: `Delivery partner assigned`,
+          body: `A delivery partner has accepted Order #${order._id.toString()}.`,
           data: {
             type: 'delivery_accepted',
             orderId: order._id.toString(),
             orderMongoId: order._id?.toString?.() || '',
             dispatchStatus: order.dispatch?.status,
             link: '/food/user/orders',
+          },
+        },
+      );
+
+      await notifyOwnerSafely(
+        { ownerType: 'RESTAURANT', ownerId: order.restaurantId },
+        {
+          title: `Rider assigned`,
+          body: `Order #${order._id.toString()} is now assigned to a delivery partner.`,
+          data: {
+            type: 'delivery_accepted',
+            orderId: order._id.toString(),
+            orderMongoId: order._id?.toString?.() || '',
+            dispatchStatus: order.dispatch?.status,
+            link: '/food/restaurant/orders',
           },
         },
       );
@@ -694,19 +756,7 @@ export async function confirmPickupDelivery(orderId, deliveryPartnerId, billImag
     billImageUrl,
   };
 
-  // Pre-generate handover OTP so user can see it as soon as food is on the way
-  const existingOtp = String(order.deliveryOtp || '').trim();
-  if (!existingOtp) {
-    order.deliveryOtp = generateFourDigitDeliveryOtp();
-    order.deliveryVerification = {
-      ...(order.deliveryVerification?.toObject?.() ||
-        order.deliveryVerification ||
-        {}),
-      dropOtp: { required: true, verified: false },
-    };
-  }
-
-  emitDeliveryDropOtpToUser(order, String(order.deliveryOtp || "").trim());
+  // OTP should be generated/sent only when rider explicitly requests it at drop.
 
   pushStatusHistory(order, {
     byRole: 'DELIVERY_PARTNER',
@@ -754,8 +804,29 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
     '';
 
   const existingOtp = String(order.deliveryOtp || '').trim();
-  if (!alreadyAtDrop || !existingOtp) {
+
+  // Idempotency: if already reached drop and OTP exists, avoid duplicate push notifications.
+  if (alreadyAtDrop && existingOtp) {
+    const hasDropOtpMeta = Boolean(order.deliveryVerification?.dropOtp);
+    if (!hasDropOtpMeta) {
+      order.deliveryVerification = {
+        ...(order.deliveryVerification?.toObject?.() ||
+          order.deliveryVerification ||
+          {}),
+        dropOtp: { required: true, verified: false },
+      };
+      await order.save();
+    }
+    // Rider explicitly requested OTP again at drop, re-emit same OTP without regenerating.
+    emitDeliveryDropOtpToUser(order, existingOtp);
+    return sanitizeOrderForExternal(order);
+  }
+
+  if (!existingOtp) {
     order.deliveryOtp = generateFourDigitDeliveryOtp();
+  }
+
+  if (!order.deliveryVerification?.dropOtp) {
     order.deliveryVerification = {
       ...(order.deliveryVerification?.toObject?.() ||
         order.deliveryVerification ||
@@ -805,20 +876,31 @@ export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
     throw new ForbiddenError('Not your order');
   }
 
-  const otpStr = String(otp || '').trim();
+  const otpStr = normalizeOtpValue(otp);
   if (!otpStr) throw new ValidationError('OTP is required');
 
   if (!order.deliveryVerification?.dropOtp?.required) {
-    throw new ValidationError(
-      'OTP verification is not active for this order. Confirm reached drop first.',
-    );
+    const hasSecretOtp = Boolean(normalizeOtpValue(order.deliveryOtp));
+    if (!hasSecretOtp) {
+      throw new ValidationError(
+        'OTP verification is not active for this order. Confirm reached drop first.',
+      );
+    }
+
+    if (!order.deliveryVerification) order.deliveryVerification = {};
+    order.deliveryVerification.dropOtp = {
+      required: true,
+      verified: false,
+      ...(order.deliveryVerification?.dropOtp || {}),
+    };
+    order.markModified('deliveryVerification.dropOtp');
+    await order.save();
   }
   if (order.deliveryVerification?.dropOtp?.verified) {
     return { order: sanitizeOrderForExternal(order) };
   }
 
-  const expected = String(order.deliveryOtp || '').trim();
-  if (!expected || expected !== otpStr) {
+  if (!isOtpMatch(order.deliveryOtp, otpStr)) {
     throw new ValidationError(
       'Invalid OTP. Ask the customer for the code shown in their app.',
     );
@@ -829,7 +911,8 @@ export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
   order.markModified('deliveryVerification.dropOtp.verified');
   await order.save();
 
-  emitOrderUpdate(order, deliveryPartnerId);
+  // OTP verification does not advance order status; suppress milestone push to avoid duplicates.
+  emitOrderUpdate(order, deliveryPartnerId, { sendMilestonePush: false });
   enqueueOrderEvent('drop_otp_verified', {
     orderMongoId: order._id?.toString?.(),
     orderId: order._id.toString(),
@@ -856,8 +939,7 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
     !order.deliveryVerification?.dropOtp?.verified
   ) {
     const orderWithSecret = await FoodOrder.findById(order._id).select('+deliveryOtp');
-    const expected = String(orderWithSecret?.deliveryOtp || '').trim();
-    if (expected && expected === String(otp).trim()) {
+    if (isOtpMatch(orderWithSecret?.deliveryOtp, otp)) {
       order.deliveryVerification.dropOtp.verified = true;
       order.markModified('deliveryVerification.dropOtp.verified');
     } else {

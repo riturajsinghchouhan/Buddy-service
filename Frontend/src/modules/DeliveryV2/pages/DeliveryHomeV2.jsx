@@ -74,6 +74,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { unreadCount: notificationUnreadCount } = useNotificationInbox("delivery", { limit: 20 });
 
   const [incomingOrder, setIncomingOrder] = useState(null);
+  const [cashLimitNotice, setCashLimitNotice] = useState(null);
   const [currentTab, setCurrentTab] = useState(tab);
   
   // Track URL changes (Prop changes) to update sub-page content
@@ -561,6 +562,10 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               ? availablePayload
               : [];
 
+        const nextCashLimitNotice =
+          availablePayload?.cashLimit?.blocked ? availablePayload.cashLimit : null;
+        if (!cancelled) setCashLimitNotice(nextCashLimitNotice);
+
         const nextIncomingOrder = availableOrders.find((order) => {
           const dispatchStatus = String(order?.dispatch?.status || '').toLowerCase();
           const orderStatus = String(order?.orderStatus || order?.status || '').toLowerCase();
@@ -571,6 +576,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         });
 
         if (!cancelled && nextIncomingOrder) {
+          setCashLimitNotice(null);
           setIncomingOrder((prev) => {
             const prevId = prev?.orderId || prev?._id || prev?.orderMongoId;
             const nextId =
@@ -721,6 +727,17 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                       <p className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">{isOnline ? 'Waiting for order requests' : 'Go online to receive jobs'}</p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {!activeOrder && cashLimitNotice?.blocked && (
+                <div className="mt-3 rounded-2xl border border-amber-300/40 bg-amber-500/10 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-200">
+                    Cash Limit Alert
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-amber-100">
+                    {cashLimitNotice?.message || 'Please deposit your amount to get orders.'}
+                  </p>
                 </div>
               )}
             </motion.div>

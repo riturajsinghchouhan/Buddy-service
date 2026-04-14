@@ -909,6 +909,25 @@ export default function OrdersMain() {
     return value || null;
   };
 
+  const normalizeOrderStatusValue = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_");
+
+  const isUserCancelledStatus = (statusValue) =>
+    normalizeOrderStatusValue(statusValue) === "cancelled_by_user";
+
+  const isAnyCancelledStatus = (statusValue) => {
+    const normalized = normalizeOrderStatusValue(statusValue);
+    return (
+      normalized === "cancelled" ||
+      normalized === "cancelled_by_user" ||
+      normalized === "cancelled_by_restaurant" ||
+      normalized === "cancelled_by_admin"
+    );
+  };
+
   const getPopupOrderTotal = (orderLike) => {
     if (!orderLike) return 0;
 
@@ -1087,6 +1106,11 @@ export default function OrdersMain() {
     if (newOrder) {
       debugLog("?? New order received via Socket.IO:", newOrder);
 
+      if (isAnyCancelledStatus(newOrder?.status || newOrder?.orderStatus)) {
+        clearNewOrder();
+        return;
+      }
+
       const scheduledAt = newOrder.scheduledAt
         ? new Date(newOrder.scheduledAt).getTime()
         : null;
@@ -1110,6 +1134,67 @@ export default function OrdersMain() {
       }
     }
   }, [newOrder]);
+
+  useEffect(() => {
+    const onRestaurantOrderStatusUpdate = (event) => {
+      const payload = event?.detail || {};
+      const payloadStatus = payload?.orderStatus || payload?.status;
+      if (!isAnyCancelledStatus(payloadStatus)) return;
+
+      const activePopupOrder = popupOrder || newOrder;
+      if (!activePopupOrder) return;
+
+      const activeIds = [
+        activePopupOrder?.orderMongoId,
+        activePopupOrder?.orderId,
+        activePopupOrder?._id,
+        activePopupOrder?.id,
+      ]
+        .map((v) => (v == null ? "" : String(v).trim()))
+        .filter(Boolean);
+
+      const payloadIds = [
+        payload?.orderMongoId,
+        payload?.orderId,
+        payload?._id,
+        payload?.id,
+      ]
+        .map((v) => (v == null ? "" : String(v).trim()))
+        .filter(Boolean);
+
+      const isSameOrder = payloadIds.some((id) => activeIds.includes(id));
+      if (!isSameOrder) return;
+
+      const cancelledStatus = normalizeOrderStatusValue(payloadStatus);
+      setPopupOrder((prev) => {
+        const base = prev || activePopupOrder || {};
+        return {
+          ...base,
+          status: cancelledStatus,
+          orderStatus: cancelledStatus,
+        };
+      });
+      clearNewOrder();
+
+      if (isUserCancelledStatus(cancelledStatus)) {
+        toast.info("Order canceled by user");
+      } else {
+        toast.info("Order cancelled");
+      }
+    };
+
+    window.addEventListener(
+      "restaurantOrderStatusUpdate",
+      onRestaurantOrderStatusUpdate,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "restaurantOrderStatusUpdate",
+        onRestaurantOrderStatusUpdate,
+      );
+    };
+  }, [popupOrder, newOrder]);
 
   // Keep refs in sync to avoid stale state inside one-time event handlers.
   useEffect(() => {
@@ -1284,6 +1369,26 @@ export default function OrdersMain() {
       acceptSwipeStartXRef.current = 0;
     }
   }, [showNewOrderPopup]);
+
+  useEffect(() => {
+    if (!showNewOrderPopup) return;
+
+    const activePopupOrder = popupOrder || newOrder;
+    const popupStatus =
+      activePopupOrder?.orderStatus || activePopupOrder?.status;
+
+    if (!isAnyCancelledStatus(popupStatus)) return;
+
+    const timer = setTimeout(() => {
+      setShowNewOrderPopup(false);
+      setPopupOrder(null);
+      clearNewOrder();
+      setCountdown(240);
+      setPrepTime(11);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [showNewOrderPopup, popupOrder, newOrder]);
 
   useEffect(() => {
     const handleMouseMove = (event) => {
@@ -2386,65 +2491,90 @@ export default function OrdersMain() {
                 </div>
 
                 <div className="px-4 pb-4 pt-3 border-t border-gray-200 bg-white">
-                  <div className="space-y-3">
-                    <div
-                      ref={acceptSliderRef}
-                      className="relative h-14 rounded-2xl bg-gray-900 overflow-hidden select-none touch-pan-y">
-                      <motion.div
-                        className="absolute inset-y-0 left-0 bg-blue-600"
-                        initial={{ width: "100%" }}
-                        animate={{ width: `${(countdown / 240) * 100}%` }}
-                        transition={{ duration: 1, ease: "linear" }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center px-16">
-                        <span className="relative z-10 text-sm font-semibold text-white text-center">
-                          {isAcceptingOrder
-                            ? "Accepting order..."
-                            : `Slide to accept (${formatTime(countdown)})`}
-                        </span>
-                      </div>
-                      <motion.button
-                        type="button"
-                        className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white text-gray-900 shadow-md disabled:cursor-not-allowed"
-                        style={{
-                          x: (() => {
-                            const sliderWidth =
-                              acceptSliderRef.current?.offsetWidth || 320;
-                            const handleWidth = 40;
-                            const maxTravel = Math.max(
-                              sliderWidth - handleWidth - 16,
-                              0,
-                            );
-                            return acceptSwipeProgress * maxTravel;
-                          })(),
-                        }}
-                        onMouseDown={(e) => handleAcceptSwipeStart(e.clientX)}
-                        onTouchStart={(e) =>
-                          handleAcceptSwipeStart(e.touches[0].clientX)
-                        }
-                        onMouseMove={(e) => {
-                          if (acceptSwipeActiveRef.current)
-                            handleAcceptSwipeMove(e.clientX);
-                        }}
-                        onTouchMove={(e) =>
-                          handleAcceptSwipeMove(e.touches[0].clientX)
-                        }
-                        onMouseUp={handleAcceptSwipeEnd}
-                        onTouchEnd={handleAcceptSwipeEnd}
-                        onTouchCancel={handleAcceptSwipeEnd}
-                        onClick={triggerSwipeAccept}
-                        disabled={isAcceptingOrder}>
-                        <span className="text-lg font-bold">›</span>
-                      </motion.button>
-                    </div>
+                  {(() => {
+                    const activePopupOrder = popupOrder || newOrder;
+                    const popupStatus =
+                      activePopupOrder?.orderStatus || activePopupOrder?.status;
+                    const userCancelled = isUserCancelledStatus(popupStatus);
+                    const anyCancelled = isAnyCancelledStatus(popupStatus);
 
-                    <button
-                      onClick={handleRejectClick}
-                      disabled={isAcceptingOrder}
-                      className="w-full bg-white border-2 border-red-500 text-red-600 py-3 rounded-lg font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-60">
-                      Reject Order
-                    </button>
-                  </div>
+                    if (anyCancelled) {
+                      return (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                          <p className="text-sm font-semibold text-red-700">
+                            {userCancelled
+                              ? "Order canceled by user"
+                              : "Order cancelled"}
+                          </p>
+                          <p className="mt-1 text-xs text-red-600">
+                            This order is no longer available for acceptance.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        <div
+                          ref={acceptSliderRef}
+                          className="relative h-14 rounded-2xl bg-gray-900 overflow-hidden select-none touch-pan-y">
+                          <motion.div
+                            className="absolute inset-y-0 left-0 bg-blue-600"
+                            initial={{ width: "100%" }}
+                            animate={{ width: `${(countdown / 240) * 100}%` }}
+                            transition={{ duration: 1, ease: "linear" }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center px-16">
+                            <span className="relative z-10 text-sm font-semibold text-white text-center">
+                              {isAcceptingOrder
+                                ? "Accepting order..."
+                                : `Slide to accept (${formatTime(countdown)})`}
+                            </span>
+                          </div>
+                          <motion.button
+                            type="button"
+                            className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white text-gray-900 shadow-md disabled:cursor-not-allowed"
+                            style={{
+                              x: (() => {
+                                const sliderWidth =
+                                  acceptSliderRef.current?.offsetWidth || 320;
+                                const handleWidth = 40;
+                                const maxTravel = Math.max(
+                                  sliderWidth - handleWidth - 16,
+                                  0,
+                                );
+                                return acceptSwipeProgress * maxTravel;
+                              })(),
+                            }}
+                            onMouseDown={(e) => handleAcceptSwipeStart(e.clientX)}
+                            onTouchStart={(e) =>
+                              handleAcceptSwipeStart(e.touches[0].clientX)
+                            }
+                            onMouseMove={(e) => {
+                              if (acceptSwipeActiveRef.current)
+                                handleAcceptSwipeMove(e.clientX);
+                            }}
+                            onTouchMove={(e) =>
+                              handleAcceptSwipeMove(e.touches[0].clientX)
+                            }
+                            onMouseUp={handleAcceptSwipeEnd}
+                            onTouchEnd={handleAcceptSwipeEnd}
+                            onTouchCancel={handleAcceptSwipeEnd}
+                            onClick={triggerSwipeAccept}
+                            disabled={isAcceptingOrder}>
+                            <span className="text-lg font-bold">›</span>
+                          </motion.button>
+                        </div>
+
+                        <button
+                          onClick={handleRejectClick}
+                          disabled={isAcceptingOrder}
+                          className="w-full bg-white border-2 border-red-500 text-red-600 py-3 rounded-lg font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-60">
+                          Reject Order
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
             </motion.div>

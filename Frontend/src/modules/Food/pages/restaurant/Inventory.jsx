@@ -1782,7 +1782,7 @@ export default function Inventory() {
         <div ref={tabBarRef} className="grid grid-cols-2 gap-3">
           <motion.button
             onClick={() => setActiveTab("all-items")}
-            className={`relative overflow-hidden rounded-[24px] border px-5 py-4 text-sm font-semibold whitespace-nowrap ${
+            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold ${
               activeTab === "all-items"
                 ? "border-[#7e3866] text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.6)]"
                 : "border-[#ead6e3] bg-white/90 text-[#6d6470] shadow-[0_16px_40px_-34px_rgba(109,100,112,0.35)]"
@@ -1804,9 +1804,9 @@ export default function Inventory() {
                 }}
               />
             )}
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              <span>All items</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            <span className="relative z-10 flex min-h-7 items-center justify-center gap-2 leading-none">
+              <span className="whitespace-nowrap">All items</span>
+              <span className={`inline-flex min-h-5 min-w-[24px] items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
                 activeTab === "all-items" ? "bg-white text-[#7e3866]" : "bg-[#f6ecf3] text-[#6d6470]"
               }`}>
                 {totalItems}
@@ -1816,7 +1816,7 @@ export default function Inventory() {
 
           <motion.button
             onClick={() => setActiveTab("add-ons")}
-            className={`relative overflow-hidden rounded-[24px] border px-5 py-4 text-sm font-semibold whitespace-nowrap ${
+            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold ${
               activeTab === "add-ons"
                 ? "border-[#7e3866] text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.6)]"
                 : "border-[#ead6e3] bg-white/90 text-[#6d6470] shadow-[0_16px_40px_-34px_rgba(109,100,112,0.35)]"
@@ -1838,9 +1838,9 @@ export default function Inventory() {
                 }}
               />
             )}
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              <span>Add ons</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            <span className="relative z-10 flex min-h-7 items-center justify-center gap-2 leading-none">
+              <span className="whitespace-nowrap">Add ons</span>
+              <span className={`inline-flex min-h-5 min-w-[24px] items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
                 activeTab === "add-ons" ? "bg-white text-[#7e3866]" : "bg-[#f6ecf3] text-[#6d6470]"
               }`}>
                 {addons.length}
@@ -1972,7 +1972,7 @@ export default function Inventory() {
                 <SlidersHorizontal className="w-4 h-4 text-[#7e3866]" />
                 <span>Filters</span>
                 {selectedFilter !== "all" && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#7e3866]" />
+                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#7e3866] ring-2 ring-white" />
                 )}
               </button>
 
@@ -2325,17 +2325,19 @@ export default function Inventory() {
 
                           return (
                           <div key={item.id}>
-                            <div className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                              <div className="flex flex-1 items-center gap-3 min-w-0">
+                            <div className="flex items-start justify-between gap-3 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3.5">
+                              <div className="flex min-w-0 flex-1 items-start gap-3">
                                 {/* Veg/Non-veg Icon */}
-                                <div className={`h-4 w-4 rounded-sm border-2 flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'
+                                <div className={`mt-0.5 h-[18px] w-[18px] shrink-0 rounded-sm border-2 flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'
                                   }`}>
-                                  <div className={`h-2 w-2 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'
+                                  <div className={`h-2.5 w-2.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'
                                     }`} />
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{item.name}</p>
+                                  </div>
+                                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                                       item.isVeg
                                         ? "bg-emerald-50 text-emerald-700"
@@ -2365,7 +2367,7 @@ export default function Inventory() {
                                   <button
                                     type="button"
                                     onClick={() => handleEditItem(category, item)}
-                                    className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                                    className={`mt-2.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
                                       isRejectedItem
                                         ? "bg-red-600 text-white hover:bg-red-700"
                                         : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
@@ -2376,14 +2378,14 @@ export default function Inventory() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
+                              <div className="flex shrink-0 flex-col items-end gap-2 self-start sm:flex-row sm:items-center">
                                 {/* Recommend Thumb Icon */}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleRecommendToggle(category.id, item.id)
                                   }}
-                                  className={`rounded-2xl p-2 transition-colors ${
+                                  className={`rounded-xl p-2 transition-colors ${
                                     item.isRecommended
                                       ? "bg-blue-100 text-blue-600"
                                       : "bg-white text-gray-400 hover:bg-slate-100"

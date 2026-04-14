@@ -194,7 +194,11 @@ export const useOrderManager = () => {
       }
     } catch (error) {
       console.error('Completion Error:', error);
-      toast.error(error?.response?.data?.message || 'Verification failed');
+      toast.error(
+        error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          'Verification failed',
+      );
       throw error;
     }
   };

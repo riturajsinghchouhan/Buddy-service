@@ -17,8 +17,10 @@ import {
   notifyOwnersSafely,
 } from './order.helpers.js';
 
-async function filterPartnersByCashLimit(partners = []) {
+async function filterPartnersByCashLimit(partners = [], options = {}) {
   if (!Array.isArray(partners) || partners.length === 0) return [];
+  const requiredAmount = Math.max(0, Number(options.requiredAmount || 0));
+  const allowOverLimitFallback = options.allowOverLimitFallback !== false;
 
   const limitDoc = await FoodDeliveryCashLimit.findOne({ isActive: true })
     .sort({ createdAt: -1 })
@@ -26,7 +28,14 @@ async function filterPartnersByCashLimit(partners = []) {
   const totalCashLimit = Number(limitDoc?.deliveryCashLimit || 0);
 
   // Treat missing/non-positive setting as "no cap" to avoid blocking all dispatch.
-  if (!Number.isFinite(totalCashLimit) || totalCashLimit <= 0) return partners;
+  if (!Number.isFinite(totalCashLimit) || totalCashLimit <= 0) {
+    return partners.map((p) => ({
+      ...p,
+      availableCashLimit: Number.MAX_SAFE_INTEGER,
+      allowOverLimit: false,
+      requiredCashForOrder: requiredAmount,
+    }));
+  }
 
   const partnerIds = partners
     .map((p) => p?.partnerId || p?._id)
@@ -74,19 +83,47 @@ async function filterPartnersByCashLimit(partners = []) {
     (depositsAgg || []).map((row) => [String(row._id), Number(row.depositedCash || 0)]),
   );
 
-  return partners.filter((p) => {
+  const withCapacity = partners.map((p) => {
     const partnerId = String(p?.partnerId || p?._id || '');
-    if (!partnerId) return false;
+    if (!partnerId) return null;
     const grossCash = grossCashByPartner.get(partnerId) || 0;
     const depositedCash = depositedByPartner.get(partnerId) || 0;
     const cashInHand = Math.max(0, grossCash - depositedCash);
-    return cashInHand < totalCashLimit;
-  });
+    const availableCashLimit = Math.max(0, totalCashLimit - cashInHand);
+    return {
+      ...p,
+      availableCashLimit,
+      allowOverLimit: false,
+      requiredCashForOrder: requiredAmount,
+    };
+  }).filter(Boolean);
+
+  // Base block: riders with zero available limit should not receive fresh offers.
+  const baseEligible = withCapacity.filter((p) => Number(p.availableCashLimit || 0) > 0);
+  if (baseEligible.length === 0) return [];
+
+  if (requiredAmount <= 0) return baseEligible;
+
+  const sufficient = baseEligible.filter(
+    (p) => Number(p.availableCashLimit || 0) >= requiredAmount,
+  );
+  if (sufficient.length > 0) return sufficient;
+
+  if (!allowOverLimitFallback) return [];
+
+  // Fallback: keep order moving by offering to highest available-limit riders.
+  return baseEligible
+    .slice()
+    .sort((a, b) => Number(b.availableCashLimit || 0) - Number(a.availableCashLimit || 0))
+    .map((p) => ({
+      ...p,
+      allowOverLimit: true,
+    }));
 }
 
 async function listNearbyOnlineDeliveryPartners(
   restaurantId,
-  { maxKm = 15, limit = 25 } = {},
+  { maxKm = 15, limit = 25, requiredAmount = 0, allowOverLimitFallback = true } = {},
 ) {
   const rId = (restaurantId?._id || restaurantId).toString();
   const restaurant = await FoodRestaurant.findById(rId)
@@ -104,6 +141,7 @@ async function listNearbyOnlineDeliveryPartners(
 
     const cashEligiblePartners = await filterPartnersByCashLimit(
       partners.map((p) => ({ partnerId: p._id, ...p })),
+      { requiredAmount, allowOverLimitFallback },
     );
 
     return {
@@ -163,7 +201,10 @@ async function listNearbyOnlineDeliveryPartners(
     ? picked.filter(p => p.status === 'approved')
     : picked;
 
-  const cashEligibleFinal = await filterPartnersByCashLimit(final);
+  const cashEligibleFinal = await filterPartnersByCashLimit(final, {
+    requiredAmount,
+    allowOverLimitFallback,
+  });
 
   return { partners: cashEligibleFinal };
 }
@@ -226,6 +267,9 @@ export async function tryAutoAssign(orderId, options = {}) {
 
   try {
     const offeredIds = (order.dispatch?.offeredTo || []).map(o => o.partnerId.toString());
+    const paymentMethod = String(order.payment?.method || 'cash').toLowerCase();
+    const isCashOrder = paymentMethod === 'cash';
+    const requiredAmount = isCashOrder ? Number(order?.pricing?.total || 0) : 0;
     
     // RADIUS EXPANSION LOGIC
     // Attempt 1: 15km, Attempt 2: 25km, Attempt 3: 40km, Attempt 4+: 60km
@@ -234,7 +278,12 @@ export async function tryAutoAssign(orderId, options = {}) {
     if (attempt === 3) maxKm = 40;
     if (attempt >= 4) maxKm = 60;
 
-    const searchOptions = { maxKm, limit: 15 };
+    const searchOptions = {
+      maxKm,
+      limit: 15,
+      requiredAmount,
+      allowOverLimitFallback: true,
+    };
     const { partners } = await listNearbyOnlineDeliveryPartners(order.restaurantId, searchOptions);
     
     // TIERED ALERT LOGIC
@@ -294,14 +343,22 @@ export async function tryAutoAssign(orderId, options = {}) {
       logger.info(`[Phase 2] Broadcasting order ${order._id} to ${eligible.length} riders.`);
       for (const p of eligible) {
         const roomName = rooms.delivery(p.partnerId);
-        if (io) io.to(roomName).emit('new_order', { ...payload, pickupDistanceKm: p.distanceKm });
+        if (io) {
+          const eventPayload = { ...payload, pickupDistanceKm: p.distanceKm };
+          io.to(roomName).emit('new_order', eventPayload);
+          io.to(roomName).emit('new_order_available', eventPayload);
+        }
       }
     } else {
       // PHASE 1: Target best rider only
       const p = eligible[0];
       const roomName = rooms.delivery(p.partnerId);
       logger.info(`[Phase 1] Offering order ${order._id} to best rider ${p.partnerId} (${p.distanceKm}km)`);
-      if (io) io.to(roomName).emit('new_order', { ...payload, pickupDistanceKm: p.distanceKm });
+      if (io) {
+        const eventPayload = { ...payload, pickupDistanceKm: p.distanceKm };
+        io.to(roomName).emit('new_order', eventPayload);
+        io.to(roomName).emit('new_order_available', eventPayload);
+      }
       
       try {
         await notifyOwnerSafely(
@@ -317,10 +374,13 @@ export async function tryAutoAssign(orderId, options = {}) {
       }
     }
 
-    const offeredToEntries = eligible.map(p => ({
+    const partnersToRecord = isPhase2 ? eligible : eligible.slice(0, 1);
+    const offeredToEntries = partnersToRecord.map(p => ({
       partnerId: p.partnerId,
       at: new Date(),
-      action: 'offered'
+      action: 'offered',
+      allowOverLimit: Boolean(p.allowOverLimit),
+      requiredCashForOrder: Number(p.requiredCashForOrder || requiredAmount || 0),
     }));
 
     order.dispatch.status = 'unassigned';
@@ -392,11 +452,49 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     throw new ValidationError('A delivery partner has already accepted this order.');
   }
 
+  const paymentMethod = String(order.payment?.method || 'cash').toLowerCase();
+  const requiredAmount = paymentMethod === 'cash' ? Number(order?.pricing?.total || 0) : 0;
+  const preview = await listNearbyOnlineDeliveryPartners(order.restaurantId, {
+    maxKm: 15,
+    limit: 15,
+    requiredAmount,
+    allowOverLimitFallback: true,
+  });
+  const shortlistedCount = Array.isArray(preview?.partners) ? preview.partners.length : 0;
+
   order.dispatch.status = 'unassigned';
   order.dispatch.deliveryPartnerId = null;
   order.dispatch.offeredTo = [];
   await order.save();
 
   await tryAutoAssign(order._id);
-  return { success: true };
+
+  const refreshed = await FoodOrder.findById(order._id)
+    .select('dispatch.offeredTo dispatch.status dispatch.deliveryPartnerId')
+    .lean();
+  const notifiedCount = Array.isArray(refreshed?.dispatch?.offeredTo)
+    ? refreshed.dispatch.offeredTo.filter((entry) => entry?.action === 'offered').length
+    : 0;
+  const notifiedPartnerIds = Array.isArray(refreshed?.dispatch?.offeredTo)
+    ? refreshed.dispatch.offeredTo
+        .filter((entry) => entry?.action === 'offered' && entry?.partnerId)
+        .map((entry) => String(entry.partnerId))
+    : [];
+  const io = getIO();
+  const connectedSocketCount = io
+    ? notifiedPartnerIds.reduce((count, pid) => {
+        const roomName = rooms.delivery(pid);
+        const roomSize = io?.sockets?.adapter?.rooms?.get(roomName)?.size || 0;
+        return count + roomSize;
+      }, 0)
+    : 0;
+
+  return {
+    success: true,
+    notifiedCount,
+    shortlistedCount,
+    requiredAmount,
+    connectedSocketCount,
+    dispatchStatus: refreshed?.dispatch?.status || 'unassigned',
+  };
 }

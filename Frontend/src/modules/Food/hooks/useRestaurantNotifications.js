@@ -624,7 +624,13 @@ export const useRestaurantNotifications = () => {
     // Listen for order status updates
     socketRef.current.on('order_status_update', (data) => {
       debugLog('?? Order status update:', data);
-      // You can handle status updates here if needed
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('restaurantOrderStatusUpdate', {
+            detail: data || {},
+          }),
+        );
+      }
     });
 
     socketRef.current.on('admin_notification', (payload) => {

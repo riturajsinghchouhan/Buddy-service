@@ -91,6 +91,11 @@ const paymentSchema = new mongoose.Schema(
                 enum: ['none', 'pending', 'processed', 'failed'], 
                 default: 'none' 
             },
+            destination: {
+                type: String,
+                enum: ['source', 'wallet'],
+                default: 'source'
+            },
             amount: { type: Number, default: 0 },
             refundId: { type: String, default: '' },
             processedAt: { type: Date }
@@ -114,7 +119,9 @@ const dispatchSchema = new mongoose.Schema(
         offeredTo: [{
             partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner' },
             at: { type: Date, default: Date.now },
-            action: { type: String, enum: ['offered', 'rejected', 'timeout'], default: 'offered' }
+            action: { type: String, enum: ['offered', 'rejected', 'timeout'], default: 'offered' },
+            allowOverLimit: { type: Boolean, default: false },
+            requiredCashForOrder: { type: Number, default: 0 }
         }],
         dispatchingAt: { type: Date }
     },

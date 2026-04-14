@@ -573,13 +573,17 @@ export async function getDropOtpUser(orderId, userId) {
   if (!order) throw new NotFoundError("Order not found");
 
   const phase = order.deliveryState?.currentPhase;
-  const status = order.orderStatus;
-  const eligiblePhases = ["at_drop", "en_route_to_delivery"];
-  const isEligible = eligiblePhases.includes(phase) || status === "picked_up";
+  const isEligible = phase === "at_drop";
 
   if (!isEligible) {
     throw new ValidationError(
-      "Rider is still at the restaurant. Wait for them to pick up your order to see the OTP."
+      "OTP will appear once the delivery partner requests it at your location."
+    );
+  }
+
+  if (!String(order.deliveryOtp || "").trim()) {
+    throw new ValidationError(
+      "OTP is not available yet. Ask the delivery partner to request OTP again."
     );
   }
 
@@ -674,7 +678,7 @@ export async function resyncState(userId, role) {
   return {};
 }
 
-export async function cancelOrder(orderId, userId, reason) {
+export async function cancelOrder(orderId, userId, reason, refundDestination = "source") {
   const identity = buildOrderIdentityFilter(orderId);
   if (!identity) throw new ValidationError("Order id required");
 
@@ -700,6 +704,10 @@ export async function cancelOrder(orderId, userId, reason) {
 
   const paymentMethod = String(order.payment?.method || "cash").toLowerCase();
   const paymentStatus = String(order.payment?.status || "cod_pending").toLowerCase();
+  const normalizedRefundDestination =
+    String(refundDestination || "source").toLowerCase() === "wallet"
+      ? "wallet"
+      : "source";
   const hasRefundProcessed =
     String(order.payment?.refund?.status || "none").toLowerCase() === "processed";
 
@@ -711,29 +719,52 @@ export async function cancelOrder(orderId, userId, reason) {
     !hasRefundProcessed
   ) {
     try {
-      const refundResult = await initiateRazorpayRefund(
-        order.payment.razorpay.paymentId,
-        order.pricing.total
-      );
-
-      if (refundResult.success) {
+      if (normalizedRefundDestination === "wallet") {
+        await userWalletService.refundWalletBalance(
+          userId,
+          order.pricing.total,
+          `Refund for cancelled order #${order.order_id || order._id}`,
+          { orderId: order._id, source: "order_refund_wallet" },
+        );
         order.payment.status = "refunded";
         order.payment.refund = {
           status: "processed",
+          destination: "wallet",
           amount: order.pricing.total,
-          refundId: refundResult.refundId,
+          refundId: "",
           processedAt: new Date()
         };
       } else {
-        // Log failure but let order cancellation proceed
-        order.payment.refund = {
-          status: "failed",
-          amount: order.pricing.total
-        };
+        const refundResult = await initiateRazorpayRefund(
+          order.payment.razorpay.paymentId,
+          order.pricing.total
+        );
+
+        if (refundResult.success) {
+          order.payment.status = "refunded";
+          order.payment.refund = {
+            status: "processed",
+            destination: "source",
+            amount: order.pricing.total,
+            refundId: refundResult.refundId,
+            processedAt: new Date()
+          };
+        } else {
+          // Log failure but let order cancellation proceed
+          order.payment.refund = {
+            status: "failed",
+            destination: "source",
+            amount: order.pricing.total
+          };
+        }
       }
     } catch (err) {
       console.error(`Refund processing error for Order ${orderId}:`, err);
-      order.payment.refund = { status: "failed", amount: order.pricing.total };
+      order.payment.refund = {
+        status: "failed",
+        destination: normalizedRefundDestination,
+        amount: order.pricing.total,
+      };
     }
   } else if (
     paymentStatus === "paid" &&
@@ -745,12 +776,13 @@ export async function cancelOrder(orderId, userId, reason) {
       order.payment.status = "refunded";
       order.payment.refund = {
         status: "processed",
+        destination: "wallet",
         amount: order.pricing.total,
         processedAt: new Date()
       };
     } catch (err) {
       console.error(`Wallet refund processing error for Order ${orderId}:`, err);
-      order.payment.refund = { status: "failed", amount: order.pricing.total };
+      order.payment.refund = { status: "failed", destination: "wallet", amount: order.pricing.total };
     }
   }
 
@@ -786,7 +818,15 @@ export async function cancelOrder(orderId, userId, reason) {
   const isOnlinePaid =
     finalPaymentMethod === "razorpay" &&
     (finalPaymentStatus === "paid" || finalPaymentStatus === "refunded");
-  const refundDetail = isOnlinePaid ? ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.` : "";
+  const settledRefundDestination =
+    String(order.payment?.refund?.destination || normalizedRefundDestination || "source").toLowerCase() === "wallet"
+      ? "wallet"
+      : "source";
+  const refundDetail = isOnlinePaid
+    ? settledRefundDestination === "wallet"
+      ? ` Your refund of ₹${order.pricing.total} has been credited to your wallet.`
+      : ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.`
+    : "";
   
   await notifyOwnersSafely(
     [
