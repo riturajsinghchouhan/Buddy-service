@@ -29,6 +29,7 @@ export default function UnifiedOTPFastLogin() {
   const [newName, setNewName] = useState("")
   const [isUpdatingName, setIsUpdatingName] = useState(false)
   const [tempAuth, setTempAuth] = useState(null)
+  const [pendingVerify, setPendingVerify] = useState(null)
   const navigate = useNavigate()
   const submitting = useRef(false)
 
@@ -54,7 +55,11 @@ export default function UnifiedOTPFastLogin() {
       setResendTimer(RESEND_COOLDOWN_SECONDS)
       toast.success("OTP sent successfully!")
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || "Failed to send OTP."
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to send OTP."
       toast.error(msg)
     } finally {
       setLoading(false)
@@ -77,7 +82,11 @@ export default function UnifiedOTPFastLogin() {
       setResendTimer(RESEND_COOLDOWN_SECONDS)
       toast.success("OTP resent successfully.")
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || "Failed to resend OTP."
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to resend OTP."
       toast.error(msg)
     } finally {
       setLoading(false)
@@ -89,6 +98,9 @@ export default function UnifiedOTPFastLogin() {
     setStep(1)
     setOtp("")
     setResendTimer(0)
+    setPendingVerify(null)
+    setShowNameModal(false)
+    setNewName("")
   }
 
   const handleVerifyOTP = async (e) => {
@@ -101,9 +113,9 @@ export default function UnifiedOTPFastLogin() {
     if (submitting.current) return
     submitting.current = true
     setLoading(true)
+    let fcmToken = null
+    let platform = "web"
     try {
-      let fcmToken = null;
-      let platform = "web";
       try {
         if (typeof window !== "undefined") {
           if (window.flutter_inappwebview) {
@@ -145,6 +157,12 @@ export default function UnifiedOTPFastLogin() {
     } catch (err) {
       const status = err?.response?.status
       let msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Invalid OTP. Please try again."
+      const nameRequired = /name\s+is\s+required.*first[- ]?time|first[- ]?time.*name\s+is\s+required|first[- ]?time\s*sign\s*up/i.test(String(msg))
+      if (nameRequired) {
+        setPendingVerify({ phone: phoneNumber, otp: otpDigits, fcmToken, platform })
+        setShowNameModal(true)
+        return
+      }
       if (status === 401) {
         if (/deactivat(ed|e)/i.test(String(msg))) {
           msg = "Your account is deactivated. Please contact support."
@@ -168,13 +186,39 @@ export default function UnifiedOTPFastLogin() {
 
     try {
       setIsUpdatingName(true)
+      if (pendingVerify) {
+        const response = await authAPI.verifyOTP(
+          pendingVerify.phone,
+          pendingVerify.otp,
+          "login",
+          newName.trim(),
+          null,
+          "user",
+          null,
+          null,
+          pendingVerify.fcmToken,
+          pendingVerify.platform,
+        )
+        const data = response?.data?.data || response?.data || {}
+        const accessToken = data.accessToken
+        const refreshToken = data.refreshToken || null
+        const user = data.user
+
+        setAuthData("user", accessToken, user, refreshToken)
+        setPendingVerify(null)
+        toast.success(`Welcome, ${newName.trim()}!`)
+        setShowNameModal(false)
+        navigate("/user/auth/portal", { replace: true })
+        return
+      }
+
       // Call update profile API
       await userAPI.updateProfile({ name: newName.trim() })
-      
+
       // Update local storage and auth data with the new name
       const updatedUser = { ...tempAuth.user, name: newName.trim() }
       setAuthData("user", tempAuth.accessToken, updatedUser, tempAuth.refreshToken)
-      
+
       toast.success(`Welcome, ${newName.trim()}!`)
       setShowNameModal(false)
       navigate("/user/auth/portal", { replace: true })
@@ -410,7 +454,10 @@ export default function UnifiedOTPFastLogin() {
 
       {/* Name Collection Modal */}
       <Dialog open={showNameModal} onOpenChange={setShowNameModal}>
-        <DialogContent className="sm:max-w-[425px] rounded-3xl border-none p-0 overflow-hidden bg-white dark:bg-[#1a1a1a]">
+        <DialogContent
+          className="sm:max-w-[425px] rounded-3xl border-none p-0 overflow-hidden bg-white dark:bg-[#1a1a1a]"
+          showCloseButton={false}
+        >
           <div className="bg-[#7e3866] p-8 text-center relative">
             <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 rounded-full blur-2xl" />
             <motion.div 
@@ -455,16 +502,20 @@ export default function UnifiedOTPFastLogin() {
                   "Complete Profile"
                 )}
               </Button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNameModal(false)
-                  navigate("/user/auth/portal", { replace: true })
-                }}
-                className="text-sm text-gray-400 hover:text-gray-600 transition-colors py-2"
-              >
-                Skip for now
-              </button>
+              {!pendingVerify ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNameModal(false)
+                    navigate("/user/auth/portal", { replace: true })
+                  }}
+                  className="text-sm text-gray-400 hover:text-gray-600 transition-colors py-2"
+                >
+                  Skip for now
+                </button>
+              ) : (
+                <p className="text-xs text-gray-400 text-center">Name is required to complete signup.</p>
+              )}
             </div>
           </form>
         </DialogContent>
