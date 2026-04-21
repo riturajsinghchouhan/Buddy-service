@@ -25,11 +25,12 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
   const normalizedPath = getNormalizedRestaurantPath(pathname)
   const explicitBackPath = toRestaurantPath(state?.backTo) || toRestaurantPath(state?.from)
 
-  if (
-    normalizedPath === "/orders/all" ||
-    /^\/orders\/[^/]+$/.test(normalizedPath)
-  ) {
-    return explicitBackPath || "/food/restaurant/orders"
+  if (normalizedPath === "/orders/all") {
+    return explicitBackPath || "/food/restaurant/explore"
+  }
+
+  if (/^\/orders\/[^/]+$/.test(normalizedPath)) {
+    return explicitBackPath || "/food/restaurant/orders/all"
   }
 
   if (
@@ -102,6 +103,10 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     normalizedPath === "/share-feedback"
   ) {
     return explicitBackPath || "/food/restaurant/feedback"
+  }
+
+  if (normalizedPath === "/reservations") {
+    return explicitBackPath || "/food/restaurant/explore"
   }
 
   if (

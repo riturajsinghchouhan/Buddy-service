@@ -947,14 +947,18 @@ export default function PageNavbar({
       }
     }
 
+    const areaDisplay = location?.area && location.area.trim() ? location.area.trim() : "Select Location"
+    const cityDisplay = location?.city || "Indore"
+    const fullAddressDisplay = location?.address || location?.formattedAddress || ""
+    
     return {
-      main: mainLocation,
-      sub: subLocation
+      area: areaDisplay,
+      city: cityDisplay,
+      address: fullAddressDisplay
     }
   }, [location])
 
-  const mainLocationName = locationDisplay.main
-  const subLocationName = locationDisplay.sub
+  const { area: areaName, city: cityName, address: fullAddress } = locationDisplay
   const savedAddressLabel = useMemo(() => {
     if (location?.label && String(location.label).trim()) {
       return String(location.label).trim()
@@ -968,7 +972,31 @@ export default function PageNavbar({
       return ""
     }
   }, [location?.label])
-  const locationSubText = savedAddressLabel ? `Delivering to ${savedAddressLabel}` : subLocationName
+
+  const displayArea = useMemo(() => {
+    let name = areaName || "Select Location"
+    if (/^-?\d+(\.\d+)?$/.test(name.trim())) {
+      return "Current Location"
+    }
+    return name
+  }, [areaName])
+
+  const displayAddress = useMemo(() => {
+    if (savedAddressLabel) return `Delivering to ${savedAddressLabel}`
+    
+    let addr = fullAddress || ""
+    if (cityName) {
+      addr = addr.replace(new RegExp(`,?\\s*${cityName}\\s*`, 'gi'), '').trim()
+    }
+    if (areaName && areaName.length > 3) {
+      addr = addr.replace(new RegExp(`^${areaName},?\\s*`, 'i'), '').trim()
+    }
+    if (/^-?\d+\.\d+,\s*-?\\s*\d+\.\d+$/.test(fullAddress.trim()) || /^-?\d+\.\d+,\s*-?\\s*\d+\.\d+$/.test(addr.trim()) || !addr || addr === ",") {
+      return "Pinpoint location"
+    }
+    return addr
+  }, [fullAddress, cityName, areaName, savedAddressLabel])
+  const displayCity = cityName
 
   const handleLocationClick = () => {
     // Open location selector overlay
@@ -1031,16 +1059,19 @@ export default function PageNavbar({
             ) : (
               <div className="flex flex-col items-center min-w-0">
                 <div className="flex items-center justify-center gap-1">
-                  <span className={`text-sm sm:text-base md:text-lg font-bold ${textColorClass} truncate max-w-[140px] sm:max-w-[200px]`}>
-                    {mainLocationName}
+                  <span className={`text-sm sm:text-base font-bold ${textColorClass} truncate max-w-[140px] sm:max-w-[200px]`}>
+                    {displayArea}
                   </span>
                   <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ${textColorClass} flex-shrink-0`} strokeWidth={2.5} />
                 </div>
-                {locationSubText && (
-                  <span className={`text-[10px] sm:text-xs font-medium ${textColorClass}/80 truncate max-w-[140px] sm:max-w-[200px] text-center`}>
-                    {locationSubText}
+                {displayAddress && (
+                  <span className={`text-[10px] sm:text-xs font-medium ${textColorClass}/70 truncate max-w-[140px] sm:max-w-[200px] text-center`}>
+                    {displayAddress}
                   </span>
                 )}
+                <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] ${textColorClass}/60 text-center`}>
+                  {displayCity}
+                </span>
               </div>
             )}
           </Button>

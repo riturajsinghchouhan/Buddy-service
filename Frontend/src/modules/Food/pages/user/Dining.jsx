@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { MapPin, Search, Mic, SlidersHorizontal, Star, X, ArrowDownUp, Timer, IndianRupee, Clock, Bookmark, UtensilsCrossed } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
+import { Badge } from "@food/components/ui/badge"
 import { Card, CardContent } from "@food/components/ui/card"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { useSearchOverlay, useLocationSelector } from "@food/components/user/UserLayout"
@@ -251,7 +252,17 @@ export default function Dining() {
 
   const normalizedRestaurantList = useMemo(() => {
     return (Array.isArray(restaurantList) ? restaurantList : [])
-      .filter((restaurant) => String(restaurant?.restaurantName || restaurant?.name || "").trim().length > 0)
+      .filter((restaurant) => {
+        const name = String(restaurant?.restaurantName || restaurant?.name || "").trim()
+        return name.length > 0
+      })
+      .sort((a, b) => {
+        const aEnabled = a?.diningSettings?.isEnabled === true
+        const bEnabled = b?.diningSettings?.isEnabled === true
+        if (aEnabled && !bEnabled) return -1
+        if (!aEnabled && bEnabled) return 1
+        return 0
+      })
       .map((restaurant, index) => {
         const distanceKm = getDistanceKm(location, restaurant)
         const restaurantName = String(restaurant?.restaurantName || restaurant?.name || "").trim()
@@ -283,8 +294,21 @@ export default function Dining() {
             (restaurant?.estimatedDeliveryTimeMinutes ? `${restaurant.estimatedDeliveryTimeMinutes} mins` : "30-40 mins")
           ).trim(),
           distanceValue: distanceKm,
-          distance: Number.isFinite(distanceKm) ? `${distanceKm.toFixed(1)} km` : "Distance unavailable",
-          diningType: restaurant?.diningSettings?.diningType || restaurant?.categories?.[0]?.slug || "dining",
+          diningType: (() => {
+            const rawType = restaurant?.diningSettings?.diningType
+            let types = []
+            if (Array.isArray(rawType)) {
+              types = rawType
+            } else if (typeof rawType === "string" && rawType.trim()) {
+              types = rawType.split(",")
+            } else if (restaurant?.categories && Array.isArray(restaurant.categories)) {
+              types = restaurant.categories.map(c => typeof c === 'string' ? c : c.slug || c.name)
+            }
+            
+            const uniqueTypes = Array.from(new Set(types.map(t => slugifyValue(t)).filter(Boolean)))
+            return uniqueTypes[0] || "family-dining"
+          })(),
+          isEnabled: restaurant?.diningSettings?.isEnabled === true,
         }
       })
   }, [restaurantList, location])
@@ -295,22 +319,29 @@ export default function Dining() {
     normalizedRestaurantList.forEach((restaurant) => {
       const rawCategories = []
 
+      // 1. Existing categories from the platform categories mapping
       if (Array.isArray(restaurant?.categories)) {
         rawCategories.push(...restaurant.categories)
       }
 
-      if (restaurant?.diningSettings?.diningType) {
-        rawCategories.push(restaurant.diningSettings.diningType)
+      // 2. New diningType array from diningSettings
+      const dSettingsType = restaurant?.diningSettings?.diningType
+      if (Array.isArray(dSettingsType)) {
+        rawCategories.push(...dSettingsType)
+      } else if (typeof dSettingsType === "string" && dSettingsType) {
+        rawCategories.push(dSettingsType)
       }
 
       rawCategories.forEach((category) => {
+        if (!category) return
+
         if (typeof category === "string") {
           const normalized = slugifyValue(category)
           if (normalized) keySet.add(normalized)
           return
         }
 
-        if (category && typeof category === "object") {
+        if (typeof category === "object") {
           const slug = slugifyValue(category?.slug || category?.name || category?.title || "")
           if (slug) keySet.add(slug)
         }
@@ -320,9 +351,7 @@ export default function Dining() {
     return keySet
   }, [normalizedRestaurantList])
 
-  const filteredCategories = useMemo(() => {
-    return safeCategories.filter((category) => categoryRestaurantKeys.has(category.slug))
-  }, [safeCategories, categoryRestaurantKeys])
+  const filteredCategories = safeCategories
 
   const nearbyPopularRestaurants = useMemo(() => {
     const within10Km = normalizedRestaurantList
@@ -544,8 +573,7 @@ export default function Dining() {
 
       {/* Banner Section */}
       <div
-        className="relative w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-3 sm:pb-5 cursor-pointer"
-        onClick={() => navigate('/user/dining/restaurants')}
+        className="relative w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-3 sm:pb-5"
       >
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -787,8 +815,8 @@ export default function Dining() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
             {/* First 2 Restaurants */}
             {filteredRestaurants.slice(0, 2).map((restaurant, index) => {
-              const restaurantSlug = restaurant.slug || restaurant.name.toLowerCase().replace(/\s+/g, "-")
-              const diningDetailPath = `/food/user/dining/${restaurant.diningType || "dining"}/${restaurantSlug}`
+              const restaurantSlug = restaurant.slug || encodeURIComponent(restaurant.name)
+              const diningDetailPath = `/food/user/dining/${restaurant.diningType}/${restaurantSlug}`
               const favorite = isFavorite(restaurantSlug)
 
               const handleToggleFavorite = (e) => {
@@ -1000,6 +1028,21 @@ export default function Dining() {
                               <span className="font-medium">{restaurant.distance}</span>
                             </div>
 
+                            {/* Dining Status Badge */}
+                            <div className="flex items-center gap-2 mt-1">
+                                <Badge 
+                                    variant="outline" 
+                                    className={`px-2 py-0 h-5 text-[10px] uppercase font-bold tracking-wider ${
+                                        restaurant.isEnabled 
+                                            ? "bg-green-50 text-green-700 border-green-200" 
+                                            : "bg-plum-50 text-plum-700 border-plum-100"
+                                    }`}
+                                >
+                                    {restaurant.isEnabled ? "ON" : "OFF"}
+                                </Badge>
+                                <span className="text-[13px] font-bold text-slate-700">Pre-book table</span>
+                            </div>
+
                           </CardContent>
                         </motion.div>
                       </Card>
@@ -1011,8 +1054,8 @@ export default function Dining() {
 
             {/* Remaining Restaurants */}
             {filteredRestaurants.slice(2).map((restaurant, index) => {
-              const restaurantSlug = restaurant.slug || restaurant.name.toLowerCase().replace(/\s+/g, "-")
-              const diningDetailPath = `/food/user/dining/${restaurant.diningType || "dining"}/${restaurantSlug}`
+              const restaurantSlug = restaurant.slug || encodeURIComponent(restaurant.name)
+              const diningDetailPath = `/food/user/dining/${restaurant.diningType}/${restaurantSlug}`
               const favorite = isFavorite(restaurantSlug)
 
               const handleToggleFavorite = (e) => {
@@ -1198,9 +1241,16 @@ export default function Dining() {
 
                             {/* Pre-book Table Promo (If applicable) */}
                             <div className="flex items-center gap-2">
-                              <div className="bg-[#7e3866]/5 px-2 py-0.5 rounded-full border border-[#7e3866]/10 flex items-center">
-                                <span className="text-[10px] font-black text-[#7e3866] tracking-widest uppercase">OFF</span>
-                              </div>
+                              <Badge 
+                                    variant="outline" 
+                                    className={`px-2 py-0 h-5 text-[10px] uppercase font-bold tracking-wider ${
+                                        restaurant.isEnabled 
+                                            ? "bg-green-50 text-green-700 border-green-200" 
+                                            : "bg-plum-50 text-plum-700 border-plum-100"
+                                    }`}
+                                >
+                                    {restaurant.isEnabled ? "ON" : "OFF"}
+                                </Badge>
                               <span className="text-sm font-bold text-gray-600 dark:text-gray-400">Pre-book table</span>
                             </div>
                           </CardContent>

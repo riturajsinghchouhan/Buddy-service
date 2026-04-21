@@ -9,7 +9,6 @@ import ProtectedRoute from "@food/components/ProtectedRoute"
 // Home & Discovery
 const Home = lazy(() => import("@food/pages/user/Home"))
 const Dining = lazy(() => import("@food/pages/user/Dining"))
-const DiningRestaurants = lazy(() => import("@food/pages/user/DiningRestaurants"))
 const DiningCategory = lazy(() => import("@food/pages/user/DiningCategory"))
 const DiningExplore50 = lazy(() => import("@food/pages/user/DiningExplore50"))
 const DiningExploreNear = lazy(() => import("@food/pages/user/DiningExploreNear"))
@@ -98,7 +97,6 @@ export default function UserRouter() {
           {/* Home & Discovery */}
           <Route path="" element={<Home />} />
           <Route path="dining" element={<Dining />} />
-          <Route path="dining/restaurants" element={<DiningRestaurants />} />
           <Route path="dining/:category" element={<DiningCategory />} />
           <Route path="dining/explore/upto50" element={<DiningExplore50 />} />
           <Route path="dining/explore/near-rated" element={<DiningExploreNear />} />
@@ -279,6 +277,14 @@ export default function UserRouter() {
             element={
               <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <ReferEarn />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/dining-bookings"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
+                <MyBookings />
               </ProtectedRoute>
             }
           />

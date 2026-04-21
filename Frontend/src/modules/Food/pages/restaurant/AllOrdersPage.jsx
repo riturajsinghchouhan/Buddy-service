@@ -490,13 +490,12 @@ export default function AllOrdersPage() {
             <ArrowLeft className="w-6 h-6 text-gray-900" />
           </button>
           <div className="flex-1">
-            <p className="text-sm text-gray-600">Showing order history for</p>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-gray-900">
-                {restaurantData?.name || 'Restaurant'}
-              </h1>
-              <ChevronDown className="w-4 h-4 text-gray-600" />
-            </div>
+            <h1 className="text-lg font-bold text-gray-900">
+              Order History
+            </h1>
+            <p className="text-xs text-gray-500">
+              {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'} found
+            </p>
           </div>
           <button
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -622,7 +621,7 @@ export default function AllOrdersPage() {
                 delay: Math.min(index * 0.05, 0.3),
                 layout: { duration: 0.3 }
               }}
-              onClick={() => navigate(`/restaurant/orders/${order.id}`)}
+              onClick={() => navigate(`/food/restaurant/orders/${order.id}`, { state: { mongoId: order.mongoId } })}
               className="bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
             >
             {/* Status and Order ID Row */}
@@ -670,17 +669,23 @@ export default function AllOrdersPage() {
 
             {/* Order Items */}
             <div className="space-y-2">
-              {order.items.slice(0, 1).map((item, idx) => (
+              {order.items.slice(0, 2).map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between">
                   <span className="text-sm text-gray-900">
                     {item.quantity} x {item.name}
                   </span>
-                  <span className="text-sm font-medium text-gray-900">{formatMoney(item.price)}</span>
+                  <span className="text-sm text-gray-500">{formatMoney(item.price)}</span>
                 </div>
               ))}
-              {order.items.length > 1 && (
-                <p className="text-sm text-gray-500">+{order.items.length - 1} more items</p>
+              {order.items.length > 2 && (
+                <p className="text-xs text-blue-600 font-medium">+{order.items.length - 2} more items</p>
               )}
+            </div>
+
+            {/* Price Footer */}
+            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</span>
+              <span className="text-base font-bold text-gray-900">{formatMoney(order.totalPrice)}</span>
             </div>
 
             {/* Reason/Status Message */}

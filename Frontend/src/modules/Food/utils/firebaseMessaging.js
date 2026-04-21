@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { userAPI, restaurantAPI, deliveryAPI, adminAPI } from "@food/api";
 import { initializeApp, getApp, getApps } from "firebase/app";
-import fallbackNotificationSound from "@food/assets/audio/alert.mp3";
+const fallbackNotificationSound = "/alert.mp3";
 
 const pushNotificationSoundPath = "/zomato_sms.mp3";
 
@@ -27,10 +27,14 @@ let pushSoundContext = null;
 const PUSH_DEBUG_PREFIX = "[push-debug]";
 const notificationDedupWindowMs = 8000;
 const pushDebugLog = (prefix, message, data = {}) => {
-  console.log(`${prefix} ${message}`, data);
+  if (typeof window !== "undefined" && localStorage.getItem("push_debug") === "true") {
+    console.log(`${prefix} ${message}`, data);
+  }
 };
 const pushDebugWarn = (prefix, message, data = {}) => {
-  console.warn(`${prefix} ${message}`, data);
+  if (typeof window !== "undefined" && localStorage.getItem("push_debug") === "true") {
+    console.warn(`${prefix} ${message}`, data);
+  }
 };
 
 function normalizeModuleFromPath(pathname = window.location.pathname) {
@@ -694,13 +698,13 @@ export async function registerWebPushForCurrentModule(pathname = window.location
     registrationInFlight = (async () => {
       const firebasePublicEnv = await getFirebasePublicEnv();
       if (!firebasePublicEnv?.vapidKey) {
-        console.warn("FCM web registration skipped: FIREBASE_VAPID_KEY is missing in env setup.");
+        pushDebugWarn(PUSH_DEBUG_PREFIX, "FCM web registration skipped: FIREBASE_VAPID_KEY is missing in env setup.");
         return;
       }
 
       const app = getMessagingFirebaseApp(firebasePublicEnv);
       if (!app) {
-        console.warn("FCM web registration skipped: Firebase public web config is incomplete.");
+        pushDebugWarn(PUSH_DEBUG_PREFIX, "FCM web registration skipped: Firebase public web config is incomplete.");
         return;
       }
 
@@ -710,7 +714,7 @@ export async function registerWebPushForCurrentModule(pathname = window.location
           : Notification.permission;
 
       if (permission !== "granted") {
-        console.warn("FCM web registration skipped: Notification permission not granted.", permission);
+        pushDebugLog(PUSH_DEBUG_PREFIX, "FCM web registration skipped: Notification permission not granted.", { permission });
         return;
       }
 

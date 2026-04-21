@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import { restaurantAPI } from "@food/api"
+import { restaurantAPI, diningAPI } from "@food/api"
 import { useProfile } from "@food/context/ProfileContext"
 import { getMenuFromResponse } from "@food/utils/menuItems"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
@@ -103,54 +103,95 @@ export default function DiningRestaurantDetails() {
   const [selectedGuests, setSelectedGuests] = useState(2)
   const [isBookingSheetOpen, setIsBookingSheetOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("prebook")
+  const [currentBookings, setCurrentBookings] = useState([])
+  const [isFetchingBookings, setIsFetchingBookings] = useState(false)
+
+  const fetchRestaurantData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const routeRestaurant = location.state?.restaurant || null
+      const preferredRestaurantLookup =
+        routeRestaurant?._id ||
+        routeRestaurant?.restaurantId ||
+        routeRestaurant?.id ||
+        slug
+
+      const restaurantResponse = await restaurantAPI.getRestaurantById(preferredRestaurantLookup)
+      if (!restaurantResponse?.data?.success) {
+        setError("Restaurant not found")
+        setRestaurant(null)
+        return
+      }
+
+      const resolvedRestaurant =
+        restaurantResponse?.data?.data?.restaurant ||
+        restaurantResponse?.data?.data ||
+        null
+
+      if (!resolvedRestaurant) {
+        setError("Restaurant not found")
+        setRestaurant(null)
+        return
+      }
+
+      setRestaurant(resolvedRestaurant)
+      
+      const restaurantId = resolvedRestaurant?._id || resolvedRestaurant?.id || slug
+      
+      // Fetch Bookings for Availability Check
+      setIsFetchingBookings(true)
+      try {
+          const bookingsRes = await diningAPI.getRestaurantBookings(resolvedRestaurant)
+          if (bookingsRes.data.success) {
+              setCurrentBookings(Array.isArray(bookingsRes.data.data) ? bookingsRes.data.data : [])
+          }
+      } catch (err) {
+          debugError("Error fetching bookings:", err)
+      } finally {
+          setIsFetchingBookings(false)
+      }
+
+      const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurantId).catch(() => null)
+      const resolvedMenu = menuResponse ? getMenuFromResponse(menuResponse) : null
+      setMenuSections(Array.isArray(resolvedMenu?.sections) ? resolvedMenu.sections : [])
+    } catch {
+      setError("Failed to load restaurant")
+      setRestaurant(null)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchRestaurantData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const routeRestaurant = location.state?.restaurant || null
-        const preferredRestaurantLookup =
-          routeRestaurant?._id ||
-          routeRestaurant?.restaurantId ||
-          routeRestaurant?.id ||
-          slug
-
-        const restaurantResponse = await restaurantAPI.getRestaurantById(preferredRestaurantLookup)
-        if (!restaurantResponse?.data?.success) {
-          setError("Restaurant not found")
-          setRestaurant(null)
-          return
-        }
-
-        const resolvedRestaurant =
-          restaurantResponse?.data?.data?.restaurant ||
-          restaurantResponse?.data?.data ||
-          null
-
-        if (!resolvedRestaurant) {
-          setError("Restaurant not found")
-          setRestaurant(null)
-          return
-        }
-
-        const restaurantId = resolvedRestaurant?._id || resolvedRestaurant?.id || slug
-        const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurantId).catch(() => null)
-        const resolvedMenu = menuResponse ? getMenuFromResponse(menuResponse) : null
-
-        setRestaurant(resolvedRestaurant)
-        setMenuSections(Array.isArray(resolvedMenu?.sections) ? resolvedMenu.sections : [])
-      } catch {
-        setError("Failed to load restaurant")
-        setRestaurant(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchRestaurantData()
   }, [location.state?.restaurant, slug])
+
+  // Calculate current occupied seats
+  const occupiedSeats = useMemo(() => {
+      const now = new Date()
+      const THIRTY_MINUTES = 30 * 60 * 1000
+
+      return currentBookings
+          .filter(b => {
+              // Only count approved bookings or pending bookings that are NOT expired (within 30 mins)
+              const isApproved = b.status === "approved"
+              const isPending = b.status === "pending"
+              
+              if (isApproved) return true
+              if (isPending) {
+                  const createdAt = new Date(b.createdAt || b.date)
+                  const ageMs = now - createdAt
+                  return ageMs < THIRTY_MINUTES // Only count if less than 30 mins old
+              }
+              return false
+          })
+          .reduce((sum, b) => sum + (Number(b.guests) || 0), 0)
+  }, [currentBookings])
+
+  const maxCapacity = restaurant?.diningSettings?.maxGuests || 6
+  const remainingSeats = Math.max(0, maxCapacity - occupiedSeats)
 
   if (loading) {
     return (
@@ -549,7 +590,11 @@ export default function DiningRestaurantDetails() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-xl font-black text-[#23180f]">Select number of guests</h3>
-                <p className="mt-1 text-sm text-[#7b6651]">Choose how many people will be joining.</p>
+                <p className="mt-1 text-sm text-[#7b6651]">
+                    {remainingSeats > 0 
+                        ? `Only ${remainingSeats} out of ${maxCapacity} seats available now.` 
+                        : "Fully booked for now. Try later!"}
+                </p>
               </div>
               <button
                 onClick={() => setIsBookingSheetOpen(false)}
@@ -560,26 +605,45 @@ export default function DiningRestaurantDetails() {
             </div>
 
             <div className="grid grid-cols-4 gap-3">
-              {Array.from({ length: Math.min(restaurant?.diningSettings?.maxGuests || 6, 8) }, (_, index) => index + 1).map((count) => (
-                <button
-                  key={`sheet-${count}`}
-                  onClick={() => setSelectedGuests(count)}
-                  className={`rounded-2xl border px-3 py-4 text-sm font-bold transition-colors ${
-                      selectedGuests === count
-                        ? "border-[#7e3866] bg-[#fdfafc] text-[#7e3866]"
-                        : "border-[#ece7de] bg-white text-[#23180f]"
-                  }`}
-                >
-                  {count}
-                </button>
-              ))}
+              {Array.from({ length: maxCapacity }, (_, index) => {
+                const count = index + 1
+                const isBooked = count <= occupiedSeats
+                const isTooLarge = count > remainingSeats && !isBooked
+
+                return (
+                    <button
+                      key={`sheet-${count}`}
+                      disabled={isBooked || isTooLarge}
+                      onClick={() => setSelectedGuests(count)}
+                      className={`relative rounded-2xl border px-3 py-4 text-sm font-bold transition-all ${
+                          selectedGuests === count
+                            ? "border-[#7e3866] bg-[#fdfafc] text-[#7e3866] scale-[1.02] shadow-sm"
+                            : isBooked
+                              ? "border-red-100 bg-red-50 text-red-400 cursor-not-allowed opacity-70"
+                              : isTooLarge
+                                ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                                : "border-[#ece7de] bg-white text-[#23180f] hover:border-[#7e3866]/30"
+                      }`}
+                    >
+                      {isBooked ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-[10px] uppercase font-black tracking-tighter opacity-60">Booked</span>
+                              <span>{count}</span>
+                          </div>
+                      ) : (
+                          count
+                      )}
+                    </button>
+                )
+              })}
             </div>
 
             <Button
               onClick={handleContinueBooking}
-              className="mt-6 h-12 w-full rounded-2xl bg-[#7e3866] text-base font-bold text-white hover:bg-[#55254b]"
+              disabled={remainingSeats === 0 || selectedGuests > remainingSeats}
+              className="mt-6 h-12 w-full rounded-2xl bg-[#7e3866] text-base font-bold text-white hover:bg-[#55254b] disabled:bg-gray-200 disabled:text-gray-400"
             >
-              Continue
+              {remainingSeats === 0 ? "Fully Booked" : "Continue"}
             </Button>
           </div>
         </div>

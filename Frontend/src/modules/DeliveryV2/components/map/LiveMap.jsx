@@ -227,12 +227,15 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
     travelMode: 'DRIVING',
   } : null;
 
+  const defaultCenter = { lat: 22.7196, lng: 75.8577 }; // Center on Indore as fallback
+
   return (
     <div className="absolute inset-0 z-0 text-gray-900 overflow-hidden flex flex-col">
       <GoogleMap
         onLoad={handleMapLoad}
         mapContainerStyle={mapContainerStyle}
-        zoom={14}
+        center={parsedRiderLocation || targetLocation || defaultCenter}
+        zoom={zoom}
         onClick={(e) => onMapClick?.(e.latLng.lat(), e.latLng.lng())}
         options={mapOptions}
       >

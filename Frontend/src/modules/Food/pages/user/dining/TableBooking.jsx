@@ -127,39 +127,82 @@ export default function TableBooking() {
   })
   const [selectedSlot, setSelectedSlot] = useState(location.state?.selectedTime || null)
   const [selectedMealPeriod, setSelectedMealPeriod] = useState("lunch")
+  const [currentBookings, setCurrentBookings] = useState([])
+
+  const fetchRestaurant = async () => {
+    try {
+      setLoading(true)
+      const response = await diningAPI.getRestaurantBySlug(slug)
+      if (response?.data?.success) {
+        const apiRestaurant = response?.data?.data?.restaurant || response?.data?.data
+        setRestaurant(apiRestaurant || null)
+
+        const restaurantId = apiRestaurant?._id || apiRestaurant?.id || slug
+        
+        // Fetch Bookings for Availability check
+        try {
+            const bookingsRes = await diningAPI.getRestaurantBookings(apiRestaurant)
+            if (bookingsRes.data.success) {
+                setCurrentBookings(Array.isArray(bookingsRes.data.data) ? bookingsRes.data.data : [])
+            }
+        } catch (err) {
+            console.error("Error fetching bookings:", err)
+        }
+
+        const timingsResponse = await restaurantAPI.getOutletTimingsByRestaurantId(restaurantId)
+        setOutletTimings(timingsResponse?.data?.data?.outletTimings || {})
+      }
+    } catch {
+      setRestaurant(null)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchRestaurant = async () => {
-      try {
-        setLoading(true)
-        const response = await diningAPI.getRestaurantBySlug(slug)
-        if (response?.data?.success) {
-          const apiRestaurant = response?.data?.data?.restaurant || response?.data?.data
-          setRestaurant(apiRestaurant || null)
-
-          const restaurantId = apiRestaurant?._id || apiRestaurant?.id || slug
-          const timingsResponse = await restaurantAPI.getOutletTimingsByRestaurantId(restaurantId)
-          setOutletTimings(timingsResponse?.data?.data?.outletTimings || {})
-        }
-      } catch {
-        setRestaurant(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     if (location.state?.restaurant) {
       const restaurantId = location.state.restaurant?._id || location.state.restaurant?.id || slug
       restaurantAPI
         .getOutletTimingsByRestaurantId(restaurantId)
         .then((response) => setOutletTimings(response?.data?.data?.outletTimings || {}))
         .catch(() => setOutletTimings({}))
+      
+      // Still fetch bookings even if restaurant is in state
+      diningAPI.getRestaurantBookings(location.state.restaurant)
+        .then(res => {
+            if (res.data.success) setCurrentBookings(Array.isArray(res.data.data) ? res.data.data : [])
+        })
+        .catch(() => {})
+
       setLoading(false)
       return
     }
 
     fetchRestaurant()
   }, [location.state?.restaurant, slug])
+
+  const occupiedSeats = useMemo(() => {
+    const now = new Date()
+    const THIRTY_MINUTES = 30 * 60 * 1000
+
+    return currentBookings
+        .filter(b => {
+            const isApproved = b.status === "approved"
+            const isPending = b.status === "pending"
+            
+            if (isApproved) return true
+            if (isPending) {
+                const createdAt = new Date(b.createdAt || b.date)
+                const ageMs = now - createdAt
+                return ageMs < THIRTY_MINUTES
+            }
+            return false
+        })
+        .reduce((sum, b) => sum + (Number(b.guests) || 0), 0)
+  }, [currentBookings])
+
+  const maxCapacity = restaurant?.diningSettings?.maxGuests || 10
+  const remainingSeats = Math.max(0, maxCapacity - occupiedSeats)
 
   const dates = useMemo(() => buildDates(7), [])
   const selectedDayTiming = useMemo(() => {
@@ -274,22 +317,38 @@ export default function TableBooking() {
         )}
 
         <section className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 mb-4">
             <span className="text-sm font-medium text-[#2f3545]">Select number of guests</span>
-            <div className="relative">
-              <select
-                value={selectedGuests}
-                onChange={(event) => setSelectedGuests(parseInt(event.target.value, 10))}
-                className="appearance-none rounded-full bg-[#f7f7fb] py-2 pl-4 pr-9 text-sm font-semibold text-[#404040] outline-none"
-              >
-                {Array.from({ length: restaurant.diningSettings?.maxGuests || 10 }, (_, index) => index + 1).map((count) => (
-                  <option key={count} value={count}>
-                    {count}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#808080]" />
-            </div>
+            <span className="text-xs font-bold text-[#7e3866] bg-[#fdfafc] px-2 py-1 rounded-lg">
+                {remainingSeats} left
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-5 gap-2">
+            {Array.from({ length: maxCapacity }, (_, index) => {
+              const count = index + 1
+              const isBooked = count <= occupiedSeats
+              const isTooLarge = count > remainingSeats && !isBooked
+
+              return (
+                <button
+                  key={count}
+                  disabled={isBooked || isTooLarge}
+                  onClick={() => setSelectedGuests(count)}
+                  className={`flex h-11 items-center justify-center rounded-xl border text-sm font-bold transition-all ${
+                    selectedGuests === count
+                      ? "border-[#ef8f98] bg-[#fffaf9] text-[#d64f63] shadow-sm"
+                      : isBooked
+                        ? "border-red-50 bg-red-50 text-red-200 cursor-not-allowed"
+                        : isTooLarge
+                          ? "border-gray-50 bg-gray-50 text-gray-200 cursor-not-allowed"
+                          : "border-[#ececf2] bg-white text-[#444b5f] hover:border-[#ef8f98]/30"
+                  }`}
+                >
+                  {isBooked ? "X" : count}
+                </button>
+              )
+            })}
           </div>
         </section>
 

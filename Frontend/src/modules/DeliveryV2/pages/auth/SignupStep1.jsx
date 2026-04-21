@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
+import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -55,18 +56,7 @@ export default function SignupStep1() {
 
   const isValidEmailValue = (value) => {
     const normalizedValue = value.trim()
-    if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/.test(normalizedValue)) {
-      return false
-    }
-
-    const [, domain = ""] = normalizedValue.split("@")
-    const normalizedDomain = domain.toLowerCase()
-
-    if (normalizedDomain.startsWith("gmail.") && normalizedDomain !== "gmail.com") {
-      return false
-    }
-
-    return true
+    return EMAIL_REGEX.test(normalizedValue)
   }
 
   const sanitizeEmailValue = (value) =>

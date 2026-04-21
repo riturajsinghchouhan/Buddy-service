@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders";
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar";
-import notificationSound from "@food/assets/audio/alert.mp3";
+const notificationSound = "/zomato_sms.mp3";
 import { restaurantAPI, diningAPI } from "@food/api";
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications";
 import { jsPDF } from "jspdf";
@@ -543,6 +543,21 @@ function TableBookings() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const handleStatusUpdate = async (bookingId, newStatus) => {
+    try {
+      const response = await diningAPI.updateBookingStatusRestaurant(bookingId, newStatus);
+      if (response.data.success) {
+        setBookings(prev => prev.map(b =>
+          b._id === bookingId ? { ...b, status: newStatus } : b
+        ));
+        toast.success(`Booking ${newStatus === 'accepted' ? 'accepted' : 'declined'}`);
+      }
+    } catch (error) {
+      debugError("Error updating booking status:", error);
+      toast.error("Failed to update booking status");
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -606,16 +621,20 @@ function TableBookings() {
                   </p>
                 </div>
                 <span
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                    booking.status === "confirmed"
-                      ? "bg-green-100 text-green-700"
-                      : booking.status === "checked-in"
-                        ? "bg-orange-100 text-orange-700"
-                        : booking.status === "completed"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-600"
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase shadow-sm ${
+                    String(booking.status || '').toLowerCase() === "pending"
+                      ? "bg-amber-50 text-amber-600 border border-amber-100"
+                      : ["accepted", "confirmed"].includes(String(booking.status || '').toLowerCase())
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                        : String(booking.status || '').toLowerCase() === "checked-in"
+                          ? "bg-orange-100 text-orange-700"
+                          : String(booking.status || '').toLowerCase() === "completed"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-rose-100 text-rose-700"
                   }`}>
-                  {booking.status}
+                  {String(booking.status || '').toLowerCase() === "pending" ? "APPROVAL REQD" : 
+                   ["accepted", "confirmed"].includes(String(booking.status || '').toLowerCase()) ? "CONFIRMED" : 
+                   booking.status}
                 </span>
               </div>
 
@@ -647,6 +666,23 @@ function TableBookings() {
                       {booking.specialRequest}
                     </span>
                   </p>
+                </div>
+              )}
+
+              {String(booking.status || '').toLowerCase() === 'pending' && (
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => handleStatusUpdate(booking._id, 'accepted')}
+                    className="flex-1 py-2 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-colors uppercase tracking-widest shadow-sm"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => handleStatusUpdate(booking._id, 'cancelled')}
+                    className="flex-1 py-2 bg-white border border-rose-200 text-slate-600 text-[11px] font-black rounded-xl hover:bg-slate-50 transition-colors uppercase tracking-widest"
+                  >
+                    Decline
+                  </button>
                 </div>
               )}
             </div>
@@ -768,8 +804,19 @@ function AllOrders({ onSelectOrder, onCancel }) {
   return (
     <div className="pt-4 pb-6">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-base font-semibold text-black">All orders</h2>
-        <span className="text-xs text-gray-500">{orders.length} total</span>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-black">All orders</h2>
+          <span className="text-xs text-gray-500">({orders.length})</span>
+        </div>
+        <button 
+          onClick={() => navigate('/food/restaurant/orders/all')}
+          className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+        >
+          Full History
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
       {orders.length === 0 ? (
         <div className="text-center py-8 text-gray-500 text-sm">
@@ -1208,6 +1255,14 @@ export default function OrdersMain() {
   useEffect(() => {
     newOrderRef.current = newOrder;
   }, [newOrder]);
+
+  // Initialize audio object for popup loop
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(notificationSound);
+      audioRef.current.preload = "auto";
+    }
+  }, []);
 
   // Best-effort unlock for popup buzzer so it can keep playing when tab is backgrounded.
   useEffect(() => {

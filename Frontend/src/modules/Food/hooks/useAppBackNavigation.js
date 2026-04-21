@@ -71,7 +71,6 @@ const resolveBackPath = ({ pathname, search, state }) => {
   }
 
   if (
-    normalizedPath === "/user/dining/restaurants" ||
     normalizedPath === "/user/dining/explore/upto50" ||
     normalizedPath === "/user/dining/explore/near-rated" ||
     normalizedPath === "/user/dining/coffee"

@@ -3,6 +3,7 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDiningCategory } from '../models/diningCategory.model.js';
 import { FoodDiningRestaurant } from '../models/diningRestaurant.model.js';
+import { FoodDiningRequest } from '../models/diningRequest.model.js';
 
 const slugify = (value) =>
     String(value || '')
@@ -32,7 +33,7 @@ async function syncRestaurantDiningSettings(restaurantId, diningDoc) {
                 diningSettings: {
                     isEnabled: Boolean(diningDoc?.isEnabled),
                     maxGuests: Math.max(1, Number(diningDoc?.maxGuests) || 6),
-                    diningType: primaryCategory?.slug || 'family-dining'
+                    diningType: Array.isArray(diningDoc?.diningType) ? diningDoc.diningType : (primaryCategory?.slug ? [primaryCategory.slug] : ['family-dining'])
                 }
             }
         },
@@ -397,4 +398,148 @@ export async function listDiningRestaurantsPublic(query = {}) {
                 diningType: doc.categoryIds?.[0]?.slug || doc.restaurantId?.diningSettings?.diningType || ''
             }
         }));
+}
+
+// ==================== DINING SETTINGS REQUESTS ====================
+
+export async function createDiningRequest(restaurantId, settings = {}) {
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+        throw new ValidationError('Invalid restaurant ID');
+    }
+
+    // Check if there is already a pending request
+    const existing = await FoodDiningRequest.findOne({
+        restaurantId,
+        status: 'pending'
+    }).lean();
+
+    if (existing) {
+        throw new ValidationError('You already have a pending request awaiting approval');
+    }
+
+    // Deduplicate and sanitize categories
+    let diningType = settings.diningType
+    if (Array.isArray(diningType)) {
+        diningType = [...new Set(diningType.map(t => String(t).trim()))].filter(Boolean)
+    } else {
+        diningType = String(diningType || '').split(',').map(t => t.trim()).filter(Boolean)
+        diningType = [...new Set(diningType)]
+    }
+
+    if (diningType.length === 0) diningType = ['family-dining']
+
+    const created = await FoodDiningRequest.create({
+        restaurantId,
+        requestedSettings: {
+            isEnabled: Boolean(settings.isEnabled),
+            maxGuests: parseInt(settings.maxGuests, 10) >= 0 ? parseInt(settings.maxGuests, 10) : 6,
+            diningType: diningType
+        }
+    });
+
+    return created.toObject();
+}
+
+export async function getPendingDiningRequest(restaurantId) {
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) return null;
+    return await FoodDiningRequest.findOne({
+        restaurantId,
+        status: 'pending'
+    }).lean();
+}
+
+export async function listAllPendingDiningRequests() {
+    return await FoodDiningRequest.find({ status: 'pending' })
+        .populate({
+            path: 'restaurantId',
+            select: 'restaurantName profileImage location'
+        })
+        .sort({ createdAt: -1 })
+        .lean()
+        .then(docs => docs.map(doc => ({
+            ...doc,
+            restaurant: doc.restaurantId ? {
+                _id: doc.restaurantId._id,
+                name: doc.restaurantId.restaurantName,
+                profileImage: doc.restaurantId.profileImage ? { url: doc.restaurantId.profileImage } : null,
+                address: doc.restaurantId.location?.formattedAddress || ''
+            } : null,
+            restaurantId: doc.restaurantId?._id
+        })));
+}
+
+export async function approveDiningRequest(requestId) {
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ValidationError('Invalid request ID');
+    }
+
+    const request = await FoodDiningRequest.findById(requestId);
+    if (!request || request.status !== 'pending') {
+        throw new ValidationError('Pending request not found');
+    }
+
+    const { restaurantId, requestedSettings } = request;
+
+    // Sanitize diningType from request (handle array or messy string)
+    let finalDiningType = request.requestedSettings.diningType;
+    if (!Array.isArray(finalDiningType)) {
+        finalDiningType = String(finalDiningType || '').split(',').map(s => s.trim()).filter(Boolean);
+    }
+    finalDiningType = [...new Set(finalDiningType)];
+
+    // Find the Category IDs based on slugs
+    const selectedCategories = await FoodDiningCategory.find({
+        slug: { $in: finalDiningType }
+    }).select('_id').lean();
+    const categoryIds = selectedCategories.map(c => c._id);
+
+    // Apply changes to FoodDiningRestaurant
+    await FoodDiningRestaurant.findOneAndUpdate(
+        { restaurantId },
+        {
+            $set: {
+                isEnabled: request.requestedSettings.isEnabled,
+                maxGuests: request.requestedSettings.maxGuests,
+                categoryIds: categoryIds,
+                primaryCategoryId: categoryIds[0] || null
+            }
+        },
+        { upsert: true }
+    );
+
+    // Apply changes to FoodRestaurant
+    await FoodRestaurant.findByIdAndUpdate(
+        restaurantId,
+        {
+            $set: {
+                diningSettings: {
+                    isEnabled: request.requestedSettings.isEnabled,
+                    maxGuests: request.requestedSettings.maxGuests,
+                    diningType: finalDiningType
+                }
+            }
+        }
+    );
+
+    request.status = 'approved';
+    await request.save();
+
+    return request.toObject();
+}
+
+export async function rejectDiningRequest(requestId, reason = '') {
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ValidationError('Invalid request ID');
+    }
+
+    const request = await FoodDiningRequest.findById(requestId);
+    if (!request || request.status !== 'pending') {
+        throw new ValidationError('Pending request not found');
+    }
+
+    request.status = 'rejected';
+    request.rejectionReason = String(reason || '').trim() || null;
+    await request.save();
+
+    return request.toObject();
 }

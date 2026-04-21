@@ -66,10 +66,10 @@ function BottomPopup({ isOpen, onClose, title, children }) {
  */
 export default function DeliveryHomeV2({ tab = 'feed' }) {
   const navigate = useNavigate();
-  const { isOnline, toggleOnline, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
+  const { isOnline, toggleOnline, riderLocation, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
-  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
   const companyName = useCompanyName();
   const { unreadCount: notificationUnreadCount } = useNotificationInbox("delivery", { limit: 20 });
 
@@ -418,27 +418,22 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       if (speed && speed > 0) {
         rollingSpeedRef.current = [...rollingSpeedRef.current.slice(-4), speed]; // keep last 5 points
       }
-      
+
       const avgSpeed = rollingSpeedRef.current.length > 0 
         ? rollingSpeedRef.current.reduce((a, b) => a + b, 0) / rollingSpeedRef.current.length 
         : speed || 0;
-
-      // ETA update is now handled by a separate globally-synchronized effect
 
       // Phase 11: Geo-fencing Auto-arrival (within 100m) - Disabled in DEV so UI steps can be tested manually
       if (!isSimMode && !import.meta.env.DEV && distanceToTarget && distanceToTarget <= 100 && !lastAutoArrivalRef.current[tripStatus]) {
         if (tripStatus === 'PICKING_UP') {
           lastAutoArrivalRef.current[tripStatus] = true;
           reachPickup().catch(() => { lastAutoArrivalRef.current[tripStatus] = false; });
-          // toast.success('Auto-arrived at Restaurant');
         } else if (tripStatus === 'PICKED_UP') {
           lastAutoArrivalRef.current[tripStatus] = true;
           reachDrop().catch(() => { lastAutoArrivalRef.current[tripStatus] = false; });
-          // toast.success('Auto-arrived at Customer');
         }
       }
 
-      // Reset auto-arrival flag if we move away or status resets (usually handled by component mount, but for safety)
       if (distanceToTarget > 200) {
         lastAutoArrivalRef.current[tripStatus] = false;
       }
@@ -446,7 +441,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       // Check threshold for Sync (distance-based or 7s time-based)
       const distMoved = lastCoordRef.current 
         ? getHaversineDistance(lat, lng, lastCoordRef.current.lat, lastCoordRef.current.lng) 
-        : 1000; // assume huge distance if first update
+        : 1000;
 
       if (distMoved >= 25 || (now - lastLocationSentAt.current >= 7000)) {
         lastLocationSentAt.current = now;
@@ -463,17 +458,14 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           polyline: activePolyline
         };
 
-        // A. HTTP Backup
         deliveryAPI.updateLocation(lat, lng, true, { 
           heading: heading || 0,
           speed: speed || 0,
           accuracy: pos.coords.accuracy 
         }).catch(() => {});
 
-        // B. SOCKET LIVE (SILKY SMOOTH)
         if (payload.orderId) emitLocation(payload);
 
-        // C. FIREBASE REALTIME DB (Persistent)
         if (payload.orderId) {
           writeOrderTracking(payload.orderId, {
             lat,
@@ -481,14 +473,22 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             heading: heading || 0,
             polyline: activePolyline,
             status: tripStatus,
-            eta: eta // Publish live ETA to Firebase for customer
+            eta: eta
           }).catch(() => {});
         }
       }
-    }, () => toast.error('GPS Needed!'), { 
+    }, () => {
+      // IF GPS FAILS/DENIED: Use Indore as a fallback for testing
+      console.warn('GPS Denied - Falling back to Indore for testing');
+      const fallbackPos = { lat: 22.7196, lng: 75.8577, heading: 0 };
+      if (!riderLocation) {
+        setRiderLocation(fallbackPos);
+      }
+      toast.error('GPS Blocked!', { description: 'Showing test location in Indore.' });
+    }, { 
       enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 5000
+      maximumAge: 3000,
+      timeout: 10000
     });
     
     return () => navigator.geolocation.clearWatch(watchId);
@@ -525,6 +525,19 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       setIncomingOrder(null);
     }
   }, [activeOrder, incomingOrder]);
+
+  // When another delivery partner claims the incoming order (via socket 'order_claimed'),
+  // dismiss the NewOrderModal and inform this delivery boy.
+  useEffect(() => {
+    if (!claimedOrderId) return;
+    const incomingId = incomingOrder?.orderId || incomingOrder?._id || incomingOrder?.orderMongoId;
+    if (incomingId && String(incomingId) === String(claimedOrderId)) {
+      toast.info('Order was taken by another delivery partner.', { duration: 4000 });
+      setIncomingOrder(null);
+      clearNewOrder();
+    }
+    clearClaimedOrderId();
+  }, [claimedOrderId]);
 
   useEffect(() => {
     if (!isOnline) return;
@@ -644,28 +657,38 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
              >
                 <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover rounded-full" />
              </div>
-             <button 
-               onClick={async () => {
-                 const nextState = !isOnline;
-                 toggleOnline(); // Store action
-                 if (nextState) {
-                    // Try to get location and sync immediately so we are visible for dispatch right away
-                    navigator.geolocation.getCurrentPosition((pos) => {
-                        deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => {});
-                    }, (err) => console.warn('Online sync position failed:', err), { enableHighAccuracy: true });
-                 } else {
-                    deliveryAPI.updateOnlineStatus(false).catch(() => {});
-                 }
-               }}
-               className={`delivery-online-toggle relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'is-online bg-green-500 shadow-lg shadow-green-500/20' : 'is-offline bg-green-400 shadow-lg shadow-green-400/20'}`}
-             >
-               <div className={`flex items-center justify-between w-full px-2 text-[8.5px] font-black uppercase tracking-widest text-white`}>
-                 <span>{isOnline ? 'Online' : ''}</span>
-                 <span>{!isOnline ? 'Offline' : ''}</span>
-               </div>
-               <motion.div animate={{ x: isOnline ? 59 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
-             </button>
-          </div>
+              <button 
+                onClick={async () => {
+                  const nextState = !isOnline;
+                  toggleOnline(); // Store action
+                  if (nextState) {
+                     // Try to get location and sync immediately so we are visible for dispatch right away
+                     navigator.geolocation.getCurrentPosition((pos) => {
+                         deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => {});
+                     }, (err) => console.warn('Online sync position failed:', err), { enableHighAccuracy: true });
+                  } else {
+                     deliveryAPI.updateOnlineStatus(false).catch(() => {});
+                  }
+                }}
+                className={`delivery-online-toggle relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'is-online bg-green-500 shadow-lg shadow-green-500/20' : 'is-offline bg-green-400 shadow-lg shadow-green-400/20'}`}
+              >
+                <div className={`flex items-center justify-between w-full px-2 text-[8.5px] font-black uppercase tracking-widest text-white`}>
+                  <span>{isOnline ? 'Online' : ''}</span>
+                  <span>{!isOnline ? 'Offline' : ''}</span>
+                </div>
+                <motion.div animate={{ x: isOnline ? 59 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
+              </button>
+
+              {/* DEV SIMULATION TOGGLE */}
+              {import.meta.env.DEV && (
+                 <button 
+                   onClick={() => setIsSimMode(!isSimMode)}
+                   className={`px-3 h-8 rounded-lg text-[9px] font-black border transition-all ${isSimMode ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-white/10 border-white/20 text-white/40'}`}
+                 >
+                   SIM
+                 </button>
+              )}
+           </div>
           <div className="flex items-center gap-3">
              <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 active:scale-95 transition-all shadow-lg"><AlertTriangle className="w-4 h-4" /></button>
              <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><Contact className="w-4 h-4" /></button>
@@ -876,7 +899,29 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 {incomingOrder && (
                   <NewOrderModal 
                     order={incomingOrder} 
-                    onAccept={(o) => { acceptOrder(o); setIncomingOrder(null); clearNewOrder(); }}
+                    onAccept={async (o) => {
+                      try {
+                        await acceptOrder(o);
+                        // Only dismiss the modal on successful accept
+                        setIncomingOrder(null);
+                        clearNewOrder();
+                      } catch (err) {
+                        // acceptOrder already shows a toast for the specific error:
+                        // - "Order already accepted by another partner" (403)
+                        // - Network/timeout errors
+                        // Keep the modal visible only if it's not a "taken" error
+                        const msg = String(err?.response?.data?.message || err?.message || '');
+                        const isTaken = msg.toLowerCase().includes('already accepted') || 
+                                        msg.toLowerCase().includes('another partner') ||
+                                        (err?.response?.status === 403);
+                        if (isTaken) {
+                          // Dismiss modal — the order is no longer available
+                          setIncomingOrder(null);
+                          clearNewOrder();
+                        }
+                        // For other errors (network, etc.), keep showing the modal so they can retry
+                      }
+                    }}
                     onReject={() => { setIncomingOrder(null); clearNewOrder(); }}
                     onMinimize={() => setIsModalMinimized(true)}
                   />

@@ -46,9 +46,13 @@ export default function DiningList() {
 
     // Fetch restaurants from backend API
     useEffect(() => {
+        let isInitialLoad = true;
+        
         const fetchRestaurants = async () => {
             try {
-                setLoading(true)
+                if (isInitialLoad) {
+                    setLoading(true)
+                }
                 setError(null)
 
                 const response = await adminAPI.getDiningRestaurants()
@@ -75,18 +79,30 @@ export default function DiningList() {
 
                     setRestaurants(mappedRestaurants)
                 } else {
-                    setRestaurants([])
+                    if (isInitialLoad) setRestaurants([])
                 }
             } catch (err) {
                 debugError("Error fetching restaurants:", err)
-                setError(err.message || "Failed to fetch restaurants")
-                setRestaurants([])
+                if (isInitialLoad) {
+                    setError(err.message || "Failed to fetch restaurants")
+                    setRestaurants([])
+                }
             } finally {
-                setLoading(false)
+                if (isInitialLoad) {
+                    setLoading(false)
+                    isInitialLoad = false;
+                }
             }
         }
 
         fetchRestaurants()
+        
+        // Setup polling for real-time reflection
+        const intervalId = setInterval(() => {
+            fetchRestaurants()
+        }, 3000)
+        
+        return () => clearInterval(intervalId)
     }, [])
 
     // Fetch categories

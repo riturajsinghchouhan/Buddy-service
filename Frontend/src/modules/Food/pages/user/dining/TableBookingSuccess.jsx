@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom"
-import { CheckCircle2, Calendar, Clock, Users, MapPin, Share2, Home, List } from "lucide-react"
+import { CheckCircle2, Calendar, Clock, Users, MapPin, Share2, Home, List, Info } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { motion } from "framer-motion"
@@ -46,9 +46,13 @@ export default function TableBookingSuccess() {
             <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="w-20 h-20 bg-[#F9F9FB] rounded-full flex items-center justify-center mb-6"
+                className={`w-20 h-20 ${booking.status === 'pending' ? 'bg-amber-50' : 'bg-[#F9F9FB]'} rounded-full flex items-center justify-center mb-6`}
             >
-                <CheckCircle2 className="w-12 h-12 text-[#7e3866]" />
+                {booking.status === 'pending' ? (
+                    <Clock className="w-12 h-12 text-amber-500" />
+                ) : (
+                    <CheckCircle2 className="w-12 h-12 text-[#7e3866]" />
+                )}
             </motion.div>
 
             <motion.div
@@ -57,13 +61,31 @@ export default function TableBookingSuccess() {
                 transition={{ delay: 0.2 }}
                 className="text-center space-y-2 mb-10"
             >
-                <h1 className="text-3xl font-black text-gray-900">Seat Confirmed!</h1>
-                <p className="text-gray-500 font-medium tracking-wide italic">Your table is ready for you</p>
+                <h1 className="text-3xl font-black text-gray-900">
+                    {booking.status === 'pending' ? 'Booking Requested!' : 'Seat Confirmed!'}
+                </h1>
+                <p className="text-gray-500 font-medium tracking-wide italic">
+                    {booking.status === 'pending' ? 'Waiting for restaurant approval' : 'Your table is ready for you'}
+                </p>
                 <div className="pt-2">
                     <span className="bg-[#F9F9FB] text-[#7e3866] px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-[#7e3866]/20">
                         BOOKING ID: {booking.bookingId}
                     </span>
                 </div>
+
+                {booking.status === 'pending' && (
+                    <div className="mt-6 mx-auto max-w-xs bg-amber-50 border border-amber-100 rounded-2xl p-4 text-left flex gap-3 shadow-sm shadow-amber-100/50">
+                        <div className="bg-amber-100 p-2 rounded-xl h-fit">
+                            <Info className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-amber-900 text-xs">Waiting for Confirmation</p>
+                            <p className="text-amber-700 text-[10px] mt-1 leading-relaxed">
+                                The restaurant will review and approve your request shortly. You'll be notified of the status.
+                            </p>
+                        </div>
+                    </div>
+                )}
             </motion.div>
 
             {/* Ticket Card */}
@@ -126,8 +148,8 @@ export default function TableBookingSuccess() {
                         </div>
                         <div className="space-y-1">
                             <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</p>
-                            <div className="bg-[#7e3866] text-white px-2 py-0.5 rounded-lg text-xs font-bold w-fit">
-                                CONFIRMED
+                            <div className={`${booking.status === 'pending' ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white'} px-2 py-0.5 rounded-lg text-[10px] font-black tracking-widest w-fit uppercase`}>
+                                {booking.status === 'pending' ? 'PENDING' : 'CONFIRMED'}
                             </div>
                         </div>
                     </div>

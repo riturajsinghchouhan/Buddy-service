@@ -236,7 +236,7 @@ const restaurantSchema = new mongoose.Schema(
     diningSettings: {
       isEnabled: { type: Boolean, default: false },
       maxGuests: { type: Number, default: 6 },
-      diningType: { type: String, default: "family-dining" },
+      diningType: { type: [String], default: ["family-dining"] },
     },
     menu: {
       sections: { type: Array, default: [] },

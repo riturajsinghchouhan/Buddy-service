@@ -2,17 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { API_BASE_URL } from '@food/api/config';
 import { restaurantAPI } from '@food/api';
-import alertSound from '@food/assets/audio/alert.mp3';
+const alertSound = '/zomato_sms.mp3';
 import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInbox';
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-const resolveAudioSource = (source, cacheKey = 'restaurant-alert') => {
-  if (!source) return source;
-  if (!import.meta.env.DEV) return source;
-  const separator = source.includes('?') ? '&' : '?';
-  return `${source}${separator}devcache=${cacheKey}`;
+const resolveAudioSource = (source) => {
+  return source;
 }
 
 const supportsBrowserNotifications = () =>

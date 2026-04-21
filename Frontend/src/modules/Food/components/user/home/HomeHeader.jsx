@@ -118,11 +118,44 @@ export default function HomeHeader({
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1">
-                <span className="text-[9px] font-black text-white/60 uppercase tracking-widest leading-none">Deliver to</span>
-                <ChevronDown className="h-2.5 w-2.5 text-white/60" />
+                <span className="text-[13px] font-black text-white truncate">
+                  {(() => {
+                    const topStr = location?.area || location?.mainTitle || (location?.address?.split(',')[0]) || "Select Location";
+                    // If it looks like a latitude/longitude number, show "Current Location"
+                    if (/^-?\d+(\.\d+)?$/.test(topStr.trim())) {
+                      return "Current Location";
+                    }
+                    return topStr;
+                  })()}
+                </span>
+                <ChevronDown className="h-3 w-3 text-white/70" />
               </div>
-              <span className="text-xs font-bold text-white truncate">
-                {location?.area || location?.city || savedAddressText || "Select Location"}
+              <span className="text-[10px] font-medium text-white/80 truncate leading-tight mt-0.5">
+                {(() => {
+                  const addr = location?.address || savedAddressText || "";
+                  const city = location?.city || "Indore";
+                  const area = location?.area || "";
+                  
+                  let displayAddr = addr;
+                  if (city) {
+                    displayAddr = displayAddr.replace(new RegExp(`,?\\s*${city}\\s*`, 'gi'), '').trim();
+                  }
+                  if (area && area.length > 3) {
+                    displayAddr = displayAddr.replace(new RegExp(`^${area},?\\s*`, 'i'), '').trim();
+                  }
+                  
+                  // Check if it's just coordinates or essentially empty
+                  if (/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(addr.trim()) || /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(displayAddr.trim())) {
+                    return "Pinpoint location";
+                  }
+                  if (!displayAddr || displayAddr === ",") {
+                    return "Pinpoint location"; // Fallback instead of saying "Base address" if it gets empty
+                  }
+                  return displayAddr;
+                })()}
+              </span>
+              <span className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em] leading-tight mt-1">
+                {location?.city || "Indore"}
               </span>
             </div>
           </div>

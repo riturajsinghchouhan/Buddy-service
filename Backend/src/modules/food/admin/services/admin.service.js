@@ -1,4 +1,4 @@
-﻿import mongoose from 'mongoose';
+import mongoose from 'mongoose';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { buildRawDownloadUrlFromFileUrl } from '../../../../services/cloudinary.service.js';
@@ -4709,18 +4709,62 @@ export async function getDeliveryWallets(query = {}) {
 
     const wallets = await Promise.all(partners.map(async (p) => {
         const wallet = await FoodDeliveryWallet.findOne({ deliveryPartnerId: p._id }).lean();
+        const partnerIdstr = p._id ? `DP-${p._id.toString().slice(-8).toUpperCase()}` : '—';
         
+        if (!p._id) {
+            return {
+                walletId: wallet?._id,
+                deliveryId: p._id,
+                name: p.name,
+                phone: p.phone || '',
+                deliveryIdString: partnerIdstr,
+                pocketBalance: 0,
+                remainingCashLimit: globalLimit,
+                cashCollected: 0,
+                totalEarning: 0,
+                bonus: 0,
+                totalWithdrawn: 0,
+                cashInHand: 0,
+            };
+        }
+
+        const partnerId = new mongoose.Types.ObjectId(p._id);
+
+        const [earningsAgg, cashAgg, bonusAgg] = await Promise.all([
+            FoodOrder.aggregate([
+                { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' } },
+                { $group: { _id: null, totalEarned: { $sum: { $ifNull: ['$riderEarning', 0] } } } }
+            ]),
+            FoodOrder.aggregate([
+                { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered', 'payment.method': 'cash', 'payment.status': 'paid' } },
+                { $group: { _id: null, cashInHand: { $sum: { $ifNull: ['$payment.amountDue', '$totalAmount'] } } } }
+            ]),
+            DeliveryBonusTransaction.aggregate([
+                { $match: { deliveryPartnerId: partnerId } },
+                { $group: { _id: null, total: { $sum: '$amount' } } }
+            ])
+        ]);
+
+        const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
+        const cashInHand = Number(cashAgg?.[0]?.cashInHand) || 0;
+        const totalBonus = Number(bonusAgg?.[0]?.total) || 0;
+        const totalWithdrawn = Number(wallet?.totalSettled || 0);
+
+        const totalBalance = totalEarned + totalBonus - totalWithdrawn;
+
         return {
             walletId: wallet?._id,
             deliveryId: p._id,
             name: p.name,
-            deliveryIdString: p.phone, // Placeholder or sequential ID if available
-            pocketBalance: Number(wallet?.balance || 0),
-            remainingCashLimit: Math.max(0, globalLimit - Number(wallet?.cashInHand || 0)),
-            cashCollected: Number(wallet?.cashInHand || 0),
-            totalEarning: Number(wallet?.totalEarnings || 0),
-            bonus: Number(wallet?.totalBonus || 0),
-            totalWithdrawn: Number(wallet?.totalSettled || 0)
+            phone: p.phone || '',
+            deliveryIdString: partnerIdstr,
+            pocketBalance: totalBalance,
+            remainingCashLimit: Math.max(0, globalLimit - cashInHand),
+            cashCollected: cashInHand,
+            totalEarning: totalEarned,
+            bonus: totalBonus,
+            totalWithdrawn: totalWithdrawn,
+            cashInHand: cashInHand,
         };
     }));
 

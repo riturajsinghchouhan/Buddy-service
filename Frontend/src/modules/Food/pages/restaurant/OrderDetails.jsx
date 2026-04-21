@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useLocation } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { jsPDF } from "jspdf"
@@ -49,7 +49,8 @@ const formatDiscount = (value) => `-₹${Math.abs(Number(value || 0)).toFixed(2)
 export default function OrderDetails() {
   const navigate = useNavigate()
   const goBack = useRestaurantBackNavigation()
-  const { orderId } = useParams()
+  const { id: orderId } = useParams()
+  const location = useLocation()
   
   // State for order data
   const [orderData, setOrderData] = useState(null)
@@ -68,10 +69,22 @@ export default function OrderDetails() {
         setLoading(true)
         setError(null)
         
-        const response = await restaurantAPI.getOrderById(orderId)
+        let response;
+        try {
+          response = await restaurantAPI.getOrderById(orderId)
+          if (!response.data?.success) throw new Error('Readable ID fetch failed')
+        } catch (e) {
+          const fallbackId = location.state?.mongoId
+          if (fallbackId && fallbackId !== orderId) {
+            response = await restaurantAPI.getOrderById(fallbackId)
+          } else {
+            throw e
+          }
+        }
         
-        if (response.data?.success && response.data.data?.order) {
-          const order = response.data.data.order
+        if (response.data?.success) {
+          const order = response.data.data?.order || response.data.data
+          if (!order) throw new Error('Order data is missing')
           const orderStatusRaw = String(order.status || order.orderStatus || "").toLowerCase()
           const pricing = order.pricing || {}
           const computedSubtotal = Array.isArray(order.items)
@@ -601,10 +614,44 @@ export default function OrderDetails() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading order details...</p>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {/* Header Skeleton */}
+        <div className="bg-white px-4 py-4 sticky top-0 z-50 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-gray-100 rounded w-1/3 animate-pulse" />
+              <div className="h-3 bg-gray-100 rounded w-1/2 animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="p-4 space-y-4">
+          <div className="bg-white rounded-2xl p-6 space-y-4 shadow-sm border border-gray-50">
+            <div className="flex justify-between">
+              <div className="h-6 bg-gray-100 rounded w-24 animate-pulse" />
+              <div className="h-6 bg-gray-100 rounded w-20 animate-pulse" />
+            </div>
+            <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse" />
+            <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse" />
+          </div>
+          
+          <div className="bg-white rounded-2xl p-6 space-y-4 shadow-sm border border-gray-50">
+            <div className="h-5 bg-gray-100 rounded w-40 animate-pulse" />
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-100 rounded-full animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse" />
+                <div className="h-3 bg-gray-100 rounded w-1/3 animate-pulse" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-600 mb-4" />
+            <p className="text-gray-500 font-medium tracking-tight">Fetching order details...</p>
+          </div>
         </div>
       </div>
     )
@@ -613,18 +660,34 @@ export default function OrderDetails() {
   // Error state
   if (error && !orderData) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4 text-center">
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Not Found</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => navigate('/restaurant/orders')}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-lg transition-colors"
-          >
-            Back to Orders
-          </button>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl shadow-xl p-10 max-w-sm w-full text-center border border-gray-100"
+        >
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <XCircle className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Order Not Found</h2>
+          <p className="text-gray-500 mb-8 leading-relaxed">
+            {error || "We couldn't retrieve the details for this order. It might have been removed or the ID is incorrect."}
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-gray-900 text-white font-bold py-4 px-6 rounded-2xl transition-all active:scale-95 shadow-lg shadow-gray-200"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => navigate('/food/restaurant/orders/all')}
+              className="bg-white text-gray-700 font-bold py-4 px-6 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all active:scale-95"
+            >
+              Back to History
+            </button>
+          </div>
+        </motion.div>
       </div>
     )
   }
@@ -786,7 +849,6 @@ export default function OrderDetails() {
                   </div>
                   {item.type && (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <span>Quantity</span>
                       <span>{item.type}</span>
                     </div>
                   )}

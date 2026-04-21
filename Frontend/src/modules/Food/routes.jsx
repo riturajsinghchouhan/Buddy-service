@@ -3,6 +3,7 @@ import { useEffect, Suspense, lazy } from "react"
 import ProtectedRoute from "@food/components/ProtectedRoute"
 import AuthRedirect from "@food/components/AuthRedirect"
 import Loader from "@food/components/Loader"
+import AuthInitializer from "@food/components/AuthInitializer"
 import PushSoundEnableButton from "@food/components/PushSoundEnableButton"
 import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging"
 import { isModuleAuthenticated } from "@food/utils/auth"
@@ -84,36 +85,40 @@ export default function App() {
   }, [location.pathname])
 
   return (
-    <>
-      <ScrollToTop />
-      <RestaurantGlobalNotificationListener />
-      <PushSoundEnableButton />
-      <Suspense fallback={<Loader />}>
-        <Routes>
-          {/* Restaurant Module - Already mapped to /restaurant */}
-          <Route
-            path="restaurant/*"
-            element={
-              <RestaurantRouter />
-            }
-          />
+    <AuthInitializer>
+      <>
+        <ScrollToTop />
+        <RestaurantGlobalNotificationListener />
+        <PushSoundEnableButton />
+        <Suspense fallback={<Loader />}>
+          <Routes>
+            {/* Restaurant Module - Already mapped to /restaurant */}
+            <Route
+              path="restaurant/*"
+              element={
+                <RestaurantRouter />
+              }
+            />
 
-          {/* Delivery Module - Already mapped to /delivery */}
-          <Route
-            path="delivery/*"
-            element={<DeliveryRouter />}
-          />
+            {/* Delivery Module - Already mapped to /delivery */}
+            <Route
+              path="delivery/*"
+              element={<DeliveryRouter />}
+            />
 
-          {/* User Module - Explicitly mapped to /user and the catch-all for /food/ and / */}
-          <Route
-            path="user/*"
-            element={<UserRouter />}
-          />
+            {/* User Module - Explicitly mapped to /user and the catch-all for /food/ and / */}
+            {/* NOTE: /user/food is a common mis-navigation - redirect to correct /food/user home */}
+            <Route path="user/food" element={<Navigate to="/food/user" replace />} />
+            <Route
+              path="user/*"
+              element={<UserRouter />}
+            />
 
-          {/* Make UserRouter the default for all other paths to handle / and /food/ as user home */}
-          <Route path="/*" element={<UserRouter />} />
-        </Routes>
-      </Suspense>
-    </>
+            {/* Make UserRouter the default for all other paths to handle / and /food/ as user home */}
+            <Route path="/*" element={<UserRouter />} />
+          </Routes>
+        </Suspense>
+      </>
+    </AuthInitializer>
   )
 }

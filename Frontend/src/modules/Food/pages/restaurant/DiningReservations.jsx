@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Calendar, Clock, Users, Search, MessageSquare, CheckCircle2, Clock4, UploadCloud, ImagePlus, ChevronDown, ChevronUp, Sparkles, MapPin, Phone, Info, X } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
+import { Calendar, Clock, Users, Search, MessageSquare, CheckCircle2, Clock4, UploadCloud, ImagePlus, ChevronDown, ChevronUp, Sparkles, MapPin, Phone, Info, X, ArrowLeft } from "lucide-react"
 import { diningAPI, restaurantAPI } from "@food/api"
 import Loader from "@food/components/Loader"
 import { Badge } from "@food/components/ui/badge"
@@ -70,6 +72,8 @@ const getBookerPhone = (booking) =>
 
 
 export default function DiningReservations() {
+    const navigate = useNavigate()
+    const goBack = useRestaurantBackNavigation()
     const [bookings, setBookings] = useState([])
     const [loading, setLoading] = useState(true)
     const [restaurant, setRestaurant] = useState(null)
@@ -91,6 +95,10 @@ export default function DiningReservations() {
     const [savingDiningSettings, setSavingDiningSettings] = useState(false)
     const [diningSettingsMessage, setDiningSettingsMessage] = useState("")
     const [diningSettingsError, setDiningSettingsError] = useState("")
+    const [diningType, setDiningType] = useState([])
+    const [availableCategories, setAvailableCategories] = useState([])
+    const [pendingRequest, setPendingRequest] = useState(null)
+    const [fetchingRequest, setFetchingRequest] = useState(true)
 
     const syncRestaurantMediaState = (restaurantData) => {
         setRestaurant(restaurantData || null)
@@ -101,37 +109,83 @@ export default function DiningReservations() {
         setMenuPhotos(getMenuImages(restaurantData))
         setDiningEnabled(Boolean(restaurantData?.diningSettings?.isEnabled))
         setMaxGuestsLimit(Math.max(1, parseInt(restaurantData?.diningSettings?.maxGuests, 10) || 6))
+        
+        const rawDiningType = restaurantData?.diningSettings?.diningType
+        setDiningType(Array.isArray(rawDiningType) ? rawDiningType : (rawDiningType ? [rawDiningType].filter(Boolean) : []))
     }
 
     useEffect(() => {
-        const fetchAll = async () => {
+        const fetchAll = async (isPoll = false) => {
             try {
-                // First get the current restaurant
+                if (!isPoll) setLoading(true)
+
                 const resResponse = await restaurantAPI.getCurrentRestaurant()
                 if (resResponse.data.success) {
                     const resData = getRestaurantFromResponse(resResponse)
-
                     const restaurantId = resData?._id || resData?.id
 
                     if (restaurantId) {
                         syncRestaurantMediaState(resData)
-                        // Then get its bookings
-                        const bookingsResponse = await diningAPI.getRestaurantBookings(resData)
-                        if (bookingsResponse.data.success) {
-                            setBookings(Array.isArray(bookingsResponse.data.data) ? bookingsResponse.data.data : [])
+
+                        if (!isPoll) {
+                            const bookingsResponse = await diningAPI.getRestaurantBookings(resData)
+                            if (bookingsResponse.data.success) {
+                                setBookings(Array.isArray(bookingsResponse.data.data) ? bookingsResponse.data.data : [])
+                            }
+
+                            const catRes = await diningAPI.getCategories()
+                            if (catRes.data.success) {
+                                setAvailableCategories(catRes.data.data || [])
+                            }
                         }
-                    } else {
-                        debugError("Restaurant ID not found in response:", resData)
+
+                        const requestRes = await restaurantAPI.getPendingDiningRequest()
+                        const newPendingRequest = requestRes.data.success && requestRes.data.data ? requestRes.data.data : null
+
+                        if (pendingRequest && !newPendingRequest) {
+                            const updatedRes = await restaurantAPI.getCurrentRestaurant()
+                            const updatedData = getRestaurantFromResponse(updatedRes)
+                            
+                            // Simple check: if isEnabled matches what we requested, it was likely approved
+                            const requestedEnabled = pendingRequest.requestedSettings?.isEnabled
+                            const currentEnabled = updatedData?.diningSettings?.isEnabled
+                            
+                            if (requestedEnabled === currentEnabled) {
+                                toast.success("Dining settings updated and approved!")
+                            } else {
+                                toast.error("Your dining settings request was rejected by admin.")
+                            }
+                            
+                            syncRestaurantMediaState(updatedData)
+                        }
+
+                        setPendingRequest(newPendingRequest)
+
+                        if (newPendingRequest?.requestedSettings) {
+                            setDiningEnabled(newPendingRequest.requestedSettings.isEnabled)
+                            setMaxGuestsLimit(newPendingRequest.requestedSettings.maxGuests)
+                            const reqType = newPendingRequest.requestedSettings.diningType
+                            setDiningType(Array.isArray(reqType) ? reqType : (reqType ? [reqType] : []))
+                        }
                     }
                 }
             } catch (error) {
-                debugError("Error fetching reservations:", error)
+                if (!isPoll) debugError("Error fetching dining data:", error)
             } finally {
-                setLoading(false)
+                if (!isPoll) {
+                    setLoading(false)
+                    setFetchingRequest(false)
+                }
             }
         }
+
         fetchAll()
-    }, [])
+        let interval
+        if (pendingRequest) {
+            interval = setInterval(() => fetchAll(true), 15000)
+        }
+        return () => interval && clearInterval(interval)
+    }, [pendingRequest?._id])
 
     const handleRestaurantPhotoUpload = async (event) => {
         const files = Array.from(event.target.files || [])
@@ -250,14 +304,26 @@ export default function DiningReservations() {
     }
 
     const handleSaveDiningSettings = async () => {
-        if (!restaurant || savingDiningSettings) return
+        if (!restaurant || savingDiningSettings || pendingRequest) return
 
-        const nextMaxGuests = Math.max(1, parseInt(maxGuestsLimit, 10) || 1)
+        if (!diningType || diningType.length === 0) {
+            setDiningSettingsError("Please select at least one dining category")
+            toast.error("Dining category is required")
+            return
+        }
+
+        const nextMaxGuests = parseInt(maxGuestsLimit, 10) || 0
+
+        if (diningEnabled && nextMaxGuests <= 0) {
+            setDiningSettingsError("Guest limit must be at least 1 when dining is enabled")
+            toast.error("Set at least 1 guest limit to enable dining")
+            return
+        }
+
         const nextDiningSettings = {
-            ...(restaurant?.diningSettings || {}),
             isEnabled: Boolean(diningEnabled),
             maxGuests: nextMaxGuests,
-            diningType: restaurant?.diningSettings?.diningType || "family-dining",
+            diningType: Array.isArray(diningType) ? [...new Set(diningType)] : [diningType],
         }
 
         setDiningSettingsError("")
@@ -265,19 +331,17 @@ export default function DiningReservations() {
         setSavingDiningSettings(true)
 
         try {
-            const response = await restaurantAPI.updateDiningSettings(nextDiningSettings)
+            const response = await restaurantAPI.requestDiningUpdate(nextDiningSettings)
 
-            const updatedRestaurant = getRestaurantFromResponse(response)
-            if (updatedRestaurant) {
-                syncRestaurantMediaState(updatedRestaurant)
+            if (response.data.success) {
+                setPendingRequest(response.data.data)
+                setDiningSettingsMessage("Update request sent to admin for approval.")
+                toast.success("Request sent for approval")
             }
-
-            setDiningSettingsMessage("Dining settings saved successfully.")
-            toast.success("Dining settings updated")
         } catch (error) {
-            debugError("Error saving dining settings:", error)
-            setDiningSettingsError(error?.response?.data?.message || "Failed to save dining settings.")
-            toast.error(error?.response?.data?.message || "Failed to save dining settings")
+            debugError("Error requesting dining settings update:", error)
+            setDiningSettingsError(error?.response?.data?.message || "Failed to submit request.")
+            toast.error(error?.response?.data?.message || "Failed to submit request")
         } finally {
             setSavingDiningSettings(false)
         }
@@ -286,25 +350,28 @@ export default function DiningReservations() {
     const handleStatusUpdate = async (bookingId, newStatus) => {
         try {
             const response = await diningAPI.updateBookingStatusRestaurant(bookingId, newStatus)
-            if (response.data.success) {
+             if (response.data.success) {
                 // Update local state
                 setBookings(prev => prev.map(b =>
                     b._id === bookingId ? { ...b, status: newStatus } : b
                 ))
+                toast.success(`Booking ${newStatus === 'accepted' ? 'confirmed' : 'declined'}`)
             }
         } catch (error) {
             debugError("Error updating status:", error)
+            toast.error("Failed to update status")
         }
     }
 
     const getStatusPriority = (status) => {
         const key = String(status || "").toLowerCase()
-        if (key === "confirmed") return 0
-        if (key === "accepted") return 1
-        if (key === "checked-in") return 2
-        if (key === "completed") return 3
-        if (key === "cancelled") return 4
-        return 5
+        if (key === "pending") return 0
+        if (key === "confirmed") return 1
+        if (key === "accepted") return 2
+        if (key === "checked-in") return 3
+        if (key === "completed") return 4
+        if (key === "cancelled") return 5
+        return 6
     }
 
     const getBookingTimestamp = (booking) => {
@@ -322,7 +389,7 @@ export default function DiningReservations() {
     }
 
     const isNewRequest = (booking) => {
-        if (String(booking?.status || "").toLowerCase() !== "confirmed") return false
+        if (String(booking?.status || "").toLowerCase() !== "pending") return false
         const createdAt = new Date(booking?.createdAt || booking?.date || "").getTime()
         if (Number.isNaN(createdAt)) return true
         return Date.now() - createdAt <= 2 * 60 * 60 * 1000
@@ -369,7 +436,15 @@ export default function DiningReservations() {
                     <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
+                        className="flex items-center gap-4"
                     >
+                        <button
+                            onClick={goBack}
+                            className="bg-slate-100 p-2 rounded-xl text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all border border-slate-200"
+                            aria-label="Back to explore"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
                         <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                             Table Reservations
                             <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -443,7 +518,7 @@ export default function DiningReservations() {
                             <div>
                                 <p className="text-slate-500 text-sm font-semibold uppercase tracking-wider">Active</p>
                                 <p className="text-3xl font-black text-slate-900 leading-none mt-1">
-                                    {bookings.filter(b => ['confirmed', 'accepted', 'checked-in'].includes(String(b.status || '').toLowerCase())).length}
+                                    {bookings.filter(b => ['pending', 'confirmed', 'accepted', 'checked-in'].includes(String(b.status || '').toLowerCase())).length}
                                 </p>
                             </div>
                         </div>
@@ -628,57 +703,153 @@ export default function DiningReservations() {
 
                 {activeSection === "reservations" && (
                     <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                            <div className="max-w-xl">
-                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Dining Controls</p>
-                                <h2 className="mt-1 text-lg font-black text-slate-900">Manage dining availability and booking limit</h2>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    These settings update the same dining profile the guest booking flow reads, so restaurant changes are reflected on the user side too.
-                                </p>
+                        <div className="max-w-xl mb-6">
+                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Dining Controls</p>
+                            <h2 className="mt-1 text-lg font-black text-slate-900">Manage dining availability and booking limit</h2>
+                            <p className="mt-1 text-sm text-slate-500">
+                                These settings update the same dining profile the guest booking flow reads, so restaurant changes are reflected on the user side too.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 mb-8">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+                                <span className={`h-2.5 w-2.5 rounded-full ${diningEnabled ? "bg-emerald-500" : "bg-rose-500"}`} />
+                                <span className="text-sm font-semibold text-slate-700">
+                                    {diningEnabled ? "Dining enabled" : "Dining paused"}
+                                </span>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-3">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
-                                    <span className={`h-2.5 w-2.5 rounded-full ${diningEnabled ? "bg-emerald-500" : "bg-rose-500"}`} />
-                                    <span className="text-sm font-semibold text-slate-700">
-                                        {diningEnabled ? "Dining enabled" : "Dining paused"}
-                                    </span>
-                                </div>
-
-                                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2">
-                                    <span className="text-sm font-medium text-slate-700">Turn dining on/off</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDiningEnabled((prev) => !prev)}
-                                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${diningEnabled ? "bg-emerald-600" : "bg-slate-300"}`}
-                                        aria-pressed={diningEnabled}
-                                    >
-                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${diningEnabled ? "translate-x-6" : "translate-x-1"}`} />
-                                    </button>
-                                </div>
-
-                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2">
-                                    <span className="text-sm font-medium text-slate-700">Customer limit</span>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="20"
-                                        value={maxGuestsLimit}
-                                        onChange={(e) => setMaxGuestsLimit(e.target.value)}
-                                        className="w-20 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-center text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
-                                    />
-                                </div>
-
+                            <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2">
+                                <span className="text-sm font-medium text-slate-700">Turn dining on/off</span>
                                 <button
                                     type="button"
-                                    onClick={handleSaveDiningSettings}
-                                    disabled={savingDiningSettings}
-                                    className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                    onClick={() => {
+                                        if (pendingRequest) return
+                                        const newState = !diningEnabled
+                                        setDiningEnabled(newState)
+                                        if (!newState) {
+                                            setMaxGuestsLimit(0)
+                                        } else if (maxGuestsLimit === 0) {
+                                            // Optional: Set to default 1 if turning on from 0
+                                            setMaxGuestsLimit(6)
+                                        }
+                                    }}
+                                    disabled={!!pendingRequest}
+                                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${diningEnabled ? "bg-emerald-600" : "bg-slate-300"}`}
+                                    aria-pressed={diningEnabled}
                                 >
-                                    {savingDiningSettings ? "Saving..." : "Save settings"}
+                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${diningEnabled ? "translate-x-6" : "translate-x-1"}`} />
                                 </button>
                             </div>
                         </div>
+
+                        {/* Dining Categories Selection */}
+                        <div className="mt-8 border-t border-slate-100 pt-6">
+                            <label className="block text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-primary" />
+                                Choose Dining Categories (Pick Multiple)
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                {availableCategories.map((cat) => {
+                                    const isSelected = Array.isArray(diningType) && diningType.includes(cat.slug)
+                                    return (
+                                        <button
+                                            key={cat._id}
+                                            type="button"
+                                            onClick={() => {
+                                                if (pendingRequest) return
+                                                if (isSelected) {
+                                                    setDiningType(diningType.filter(s => s !== cat.slug))
+                                                } else {
+                                                    setDiningType([...diningType, cat.slug])
+                                                }
+                                            }}
+                                            disabled={!!pendingRequest}
+                                            className={`group relative flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${
+                                                isSelected 
+                                                    ? "border-primary bg-primary/5 shadow-md scale-[1.02]" 
+                                                    : "border-slate-100 bg-white hover:border-slate-200 active:scale-95"
+                                            } ${!!pendingRequest ? "cursor-not-allowed opacity-80" : ""}`}
+                                        >
+                                            <div className={`w-16 h-16 rounded-2xl mb-3 overflow-hidden shadow-sm border transition-transform ${isSelected ? "border-primary/20 scale-105" : "bg-white border-slate-100 group-hover:scale-105"}`}>
+                                                {cat.imageUrl ? (
+                                                    <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                                                        <UtensilsCrossed className="w-6 h-6 text-slate-300" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className={`text-[13px] font-bold text-center leading-tight transition-colors ${isSelected ? "text-primary" : "text-slate-600"}`}>
+                                                {cat.name}
+                                            </span>
+                                            {isSelected && (
+                                                <div className="absolute top-2 right-2 animate-in zoom-in duration-200">
+                                                    <div className="bg-primary rounded-full p-1 shadow-sm">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </button>
+                                    )
+                                })}
+                                {availableCategories.length === 0 && (
+                                    <div className="col-span-full py-10 text-center text-slate-400 text-sm font-medium border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
+                                        No categories available. Please contact support.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-t border-slate-100 pt-6">
+                            <div className="flex items-center gap-6">
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-bold text-slate-900">Maximum Guest Limit</label>
+                                    <p className="text-xs text-slate-500 font-medium">Guests allowed per reservation</p>
+                                </div>
+                                <div className="flex items-center gap-4 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            if (pendingRequest) return
+                                            setMaxGuestsLimit(Math.max(0, maxGuestsLimit - 1))
+                                        }}
+                                        disabled={!!pendingRequest}
+                                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm text-slate-600 hover:text-slate-900 active:scale-90 transition-all font-black text-xl disabled:opacity-50"
+                                    >
+                                        −
+                                    </button>
+                                    <span className="w-8 text-center text-lg font-black text-slate-800">{maxGuestsLimit}</span>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            if (pendingRequest) return
+                                            setMaxGuestsLimit(parseInt(maxGuestsLimit) + 1)
+                                        }}
+                                        disabled={!!pendingRequest}
+                                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm text-slate-600 hover:text-slate-900 active:scale-90 transition-all font-black text-xl disabled:opacity-50"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveDiningSettings}
+                                disabled={savingDiningSettings || !!pendingRequest}
+                                className="rounded-full bg-slate-900 px-10 py-4 text-sm font-black text-white transition-all hover:bg-slate-800 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 shadow-xl shadow-slate-200 uppercase tracking-widest"
+                            >
+                                {savingDiningSettings ? "Saving..." : pendingRequest ? "Approval Pending" : "Save settings"}
+                            </button>
+                        </div>
+
+                        {pendingRequest && (
+                            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 flex items-center gap-2">
+                                <Clock4 className="w-4 h-4" />
+                                Your recent changes are waiting for admin approval. You cannot make new changes until the current request is processed.
+                            </div>
+                        )}
 
                         {(diningSettingsMessage || diningSettingsError) && (
                             <div className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${diningSettingsError
@@ -796,19 +967,21 @@ export default function DiningReservations() {
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             <Badge className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                                                                booking.status === 'confirmed' ? 'bg-amber-100 text-amber-700' :
-                                                                booking.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                                                                booking.status === 'checked-in' ? 'bg-orange-100 text-orange-700' :
-                                                                booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                                                String(booking.status || '').toLowerCase() === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100 ring-1 ring-amber-100' :
+                                                                ['accepted', 'confirmed'].includes(String(booking.status || '').toLowerCase()) ? 'bg-emerald-100 text-emerald-700' :
+                                                                String(booking.status || '').toLowerCase() === 'checked-in' ? 'bg-orange-100 text-orange-700' :
+                                                                String(booking.status || '').toLowerCase() === 'completed' ? 'bg-blue-100 text-blue-700' :
                                                                 'bg-rose-100 text-rose-700'
-                                                            }`}>
-                                                                {booking.status}
+                                                            } shadow-sm`}>
+                                                                {String(booking.status || '').toLowerCase() === 'pending' ? 'APPROVAL REQD' : 
+                                                                 ['accepted', 'confirmed'].includes(String(booking.status || '').toLowerCase()) ? 'CONFIRMED' : 
+                                                                 booking.status}
                                                             </Badge>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            {booking.status === 'confirmed' && (
+                                                            {String(booking.status || '').toLowerCase() === 'pending' && (
                                                                 <button
                                                                     onClick={() => handleStatusUpdate(booking._id, 'accepted')}
                                                                     className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
@@ -816,7 +989,7 @@ export default function DiningReservations() {
                                                                     Accept
                                                                 </button>
                                                             )}
-                                                            {booking.status === 'confirmed' && (
+                                                            {String(booking.status || '').toLowerCase() === 'pending' && (
                                                                 <button
                                                                     onClick={() => handleStatusUpdate(booking._id, 'cancelled')}
                                                                     className="px-3 py-1.5 bg-white border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 transition-colors"
@@ -880,13 +1053,15 @@ export default function DiningReservations() {
                                                     </div>
                                                 </div>
                                                 <Badge className={`rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${
-                                                    booking.status === 'confirmed' ? 'bg-amber-100 text-amber-700' :
-                                                    booking.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                                                    booking.status === 'checked-in' ? 'bg-orange-100 text-orange-700' :
-                                                    booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                                    String(booking.status || '').toLowerCase() === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                                    ['accepted', 'confirmed'].includes(String(booking.status || '').toLowerCase()) ? 'bg-emerald-100 text-emerald-700' :
+                                                    String(booking.status || '').toLowerCase() === 'checked-in' ? 'bg-orange-100 text-orange-700' :
+                                                    String(booking.status || '').toLowerCase() === 'completed' ? 'bg-blue-100 text-blue-700' :
                                                     'bg-rose-100 text-rose-700'
                                                 }`}>
-                                                    {booking.status}
+                                                    {String(booking.status || '').toLowerCase() === 'pending' ? 'WAITING' : 
+                                                     ['accepted', 'confirmed'].includes(String(booking.status || '').toLowerCase()) ? 'CONFIRMED' : 
+                                                     booking.status}
                                                 </Badge>
                                             </div>
 
@@ -919,7 +1094,7 @@ export default function DiningReservations() {
                                             )}
 
                                             <div className="flex items-center gap-2">
-                                                {booking.status === 'confirmed' && (
+                                                {String(booking.status || '').toLowerCase() === 'pending' && (
                                                     <button
                                                         onClick={() => handleStatusUpdate(booking._id, 'accepted')}
                                                         className="flex-1 py-2.5 bg-emerald-600 text-white text-xs font-black rounded-xl hover:bg-emerald-700 transition-colors uppercase tracking-widest"
@@ -927,10 +1102,10 @@ export default function DiningReservations() {
                                                         Accept
                                                     </button>
                                                 )}
-                                                {booking.status === 'confirmed' && (
+                                                {String(booking.status || '').toLowerCase() === 'pending' && (
                                                     <button
                                                         onClick={() => handleStatusUpdate(booking._id, 'cancelled')}
-                                                        className="flex-1 py-2.5 bg-slate-100 text-slate-600 text-xs font-black rounded-xl hover:bg-slate-200 transition-colors uppercase tracking-widest"
+                                                        className="flex-1 py-2.5 bg-white border border-rose-200 text-slate-600 text-xs font-black rounded-xl hover:bg-slate-50 transition-colors uppercase tracking-widest"
                                                     >
                                                         Decline
                                                     </button>

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { ChevronDown, ShoppingCart, Wallet, Search, Mic } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
@@ -36,16 +36,36 @@ export default function DesktopNavbar({ showLogo = true }) {
 
 
     // Show area if available, otherwise show city
-    // Priority: area > city > "Select"
     const areaName = userLocation?.area && userLocation?.area.trim() ? userLocation.area.trim() : null
-    const cityName = userLocation?.city || null
-    const stateName = userLocation?.state || null
-    // Main location name: Show area if available, otherwise show city, otherwise "Select"
-    const mainLocationName = areaName || cityName || "Select"
-    // Secondary location: Show only city when area is available (as per design image)
-    const secondaryLocation = areaName
-        ? (cityName || "")  // Show only city when area is available
-        : (cityName && stateName ? `${cityName}, ${stateName}` : cityName || stateName || "")
+    const cityName = userLocation?.city || "Indore"
+    const fullAddress = userLocation?.address || userLocation?.formattedAddress || ""
+    
+    // Main location name: Show area
+    const mainLocationName = useMemo(() => {
+        let name = areaName || "Select Location"
+        if (/^-?\d+(\.\d+)?$/.test(name.trim())) {
+            return "Current Location"
+        }
+        return name
+    }, [areaName])
+    
+    // Middle location: Show full address (base address) - Cleaned up
+    const baseAddress = useMemo(() => {
+        let addr = fullAddress || ""
+        if (cityName) {
+            addr = addr.replace(new RegExp(`,?\\s*${cityName}\\s*`, 'gi'), '').trim()
+        }
+        if (areaName && areaName.length > 3) {
+            addr = addr.replace(new RegExp(`^${areaName},?\\s*`, 'i'), '').trim()
+        }
+        if (/^-?\d+\.\d+,\s*-?\\s*\d+\.\d+$/.test(fullAddress.trim()) || /^-?\d+\.\d+,\s*-?\\s*\d+\.\d+$/.test(addr.trim()) || !addr || addr === ",") {
+            return "Pinpoint location"
+        }
+        return addr
+    }, [fullAddress, cityName, areaName])
+    
+    // Bottom location: Show city
+    const bottomCity = cityName
 
     const handleLocationClick = () => {
         // Open location selector overlay
@@ -218,11 +238,14 @@ export default function DesktopNavbar({ showLogo = true }) {
                                             </span>
                                             <ChevronDown className="h-4 w-4 lg:h-5 lg:w-5 text-black dark:text-white flex-shrink-0" strokeWidth={2.5} />
                                         </div>
-                                        {secondaryLocation && (
-                                            <span className="text-xs lg:text-sm font-bold text-gray-600 dark:text-gray-400 mt-0.5 whitespace-nowrap">
-                                                {secondaryLocation}
+                                        {baseAddress && (
+                                            <span className="text-[10px] lg:text-xs font-medium text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
+                                                {baseAddress}
                                             </span>
                                         )}
+                                        <span className="text-[9px] lg:text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">
+                                            {bottomCity}
+                                        </span>
                                     </div>
                                 )}
                             </Button>

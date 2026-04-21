@@ -100,6 +100,11 @@ export const convertBase64ToFile = (
  * Standard browser camera fallback
  */
 export const openBrowserCameraFallback = (onSelectFile) => {
+  if (!onSelectFile || typeof onSelectFile !== "function") {
+    console.warn("openBrowserCameraFallback: onSelectFile callback not provided")
+    return
+  }
+
   try {
     openTransientImageInput({
       onSelectFile,
@@ -108,7 +113,10 @@ export const openBrowserCameraFallback = (onSelectFile) => {
     })
   } catch (error) {
     console.error("Browser camera fallback failed:", error)
-    toast.error("Could not open camera")
+    // Only show toast for actual errors, not for user cancellation
+    if (error?.message && !error.message.includes("canceled") && !error.message.includes("cancelled")) {
+      toast.error("Could not open camera")
+    }
   }
 }
 
@@ -127,48 +135,71 @@ export const isFlutterBridgeAvailable = () => {
  * Open camera via Flutter bridge or browser fallback
  */
 export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo", quality = 0.8 }) => {
+  if (!onSelectFile || typeof onSelectFile !== "function") {
+    console.warn("openCamera: onSelectFile callback not provided")
+    return
+  }
+
   try {
     if (!isFlutterBridgeAvailable()) {
-      openBrowserCameraFallback(onSelectFile)
+      try {
+        openBrowserCameraFallback(onSelectFile)
+      } catch (fallbackError) {
+        console.error("Browser camera fallback error:", fallbackError)
+        // Don't throw - user might have canceled
+      }
       return
     }
 
-    const result = await window.flutter_inappwebview.callHandler("openCamera", {
-      source: "camera",
-      accept: "image/*",
-      multiple: false,
-      quality: quality,
-    })
+    try {
+      const result = await window.flutter_inappwebview.callHandler("openCamera", {
+        source: "camera",
+        accept: "image/*",
+        multiple: false,
+        quality: quality,
+      })
 
-    const isSuccess = result?.success === true || Boolean(result?.base64 || result?.base64String || result?.data?.base64)
-    if (!result || !isSuccess) return
+      const isSuccess = result?.success === true || Boolean(result?.base64 || result?.base64String || result?.data?.base64)
+      if (!result || !isSuccess) {
+        // User likely cancelled or camera unavailable - silent fail
+        return
+      }
 
-    let selectedFile = null
-    const base64Value = result?.base64 || result?.base64String || result?.data?.base64
-    const mimeType = result?.mimeType || result?.type || result?.data?.mimeType || "image/jpeg"
-    const originalFileName = result?.fileName || result?.name || result?.data?.fileName || ""
+      let selectedFile = null
+      const base64Value = result?.base64 || result?.base64String || result?.data?.base64
+      const mimeType = result?.mimeType || result?.type || result?.data?.mimeType || "image/jpeg"
+      const originalFileName = result?.fileName || result?.name || result?.data?.fileName || ""
 
-    if (base64Value) {
-      selectedFile = convertBase64ToFile(
-        base64Value,
-        mimeType,
-        fileNamePrefix,
-        originalFileName,
-      )
-    } else if (result.file instanceof File || result.file instanceof Blob) {
-      selectedFile = result.file
+      if (base64Value) {
+        selectedFile = convertBase64ToFile(
+          base64Value,
+          mimeType,
+          fileNamePrefix,
+          originalFileName,
+        )
+      } else if (result.file instanceof File || result.file instanceof Blob) {
+        selectedFile = result.file
+      }
+
+      if (!selectedFile || !String(selectedFile.type || "").startsWith("image/")) {
+        toast.error("Failed to capture image")
+        return
+      }
+
+      onSelectFile(selectedFile)
+    } catch (bridgeError) {
+      console.error("Bridge camera error:", bridgeError)
+      // Try browser fallback on bridge failure
+      try {
+        openBrowserCameraFallback(onSelectFile)
+      } catch (fallbackError) {
+        console.error("Fallback after bridge error:", fallbackError)
+        // Silent fail - user might have canceled
+      }
     }
-
-    if (!selectedFile || !String(selectedFile.type || "").startsWith("image/")) {
-      toast.error("Failed to capture image")
-      return
-    }
-
-    onSelectFile(selectedFile)
   } catch (error) {
-    console.error("Camera capture failed:", error)
-    // Try fallback on bridge failure
-    openBrowserCameraFallback(onSelectFile)
+    console.error("Camera capture outer error:", error)
+    // This should not reach here due to inner try-catches, but just in case
   }
 }
 
@@ -176,6 +207,11 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
  * Open gallery via Flutter bridge or browser fallback
  */
 export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo" }) => {
+  if (!onSelectFile || typeof onSelectFile !== "function") {
+    console.warn("openGallery: onSelectFile callback not provided")
+    return
+  }
+
   try {
     // For Gallery, we use the standard browser input.
     // Why? Because the browser's native file picker on Android/iOS
@@ -187,6 +223,9 @@ export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-phot
     })
   } catch (error) {
     console.error("Gallery pick failed:", error)
-    toast.error("Failed to open gallery")
+    // Only show error if it's not just a user cancellation
+    if (error?.message && !error.message.includes("canceled") && !error.message.includes("cancelled")) {
+      toast.error("Failed to open gallery")
+    }
   }
 }

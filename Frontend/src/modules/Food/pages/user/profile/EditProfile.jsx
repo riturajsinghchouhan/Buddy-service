@@ -26,6 +26,7 @@ import { toast } from "sonner"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
+import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
@@ -183,7 +184,7 @@ export default function EditProfile() {
 
   const validateEmail = (value) => {
     if (!value) return ""
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? "" : "Please enter a valid email"
+    return EMAIL_REGEX.test(value) ? "" : "Please enter a valid email"
   }
 
   const validateMobile = (value) => {

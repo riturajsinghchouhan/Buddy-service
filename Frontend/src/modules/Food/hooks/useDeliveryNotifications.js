@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import io from 'socket.io-client';
 import { API_BASE_URL } from '@food/api/config';
 import { deliveryAPI } from '@food/api';
-import alertSound from '@food/assets/audio/alert.mp3';
-import originalSound from '@food/assets/audio/original.mp3';
+const alertSound = '/alert.mp3';
+const originalSound = '/original.mp3';
 import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInbox';
 
 const shouldLogDeliverySocket = () => {
@@ -188,6 +188,7 @@ export const useDeliveryNotifications = () => {
   const [orderStatusUpdate, setOrderStatusUpdate] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [deliveryPartnerId, setDeliveryPartnerId] = useState(null);
+  const [claimedOrderId, setClaimedOrderId] = useState(null); // set when another partner claims an order
   const joinedDeliveryRoomRef = useRef(null);
   const ALERT_LOOP_INTERVAL_MS = 4500;
   const ALERT_LOOP_MAX_MS = 120000;
@@ -921,12 +922,20 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_reassigned_elsewhere', (data) => {
       debugLog('?? Order reassigned to another partner:', data);
-      if (data.orderId === activeOrderRef.current?._id || data.orderId === activeOrderRef.current?.orderId) {
-        debugLog('?? Removing reassigned order from local state');
-        stopAlertLoop();
-        activeOrderRef.current = null;
-        setNewOrder(null);
-      }
+      stopAlertLoop();
+      activeOrderRef.current = null;
+      setNewOrder(null);
+      if (data?.orderId) setClaimedOrderId(data.orderId);
+    });
+
+    // Backend emits 'order_claimed' when another delivery boy accepts an offered order
+    socketRef.current.on('order_claimed', (data) => {
+      debugLog('?? order_claimed received - order taken by another partner:', data);
+      stopAlertLoop();
+      activeOrderRef.current = null;
+      setNewOrder(null);
+      const claimedId = data?.orderId || data?.orderMongoId || data?.order_id;
+      if (claimedId) setClaimedOrderId(claimedId);
     });
 
     socketRef.current.on('admin_notification', (payload) => {
@@ -1013,6 +1022,8 @@ export const useDeliveryNotifications = () => {
     setNewOrder(null);
   };
 
+  const clearClaimedOrderId = () => setClaimedOrderId(null);
+
   const clearOrderReady = () => {
     setOrderReady(null);
   };
@@ -1037,6 +1048,8 @@ export const useDeliveryNotifications = () => {
     clearOrderReady,
     orderStatusUpdate,
     clearOrderStatusUpdate,
+    claimedOrderId,
+    clearClaimedOrderId,
     isConnected,
     playNotificationSound,
     emitLocation

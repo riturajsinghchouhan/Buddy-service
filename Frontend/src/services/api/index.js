@@ -415,6 +415,19 @@ export const adminAPI = {
       body ?? {},
       { contextModule: "admin" },
     ),
+  getDiningRequests: (params = {}) =>
+    apiClient.get("/food/admin/dining/requests", {
+      params,
+      contextModule: "admin",
+    }),
+  approveDiningRequest: (id) =>
+    apiClient.patch(`/food/admin/dining/requests/${String(id)}/approve`, {}, {
+      contextModule: "admin",
+    }),
+  rejectDiningRequest: (id, reason) =>
+    apiClient.patch(`/food/admin/dining/requests/${String(id)}/reject`, { reason }, {
+      contextModule: "admin",
+    }),
   createCategory: (body) =>
     apiClient.post("/food/admin/categories", body ?? {}, {
       contextModule: "admin",
@@ -961,6 +974,14 @@ export const restaurantAPI = {
         restaurantCurrentCacheTime = Date.now();
         return res;
       }),
+  requestDiningUpdate: (body) =>
+    apiClient.post("/food/restaurant/dining-settings/request", body ?? {}, {
+      contextModule: "restaurant",
+    }),
+  getPendingDiningRequest: () =>
+    apiClient.get("/food/restaurant/dining-settings/pending", {
+      contextModule: "restaurant",
+    }),
   /** PATCH /food/restaurant/availability. Body: { isAcceptingOrders: boolean } */
   updateAcceptingOrders: (isAcceptingOrders) =>
     apiClient
@@ -2662,7 +2683,7 @@ export const diningAPI = {
       date: new Date(payload?.date || nowIso).toISOString(),
       timeSlot: String(payload?.timeSlot || "").trim(),
       specialRequest: String(payload?.specialRequest || "").trim(),
-      status: "confirmed",
+      status: "pending",
       createdAt: nowIso,
       updatedAt: nowIso,
     };

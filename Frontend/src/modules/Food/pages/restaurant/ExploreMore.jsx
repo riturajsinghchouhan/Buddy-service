@@ -322,7 +322,7 @@ function TimePickerWheel({
           <div className="border-t border-gray-200 px-4 py-4 flex justify-center">
             <button
               onClick={handleConfirm}
-              className="text-blue-600 hover:text-blue-700 font-medium text-base transition-colors"
+              className="text-[#7e3866] hover:text-[#6a2f56] font-bold text-base transition-colors"
             >
               Okay
             </button>
@@ -906,11 +906,11 @@ export default function ExploreMore() {
               <Search className="w-5 h-5 text-gray-900" />
             </button>
             <button
-              onClick={() => navigate("/food/restaurant/onboarding?step=1")}
-              className="p-2 hover:bg-gray-100 bg-gray-200 rounded-full transition-colors"
+              onClick={() => setProfileOpen(true)}
+              className={`p-2 transition-all duration-200 rounded-full ${profileOpen ? "bg-[#7e3866] text-white shadow-lg" : "bg-gray-100 hover:bg-gray-200 text-gray-900"}`}
               aria-label="Profile"
             >
-              <UserRound className="w-5 h-5 text-gray-900 " />
+              <UserRound className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -990,18 +990,18 @@ export default function ExploreMore() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.25 }}
           onClick={() => setLogoutConfirmOpen(true)}
-          className="w-full flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-left"
+          className="w-full flex items-center justify-between gap-3 rounded-2xl border border-[#7e3866]/20 bg-[#7e3866]/5 px-4 py-4 text-left hover:bg-[#7e3866]/10 transition-all active:scale-[0.99]"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100">
-              <LogOut className="w-5 h-5 text-red-600" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#7e3866]/10">
+              <LogOut className="w-5 h-5 text-[#7e3866]" />
             </div>
             <div className="min-w-0">
-              <p className="text-base font-semibold text-red-700">Logout</p>
-              <p className="text-sm text-red-500">Tap to sign out from this device</p>
+              <p className="text-base font-semibold text-[#7e3866]">Logout</p>
+              <p className="text-sm text-[#7e3866]/60 font-medium">Tap to sign out from this device</p>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-red-400 shrink-0" />
+          <ChevronRight className="w-5 h-5 text-[#7e3866]/40 shrink-0" />
         </motion.button>
       </div>
 
@@ -1029,8 +1029,8 @@ export default function ExploreMore() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                  <LogOut className="w-5 h-5 text-red-600" />
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#7e3866]/10">
+                  <LogOut className="w-5 h-5 text-[#7e3866]" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">Logout?</h3>
                 <p className="mt-1 text-sm text-gray-500">Are you sure you want to logout?</p>
@@ -1052,7 +1052,7 @@ export default function ExploreMore() {
                     setLogoutConfirmOpen(false)
                   }}
                   disabled={isLoggingOut}
-                  className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  className="rounded-2xl bg-[#7e3866] px-4 py-3 text-sm font-bold text-white transition-all hover:bg-[#6a2f56] active:scale-95 disabled:opacity-50"
                 >
                   {isLoggingOut ? "Logging out..." : "Yes"}
                 </button>
@@ -1108,7 +1108,7 @@ export default function ExploreMore() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
-                    className="w-full px-4 py-2 pr-10 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
+                    className="w-full px-4 py-2 pr-10 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7e3866] text-gray-900 placeholder-gray-500"
                   />
                   {searchQuery && (
                     <button
@@ -1210,7 +1210,7 @@ export default function ExploreMore() {
                 damping: 30,
                 stiffness: 300
               }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-0 shadow-2xl z-50 max-h-[90vh] overflow-y-auto"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] shadow-[0_-15px_50px_-12px_rgba(0,0,0,0.3)] z-50 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -1235,7 +1235,7 @@ export default function ExploreMore() {
                   className="w-full flex items-start gap-4 text-left p-2 -m-2 hover:bg-gray-50 rounded-xl transition-colors group"
                 >
                   {/* Avatar */}
-                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-white">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center shrink-0 overflow-hidden ring-4 ring-[#7e3866]/10 group-hover:ring-[#7e3866]/20 transition-all">
                     {userData.profileImage?.url ? (
                       <img
                         src={userData.profileImage.url}
@@ -1243,7 +1243,9 @@ export default function ExploreMore() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <User className="w-8 h-8 text-gray-400" />
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#7e3866]/5 to-[#7e3866]/20">
+                        <User className="w-8 h-8 text-[#7e3866]" />
+                      </div>
                     )}
                   </div>
 
@@ -1265,7 +1267,7 @@ export default function ExploreMore() {
                         {userData.email}
                       </p>
                     )}
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mt-2 bg-blue-50 w-fit px-2 py-0.5 rounded">
+                    <p className="text-[10px] font-bold text-[#7e3866] uppercase tracking-widest mt-2 bg-[#7e3866]/5 w-fit px-2.5 py-1 rounded-full border border-[#7e3866]/10">
                       {userData.role}
                     </p>
                   </div>
@@ -1278,8 +1280,9 @@ export default function ExploreMore() {
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                  className="w-full bg-[#7e3866]/10 text-[#7e3866] border border-[#7e3866]/20 hover:bg-[#7e3866]/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-bold py-4 px-4 rounded-2xl transition-all flex items-center justify-center gap-2"
                 >
+                  <LogOut className="w-5 h-5 text-[#7e3866]" />
                   {isLoggingOut ? "Logging out..." : "Logout"}
                 </button>
 
@@ -1287,7 +1290,7 @@ export default function ExploreMore() {
                 <button
                   onClick={handleLogoutAllDevices}
                   disabled={isLoggingOut}
-                  className="w-full bg-white border-2 border-red-600 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold py-3 px-4 rounded-lg transition-colors"
+                  className="w-full bg-[#7e3866]/10 text-[#7e3866] border border-[#7e3866]/20 hover:bg-[#7e3866]/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-bold py-4 px-4 rounded-2xl transition-all"
                 >
                   {isLoggingOut ? "Logging out..." : "Logout from all devices"}
                 </button>
@@ -1500,7 +1503,7 @@ export default function ExploreMore() {
                 {/* Submit Button */}
                 <button
                   onClick={handleSubmitScheduleOff}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors mt-4"
+                  className="w-full bg-[#7e3866] hover:bg-[#6a2f56] text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-[0.98] mt-4"
                 >
                   Submit
                 </button>
@@ -1586,7 +1589,7 @@ export default function ExploreMore() {
                     setStartTime({ hour: "9", minute: "00", period: "am" })
                     setEndTime({ hour: "5", minute: "00", period: "pm" })
                   }}
-                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors"
+                  className="w-full bg-[#7e3866] text-white py-3.5 rounded-xl font-bold text-sm hover:bg-[#6a2f56] transition-all shadow-md active:scale-[0.98]"
                 >
                   Done 
                 </button>

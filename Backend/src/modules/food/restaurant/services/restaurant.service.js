@@ -4,6 +4,7 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import mongoose from 'mongoose';
 import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
+import { FoodDiningRestaurant } from '../../dining/models/diningRestaurant.model.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -546,12 +547,26 @@ export const updateCurrentRestaurantDiningSettings = async (restaurantId, body =
         String(body.diningType ?? currentDiningSettings.diningType ?? 'family-dining').trim() ||
         'family-dining';
 
+    const isEnabled = parseBoolean(body.isEnabled, currentDiningSettings.isEnabled);
+    
+    // First, update the FoodDiningRestaurant collection to keep it synced
+    await FoodDiningRestaurant.findOneAndUpdate(
+        { restaurantId },
+        {
+            $set: {
+                isEnabled,
+                maxGuests,
+            }
+        },
+        { upsert: true }
+    );
+
     const doc = await FoodRestaurant.findByIdAndUpdate(
         restaurantId,
         {
             $set: {
                 diningSettings: {
-                    isEnabled: parseBoolean(body.isEnabled, currentDiningSettings.isEnabled),
+                    isEnabled,
                     maxGuests,
                     diningType
                 }

@@ -23,39 +23,48 @@ export const ImageSourcePicker = ({
 }) => {
   
   const handleOpenCamera = async () => {
-    const openPromise = openCamera({
-      onSelectFile: onFileSelect,
-      fileNamePrefix: fileNamePrefix
-    })
-    onClose()
-    await openPromise
-  }
-
-  const handlePickFromDevice = async () => {
-    onClose()
-    
-    // 1. Try Bridge first
-    if (isFlutterBridgeAvailable()) {
-      await openGallery({
+    try {
+      onClose()
+      await openCamera({
         onSelectFile: onFileSelect,
         fileNamePrefix: fileNamePrefix
       })
-      return
+    } catch (error) {
+      console.error("Camera error caught in ImageSourcePicker:", error)
+      // Silently fail - toast already shown in openCamera function
     }
+  }
 
-    // 2. Try provided ref (Standard browser behavior)
-    if (galleryInputRef && galleryInputRef.current) {
-      galleryInputRef.current.click()
-    } else {
-      // 3. Last resort - generic browser input
-      const input = document.createElement("input")
-      input.type = "file"
-      input.accept = "image/*"
-      input.onchange = (e) => {
-        const file = e.target.files?.[0]
-        if (file) onFileSelect(file)
+  const handlePickFromDevice = async () => {
+    try {
+      onClose()
+      
+      // 1. Try Bridge first
+      if (isFlutterBridgeAvailable()) {
+        await openGallery({
+          onSelectFile: onFileSelect,
+          fileNamePrefix: fileNamePrefix
+        })
+        return
       }
-      input.click()
+
+      // 2. Try provided ref (Standard browser behavior)
+      if (galleryInputRef && galleryInputRef.current) {
+        galleryInputRef.current.click()
+      } else {
+        // 3. Last resort - generic browser input
+        const input = document.createElement("input")
+        input.type = "file"
+        input.accept = "image/*"
+        input.onchange = (e) => {
+          const file = e.target.files?.[0]
+          if (file) onFileSelect(file)
+        }
+        input.click()
+      }
+    } catch (error) {
+      console.error("Gallery error caught in ImageSourcePicker:", error)
+      // Silently fail - toast already shown if needed
     }
   }
 

@@ -4,6 +4,7 @@
  */
 
 import apiClient from "./axios.js";
+import { EMAIL_REGEX } from "@/shared/utils/emailValidation";
 
 const AUTH = {
   USER_REQUEST_OTP: "/food/auth/user/request-otp",
@@ -30,7 +31,6 @@ function normalizePhone(phone) {
 
 /** User phone: exactly 10 digits, numeric only. */
 const USER_PHONE_LENGTH = 10;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Request OTP for user login.

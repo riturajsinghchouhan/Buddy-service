@@ -151,7 +151,7 @@ const DeliveryTrackingMap = ({
 
         // Trigger Smooth Interpolation
         interpStateRef.current = {
-          lastPos: interpStateRef.current.nextPos || smoothLocation || riderLocation || nextPos,
+          lastPos: interpStateRef.current.nextPos || nextPos,
           nextPos: nextPos,
           startTime: now,
           durationMs: delta
@@ -165,7 +165,7 @@ const DeliveryTrackingMap = ({
       unsubs.forEach(u => u?.());
       socketRef.current?.disconnect();
     };
-  }, [trackingIds, backendUrl, smoothLocation, riderLocation]);
+  }, [trackingIds, backendUrl]);
 
   // 3. Smooth Animation Loop (60 FPS Glide)
   useEffect(() => {

@@ -83,17 +83,38 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
 
       const data = await res.json()
 
+      // Extract parts from formatted address for better area/city isolation
+      const formattedAddress = data.formattedAddress || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+      const addrParts = formattedAddress.split(',').map(p => p.trim()).filter(Boolean)
+      
+      // Dig into informative locations if available
+      let area = data.subLocality || ""
+      if (!area && data.localityInfo?.informative) {
+        // Find sublocality in informative array
+        const infoArea = data.localityInfo.informative.find(i => 
+          i.description?.toLowerCase().includes("sublocality") || 
+          i.description?.toLowerCase().includes("neighborhood")
+        )
+        if (infoArea) area = infoArea.name
+      }
+
+      if (!area && addrParts.length >= 2) {
+        // If first part is not the city, use it as area
+        if (addrParts[0].toLowerCase() !== (data.city || data.locality || "").toLowerCase()) {
+          area = addrParts[0]
+        }
+      }
+
+      const city = data.city || data.locality || (addrParts.length > 1 ? addrParts[addrParts.length - 2] : "Indore")
+
       const value = {
-        city: data.city || data.locality || "Unknown City",
-        state: data.principalSubdivision || "",
+        city: city,
+        state: data.principalSubdivision || (addrParts.length > 0 ? addrParts[addrParts.length - 1] : ""),
         country: data.countryName || "",
-        area: data.subLocality || "",
-        address:
-          data.formattedAddress ||
-          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-        formattedAddress:
-          data.formattedAddress ||
-          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+        area: area,
+        mainTitle: area || city, // Useful for components that prefer a single title
+        address: formattedAddress,
+        formattedAddress: formattedAddress,
       }
 
       globalReverseGeocodeLastSuccess = value
