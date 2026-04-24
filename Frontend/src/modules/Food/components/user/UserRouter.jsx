@@ -22,6 +22,9 @@ const DiningRestaurantDetails = lazy(() => import("@food/pages/user/dining/Dinin
 const TableBooking = lazy(() => import("@food/pages/user/dining/TableBooking"))
 const TableBookingConfirmation = lazy(() => import("@food/pages/user/dining/TableBookingConfirmation"))
 const TableBookingSuccess = lazy(() => import("@food/pages/user/dining/TableBookingSuccess"))
+const TableModificationPolicy = lazy(() => import("@food/pages/user/dining/TableModificationPolicy"))
+const TableCancellationPolicy = lazy(() => import("@food/pages/user/dining/TableCancellationPolicy"))
+const TableEditUserPage = lazy(() => import("@food/pages/user/dining/TableEditUserPage"))
 const MyBookings = lazy(() => import("@food/pages/user/dining/MyBookings"))
 const SearchResults = lazy(() => import("@food/pages/user/search/ProfessionalSearch"))
 const ProductDetail = lazy(() => import("@food/pages/user/ProductDetail"))
@@ -105,6 +108,9 @@ export default function UserRouter() {
           <Route path="dining/book/:slug" element={<TableBooking />} />
           <Route path="dining/book-confirmation" element={<TableBookingConfirmation />} />
           <Route path="dining/book-success" element={<TableBookingSuccess />} />
+          <Route path="dining/modification-policy" element={<TableModificationPolicy />} />
+          <Route path="dining/cancellation-policy" element={<TableCancellationPolicy />} />
+          <Route path="dining/edit-user" element={<TableEditUserPage />} />
           <Route
             path="bookings"
             element={

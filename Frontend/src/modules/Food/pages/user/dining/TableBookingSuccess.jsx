@@ -42,11 +42,11 @@ export default function TableBookingSuccess() {
     const formattedDate = new Date(booking.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
     return (
-        <AnimatedPage className="bg-white min-h-screen flex flex-col items-center justify-center p-6 pb-24">
+        <AnimatedPage className="bg-white dark:bg-slate-950 min-h-screen flex flex-col items-center justify-center p-6 pb-24 transition-colors">
             <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className={`w-20 h-20 ${booking.status === 'pending' ? 'bg-amber-50' : 'bg-[#F9F9FB]'} rounded-full flex items-center justify-center mb-6`}
+                className={`w-20 h-20 ${booking.status === 'pending' ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-[#F9F9FB] dark:bg-slate-900'} rounded-full flex items-center justify-center mb-6 transition-colors`}
             >
                 {booking.status === 'pending' ? (
                     <Clock className="w-12 h-12 text-amber-500" />
@@ -61,26 +61,26 @@ export default function TableBookingSuccess() {
                 transition={{ delay: 0.2 }}
                 className="text-center space-y-2 mb-10"
             >
-                <h1 className="text-3xl font-black text-gray-900">
+                <h1 className="text-3xl font-black text-gray-900 dark:text-slate-100">
                     {booking.status === 'pending' ? 'Booking Requested!' : 'Seat Confirmed!'}
                 </h1>
-                <p className="text-gray-500 font-medium tracking-wide italic">
+                <p className="text-gray-500 dark:text-slate-400 font-medium tracking-wide italic">
                     {booking.status === 'pending' ? 'Waiting for restaurant approval' : 'Your table is ready for you'}
                 </p>
                 <div className="pt-2">
-                    <span className="bg-[#F9F9FB] text-[#7e3866] px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-[#7e3866]/20">
+                    <span className="bg-[#F9F9FB] dark:bg-slate-900 text-[#7e3866] dark:text-purple-400 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-[#7e3866]/20 dark:border-purple-400/20">
                         BOOKING ID: {booking.bookingId}
                     </span>
                 </div>
 
                 {booking.status === 'pending' && (
-                    <div className="mt-6 mx-auto max-w-xs bg-amber-50 border border-amber-100 rounded-2xl p-4 text-left flex gap-3 shadow-sm shadow-amber-100/50">
+                    <div className="mt-6 mx-auto max-w-xs bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl p-4 text-left flex gap-3 shadow-sm shadow-amber-100/50 dark:shadow-none transition-colors">
                         <div className="bg-amber-100 p-2 rounded-xl h-fit">
                             <Info className="w-4 h-4 text-amber-600" />
                         </div>
                         <div>
-                            <p className="font-bold text-amber-900 text-xs">Waiting for Confirmation</p>
-                            <p className="text-amber-700 text-[10px] mt-1 leading-relaxed">
+                            <p className="font-bold text-amber-900 dark:text-amber-300 text-xs">Waiting for Confirmation</p>
+                            <p className="text-amber-700 dark:text-amber-400/80 text-[10px] mt-1 leading-relaxed">
                                 The restaurant will review and approve your request shortly. You'll be notified of the status.
                             </p>
                         </div>
@@ -93,15 +93,15 @@ export default function TableBookingSuccess() {
                 initial={{ y: 30, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="w-full max-w-sm bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden shadow-xl shadow-slate-200"
+                className="w-full max-w-sm bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl shadow-slate-200 dark:shadow-none transition-colors"
             >
                 <div className="p-6 space-y-6 relative">
                     {/* Circle cutouts for ticket look */}
-                    <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full border border-slate-100"></div>
-                    <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full border border-slate-100"></div>
+                    <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white dark:bg-slate-950 rounded-full border border-slate-100 dark:border-slate-800 transition-colors"></div>
+                    <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white dark:bg-slate-950 rounded-full border border-slate-100 dark:border-slate-800 transition-colors"></div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-white border border-slate-100 flex-shrink-0 p-1">
+                    <div className="flex items-center gap-4 text-left">
+                        <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex-shrink-0 p-1">
                             <img
                                 src={booking.restaurant?.image || booking.restaurant?.profileImage?.url || ""}
                                 className="w-full h-full object-cover rounded-xl"
@@ -112,8 +112,8 @@ export default function TableBookingSuccess() {
                             />
                         </div>
                         <div className="min-w-0">
-                            <h2 className="font-black text-lg text-gray-900 truncate">{booking.restaurant?.name || "The Great Indian Restaurant"}</h2>
-                            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                            <h2 className="font-black text-lg text-gray-900 dark:text-slate-100 truncate">{booking.restaurant?.name || "The Great Indian Restaurant"}</h2>
+                            <p className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1 mt-0.5">
                                 <MapPin className="w-3 h-3" />
                                 <span className="truncate">
                                     {typeof booking.restaurant?.location === 'string'
@@ -124,43 +124,36 @@ export default function TableBookingSuccess() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 py-6 border-y border-dashed border-slate-200">
+                     <div className="grid grid-cols-2 gap-4 py-6 border-y border-dashed border-slate-200 dark:border-slate-800 text-left">
                         <div className="space-y-1">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Date</p>
-                            <div className="flex items-center gap-2 font-bold text-gray-800">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Date</p>
+                            <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-slate-200">
                                 <Calendar className="w-4 h-4 text-red-500" />
                                 <span>{formattedDate}</span>
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Time</p>
-                            <div className="flex items-center gap-2 font-bold text-gray-800">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Time</p>
+                            <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-slate-200">
                                 <Clock className="w-4 h-4 text-red-500" />
                                 <span>{booking.timeSlot}</span>
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Guests</p>
-                            <div className="flex items-center gap-2 font-bold text-gray-800">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Guests</p>
+                            <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-slate-200">
                                 <Users className="w-4 h-4 text-red-500" />
                                 <span>{booking.guests} People</span>
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</p>
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Status</p>
                             <div className={`${booking.status === 'pending' ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white'} px-2 py-0.5 rounded-lg text-[10px] font-black tracking-widest w-fit uppercase`}>
                                 {booking.status === 'pending' ? 'PENDING' : 'CONFIRMED'}
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-indigo-600">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></div>
-                            <span className="font-bold text-sm">10% Cashback with Tastizo Pay</span>
-                        </div>
-                        <Share2 className="w-5 h-5 cursor-pointer hover:scale-110 transition-transform" />
-                    </div>
                 </div>
             </motion.div>
 
@@ -180,7 +173,7 @@ export default function TableBookingSuccess() {
                 <Button
                     onClick={() => navigate("/food/user")}
                     variant="outline"
-                    className="w-full h-14 bg-white border-2 border-slate-100 text-slate-600 font-bold text-lg rounded-2xl hover:bg-slate-50 flex items-center justify-center gap-2"
+                    className="w-full h-14 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold text-lg rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
                 >
                     <Home className="w-5 h-5" />
                     Go to Home

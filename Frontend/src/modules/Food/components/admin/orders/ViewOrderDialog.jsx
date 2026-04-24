@@ -253,6 +253,15 @@ export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
                 </div>
               )}
             </div>
+            {order.note && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Note for Restaurant
+                </p>
+                <p className="text-sm text-blue-900 italic">"{order.note}"</p>
+              </div>
+            )}
           </div>
 
           {/* Restaurant Information */}

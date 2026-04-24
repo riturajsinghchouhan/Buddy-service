@@ -74,8 +74,23 @@ async function getPartnerCashCapacity(deliveryPartnerId) {
         $match: {
           'dispatch.deliveryPartnerId': partnerObjectId,
           orderStatus: 'delivered',
-          'payment.method': 'cash',
         },
+      },
+      {
+        $lookup: {
+          from: 'food_transactions',
+          localField: '_id',
+          foreignField: 'orderId',
+          as: 'tx',
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { 'tx.paymentMethod': 'cash' },
+            { 'tx': { $size: 0 }, 'payment.method': 'cash' }
+          ]
+        }
       },
       {
         $group: {

@@ -2401,8 +2401,17 @@ export default function Cart() {
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       Want this later?
-                      <button onClick={() => setIsScheduled(!isScheduled)} className="border-b border-dashed border-gray-500 font-medium outline-none">
-                        Schedule it
+                      <button onClick={() => {
+                        const next = !isScheduled
+                        setIsScheduled(next)
+                        if (next && !scheduledDate) {
+                          // Auto-set today's date so time slots populate immediately
+                          const now = new Date()
+                          const todayStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+                          setScheduledDate(todayStr)
+                        }
+                      }} className="border-b border-dashed border-gray-500 font-medium outline-none">
+                        {isScheduled ? "Cancel schedule" : "Schedule it"}
                       </button>
                     </p>
                   </div>

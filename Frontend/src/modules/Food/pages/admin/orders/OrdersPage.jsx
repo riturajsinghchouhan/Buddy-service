@@ -419,25 +419,39 @@ export default function OrdersPage({ statusKey = "all" }) {
         pricing.total != null ? pricing.total : computedTotal
       )
 
-      const paymentMethod = order.payment?.method || order.paymentMethod || ""
+      const paymentMethod = order.payment?.method || order.paymentMethod || order.payment?.paymentMethod || ""
       let paymentType = order.paymentType
       if (!paymentType) {
-        if (paymentMethod === "cash" || paymentMethod === "cod") paymentType = "Cash on Delivery"
+        if (paymentMethod === "cash" || paymentMethod === "cod" || paymentMethod === "cash on delivery") paymentType = "Cash on Delivery"
         else if (paymentMethod === "wallet") paymentType = "Wallet"
         else if (paymentMethod) paymentType = "Online"
         else paymentType = "N/A"
       }
 
-      const paymentStatusRaw = order.payment?.status || ""
       const backendStatus = String(order.orderStatus || "").toLowerCase()
+      const method = String(paymentMethod).toLowerCase();
+      const hasRazorpayId = !!(order.payment?.razorpay_payment_id || order.payment?.razorpayPaymentId);
+      const isQrPayment = method === "razorpay_qr" || method === "qr" || (method === "cod" && hasRazorpayId) || (method === "cash" && hasRazorpayId);
+      
       let paymentStatus = order.paymentStatus
+      const paymentStatusRaw = order.payment?.status || ""
       if (!paymentStatus) {
         const s = String(paymentStatusRaw || "").toLowerCase()
         if (s === "refunded") paymentStatus = "Refunded"
-        else if (s === "paid" || s === "authorized" || s === "captured" || s === "settled") paymentStatus = "Paid"
+        else if (s === "paid" || s === "authorized" || s === "captured" || s === "settled" || isQrPayment) paymentStatus = "Paid"
         else if (s === "failed") paymentStatus = "Failed"
-        else if (backendStatus === "delivered" && (paymentMethod === "cash" || paymentMethod === "cod" || paymentMethod === "Cash on Delivery")) paymentStatus = "Paid"
+        else if (backendStatus === "delivered" && (method === "cash" || method === "cod" || method === "cash on delivery")) paymentStatus = "Paid"
         else paymentStatus = "Pending"
+      }
+
+      // Method detail for COD orders as requested by user
+      let paymentMethodDetail = "COD"
+      if (isQrPayment) {
+        paymentMethodDetail = "COD/QR"
+      } else if (method === "wallet") {
+        paymentMethodDetail = "Wallet"
+      } else if (method !== "cash" && method !== "cod" && method !== "cash on delivery" && method !== "") {
+        paymentMethodDetail = "Online"
       }
 
 
@@ -504,6 +518,7 @@ export default function OrdersPage({ statusKey = "all" }) {
         totalAmount,
         paymentType,
         paymentStatus,
+        paymentMethodDetail,
         orderStatus: displayStatus,
         deliveryPartnerName,
         deliveryPartnerPhone,

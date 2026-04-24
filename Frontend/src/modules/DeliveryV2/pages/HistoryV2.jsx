@@ -226,6 +226,7 @@ export const HistoryV2 = () => {
                    const isPending = !isCompleted && !isCancelled;
                    const payout = Number(trip.deliveryEarning || trip.amount || trip.earningAmount || 0);
                    const collection = Number(trip.codCollectedAmount || trip.orderTotal || 0);
+                   const isQR = (trip.paymentMethod || '').toLowerCase() === 'razorpay_qr';
                    const isCOD = (trip.paymentMethod || '').toLowerCase() === 'cash' || (trip.paymentMethod || '').toLowerCase() === 'cod';
 
                    return (
@@ -242,8 +243,8 @@ export const HistoryV2 = () => {
                          </div>
                          
                          <div className="flex gap-2 mb-4 mt-3">
-                             <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${isCOD ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-[#10B981]'}`}>
-                                {isCOD ? 'COD' : 'Online'}
+                             <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${(isCOD || isQR) ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-[#10B981]'}`}>
+                                {isQR ? 'COD (QR)' : isCOD ? 'COD' : 'Online'}
                              </span>
                          </div>
 

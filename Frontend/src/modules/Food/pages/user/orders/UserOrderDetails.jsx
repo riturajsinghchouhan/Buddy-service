@@ -438,7 +438,7 @@ export default function UserOrderDetails() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${sendsCutlery
                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -447,6 +447,11 @@ export default function UserOrderDetails() {
             >
               {sendsCutlery ? "Send cutlery" : "Don't send cutlery"}
             </span>
+            {order.note && (
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                Note: {order.note}
+              </span>
+            )}
           </div>
 
           <div className="border-t border-dashed border-gray-200 my-3" />

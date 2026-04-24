@@ -7,6 +7,8 @@ import {
   MessageSquare,
   Compass,
 } from "lucide-react"
+import useNotificationInbox from "@food/hooks/useNotificationInbox"
+import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications"
 
 const getOrdersTabs = (basePath = "/food/restaurant") => [
   { id: "orders", label: "Orders", icon: FileText, route: `${basePath}` },
@@ -30,6 +32,9 @@ export default function BottomNavOrders() {
     : pathname.includes("/restaurant")
     ? "/food/restaurant"
     : "/food/restaurant"
+
+  const { unreadCount } = useNotificationInbox("restaurant", { limit: 20, pollMs: 60 * 1000 })
+  const { newOrder, newReservation } = useRestaurantNotifications();
 
   const tabs = useMemo(() => getOrdersTabs(basePath), [basePath])
 
@@ -80,6 +85,11 @@ export default function BottomNavOrders() {
                         isActive ? "text-white" : "text-white/78"
                       }`}
                     />
+                    {/* Notification Dot */}
+                    {((tab.id === 'orders' && (newOrder || newReservation)) || 
+                      (tab.id === 'feedback' && unreadCount > 0)) && (
+                      <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-red-500 border border-[#7e3866] z-20 animate-pulse" />
+                    )}
                     <span
                       className={`relative z-10 whitespace-nowrap text-[11px] leading-none transition-colors duration-300 ease-in-out ${
                         isActive ? "text-white" : "text-white/78"

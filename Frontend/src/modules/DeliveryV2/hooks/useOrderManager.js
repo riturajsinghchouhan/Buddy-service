@@ -159,14 +159,14 @@ export const useOrderManager = () => {
   /**
    * Finalize Delivery with OTP Check
    */
-  const completeDelivery = async (otp) => {
+  const completeDelivery = async (otp, paymentMethodOverride = null) => {
     const orderId = resolveOrderId();
     if (!orderId) {
       toast.error('Order id not found. Please refresh current trip.');
       throw new Error('Missing order id');
     }
     try {
-      // 1. Verify OTP first
+      // 1. Verify OTP first (if not already verified by modal)
       const verifyRes = await deliveryAPI.verifyDropOtp(orderId, otp);
       
       if (verifyRes?.data?.success) {
@@ -174,7 +174,11 @@ export const useOrderManager = () => {
         
         try {
           // 2. Mark as complete
-          const completeRes = await deliveryAPI.completeDelivery(orderId, { otp, rating: 5 });
+          const completeRes = await deliveryAPI.completeDelivery(orderId, { 
+            otp, 
+            rating: 5,
+            paymentMethod: paymentMethodOverride // Pass 'cash' or 'qr' if provided
+          });
           if (completeRes.data?.success && completeRes.data?.data?.order) {
             finalOrder = completeRes.data.data.order;
           }

@@ -86,7 +86,8 @@ export function validateCreateOrderDto(body) {
         sendCutlery: z.boolean().optional(),
         // 'razorpay_qr' means COD-style flow, but payment is collected via Razorpay QR at delivery.
         paymentMethod: z.enum(['cash', 'razorpay', 'razorpay_qr', 'card', 'wallet']),
-        zoneId: z.string().nullable().optional()
+        zoneId: z.string().nullable().optional(),
+        scheduledAt: z.string().datetime({ offset: true }).nullable().optional()
     });
     const result = schema.safeParse(body);
     if (!result.success) {

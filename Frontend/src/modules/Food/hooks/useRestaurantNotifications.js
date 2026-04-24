@@ -79,6 +79,7 @@ const triggerWebViewNativeNotification = async (orderData = {}) => {
 export const useRestaurantNotifications = () => {
   const socketRef = useRef(null);
   const [newOrder, setNewOrder] = useState(null);
+  const [newReservation, setNewReservation] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const audioRef = useRef(null);
   const activeOrderRef = useRef(null);
@@ -208,6 +209,14 @@ export const useRestaurantNotifications = () => {
 
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       showBackgroundOrderNotification(orderData);
+    }
+  };
+
+  const handleIncomingReservationAlert = (bookingData) => {
+    // Basic alert logic for reservations
+    playNotificationSound(bookingData);
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+       // Optional: show background notification for reservation
     }
   };
 
@@ -599,6 +608,13 @@ export const useRestaurantNotifications = () => {
 
       handleIncomingOrderAlert(normalizedOrder);
     });
+    
+    // Listen for new dining booking notifications
+    socketRef.current.on('new_dining_booking', (bookingData) => {
+      debugLog('?? New dining booking received:', bookingData);
+      setNewReservation(bookingData);
+      handleIncomingReservationAlert(bookingData);
+    });
 
     // Listen for sound notification event
     socketRef.current.on('play_notification_sound', (data) => {
@@ -750,7 +766,11 @@ export const useRestaurantNotifications = () => {
 
   return {
     newOrder,
+    newReservation,
     clearNewOrder,
+    clearNewReservation: () => {
+      setNewReservation(null);
+    },
     isConnected,
     playNotificationSound
   };

@@ -943,6 +943,12 @@ export default function DiningReservations() {
                                                                     <Phone className="w-3 h-3 text-slate-400" />
                                                                     <p className="text-xs text-slate-500">{getBookerPhone(booking) || 'No phone'}</p>
                                                                 </div>
+                                                                {booking.specialRequest && (
+                                                                    <div className="mt-2 flex items-start gap-1.5 p-1.5 rounded-lg bg-blue-50 border border-blue-100 max-w-[180px]">
+                                                                        <MessageSquare className="w-3 h-3 text-blue-600 mt-0.5 shrink-0" />
+                                                                        <p className="text-[10px] font-bold text-blue-700 leading-tight">{booking.specialRequest}</p>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </td>

@@ -189,6 +189,7 @@ export const useDeliveryNotifications = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [deliveryPartnerId, setDeliveryPartnerId] = useState(null);
   const [claimedOrderId, setClaimedOrderId] = useState(null); // set when another partner claims an order
+  const [adminNotification, setAdminNotification] = useState(null);
   const joinedDeliveryRoomRef = useRef(null);
   const ALERT_LOOP_INTERVAL_MS = 4500;
   const ALERT_LOOP_MAX_MS = 120000;
@@ -940,6 +941,7 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('admin_notification', (payload) => {
       debugLog('Admin broadcast received via socket', payload);
+      setAdminNotification(payload);
       dispatchNotificationInboxRefresh();
     });
 
@@ -1032,6 +1034,10 @@ export const useDeliveryNotifications = () => {
     setOrderStatusUpdate(null);
   };
 
+  const clearAdminNotification = () => {
+    setAdminNotification(null);
+  };
+
   const emitLocation = useCallback((data) => {
     if (socketRef.current && socketRef.current.connected) {
       // debugLog('? Emitting location via socket:', data);
@@ -1048,6 +1054,8 @@ export const useDeliveryNotifications = () => {
     clearOrderReady,
     orderStatusUpdate,
     clearOrderStatusUpdate,
+    adminNotification,
+    clearAdminNotification,
     claimedOrderId,
     clearClaimedOrderId,
     isConnected,

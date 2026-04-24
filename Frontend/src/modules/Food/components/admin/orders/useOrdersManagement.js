@@ -116,6 +116,7 @@ export function useOrdersManagement(orders, statusKey, title) {
     totalAmount: true,
     paymentType: true,
     paymentCollectionStatus: true,
+    paymentMethodDetail: true,
     orderStatus: true,
     actions: true,
   })
@@ -605,6 +606,7 @@ export function useOrdersManagement(orders, statusKey, title) {
       totalAmount: true,
       paymentType: true,
       paymentCollectionStatus: true,
+      paymentMethodDetail: true,
       orderStatus: true,
       actions: true,
     })

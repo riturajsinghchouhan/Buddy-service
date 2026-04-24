@@ -2011,7 +2011,7 @@ function RestaurantDetailsContent() {
         }`}
     >
       {/* Header - Back, Search, Menu (like reference image) */}
-      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 pt-3 md:pt-4 lg:pt-5 pb-2 md:pb-3 bg-white dark:bg-[#1a1a1a]">
+      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 pt-3 md:pt-4 lg:pt-5 pb-2 md:pb-3 bg-white dark:bg-[#0a0a0a]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Back Button */}
           <Button
@@ -2078,11 +2078,11 @@ function RestaurantDetailsContent() {
       </div>
 
       {/* Main Content Card */}
-      <div className="bg-white dark:bg-[#1a1a1a] rounded-t-3xl relative z-10 min-h-[40vh]">
+      <div className="bg-white dark:bg-[#0a0a0a] rounded-t-3xl relative z-10 min-h-[40vh]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-5 md:py-6 lg:py-8 space-y-3 md:space-y-4 lg:space-y-5 pb-0">
           {/* Restaurant Summary */}
           <div className="relative">
-            <div className="relative rounded-3xl border border-gray-100 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)] p-4 sm:p-5 space-y-4 overflow-hidden">
+            <div className="relative rounded-3xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-[0_16px_40px_rgba(15,23,42,0.08)] p-4 sm:p-5 space-y-4 overflow-hidden">
               <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#7e3866] via-[#8a4b77] to-[#b36b8f]" />
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -2146,10 +2146,10 @@ function RestaurantDetailsContent() {
           <button
             type="button"
             onClick={() => setShowOffersSheet(true)}
-            className="w-full rounded-2xl border border-gray-900/20 bg-white px-4 py-3 text-left shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition-all hover:shadow-[0_16px_36px_rgba(15,23,42,0.24)]"
+            className="w-full rounded-2xl border border-gray-900/20 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] px-4 py-3 text-left shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition-all hover:shadow-[0_16px_36px_rgba(15,23,42,0.24)]"
           >
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
                 <Percent className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -2161,20 +2161,20 @@ function RestaurantDetailsContent() {
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ y: -16, opacity: 0 }}
                       transition={{ duration: 0.3 }}
-                      className="text-sm font-semibold text-gray-900"
+                      className="text-sm font-semibold text-gray-900 dark:text-white"
                     >
                       {offerHeadline}
                     </motion.span>
                   </AnimatePresence>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">{offerSubline}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{offerSubline}</p>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  <Star className="h-3 w-3 fill-emerald-700 text-emerald-700" />
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                  <Star className="h-3 w-3 fill-emerald-700 dark:fill-emerald-400 text-emerald-700 dark:text-emerald-400" />
                   {Number(restaurant?.rating || 4.5).toFixed(1)}
                 </span>
-                <span className="text-[10px] text-gray-400">
+                <span className="text-[10px] text-gray-400 dark:text-gray-500">
                   {(restaurant.reviews || 0).toLocaleString()}+ ratings
                 </span>
               </div>
@@ -2184,7 +2184,7 @@ function RestaurantDetailsContent() {
                 <span
                   key={`offer-dot-${index}`}
                   className={`h-1.5 w-1.5 rounded-full ${
-                    index === activeOfferIndicator ? "bg-orange-500" : "bg-gray-200"
+                    index === activeOfferIndicator ? "bg-orange-500" : "bg-gray-200 dark:bg-gray-700"
                   }`}
                 />
               ))}
@@ -2213,7 +2213,7 @@ function RestaurantDetailsContent() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "veg" ? "border-green-600 bg-green-50 text-green-700 font-bold" : ""
+                  className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] dark:text-white rounded-full ${filters.vegNonVeg === "veg" ? "border-green-600 bg-green-50 text-green-700 font-bold dark:border-green-500 dark:bg-green-900/20 dark:text-green-400" : ""
                     }`}
                   onClick={() =>
                     setFilters((prev) => ({
@@ -2225,13 +2225,13 @@ function RestaurantDetailsContent() {
                   <div className="h-3 w-3 rounded-full bg-green-600" />
                   Veg
                   {filters.vegNonVeg === "veg" && (
-                    <X className="h-3 w-3 text-gray-600" />
+                    <X className="h-3 w-3 text-gray-600 dark:text-gray-400" />
                   )}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "non-veg" ? "border-red-600 bg-red-50 text-red-600" : ""
+                  className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] dark:text-white rounded-full ${filters.vegNonVeg === "non-veg" ? "border-red-600 bg-red-50 text-red-600 dark:border-red-500 dark:bg-red-900/20 dark:text-red-400" : ""
                     }`}
                   onClick={() =>
                     setFilters((prev) => ({
@@ -2243,7 +2243,7 @@ function RestaurantDetailsContent() {
                   <div className="h-3 w-3 rounded-full bg-red-600" />
                   Non-veg
                   {filters.vegNonVeg === "non-veg" && (
-                    <X className="h-3 w-3 text-gray-600" />
+                    <X className="h-3 w-3 text-gray-600 dark:text-gray-400" />
                   )}
                 </Button>
               </div>
@@ -2256,7 +2256,7 @@ function RestaurantDetailsContent() {
                     className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
                       selectedMenuCategory === "all"
                         ? "border-[#7e3866] bg-[#7e386615] text-[#7e3866]"
-                        : "border-gray-300 bg-white text-gray-700"
+                        : "border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-300"
                     }`}
                   >
                     All
@@ -2269,7 +2269,7 @@ function RestaurantDetailsContent() {
                       className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
                         selectedMenuCategory === category.id
                           ? "border-[#7e3866] bg-[#7e386615] text-[#7e3866]"
-                          : "border-gray-300 bg-white text-gray-700"
+                          : "border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-300"
                       }`}
                     >
                       {category.image ? (
@@ -2309,7 +2309,7 @@ function RestaurantDetailsContent() {
               </div>
             )}
             {filteredSections.length === 0 && (
-              <div className="rounded-3xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center text-sm text-gray-500">
+              <div className="rounded-3xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                 No dishes match the current filters.
               </div>
             )}
@@ -2428,7 +2428,7 @@ function RestaurantDetailsContent() {
                                 delete dishCardRefs.current[item.id]
                               }
                             }}
-                            className={`flex gap-4 p-4 border-b border-gray-100 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#7e386605] ring-2 ring-[#7e3866] ring-inset dark:bg-[#7e386610]" : ""}`}
+                            className={`flex gap-4 p-4 border-b border-gray-100 dark:border-gray-800 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#7e386605] ring-2 ring-[#7e3866] ring-inset dark:bg-[#7e386610]" : ""}`}
                             onClick={() => handleItemClick(item)}
                           >
                             {/* Left Side - Details */}
@@ -2649,7 +2649,7 @@ function RestaurantDetailsContent() {
                                           delete dishCardRefs.current[item.id]
                                         }
                                       }}
-                                      className={`flex gap-4 p-4 border-b border-gray-100 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#7e386605] ring-2 ring-[#7e3866] ring-inset dark:bg-[#7e386610]" : ""}`}
+                                      className={`flex gap-4 p-4 border-b border-gray-100 dark:border-gray-800 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#7e386605] ring-2 ring-[#7e3866] ring-inset dark:bg-[#7e386610]" : ""}`}
                                       onClick={() => handleItemClick(item)}
                                     >
                                       {/* Left Side - Details */}

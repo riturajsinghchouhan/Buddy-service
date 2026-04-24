@@ -1,4 +1,4 @@
-import { useParams, Link, useSearchParams } from "react-router-dom"
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom"
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
@@ -17,7 +17,9 @@ import {
   Shield,
   Receipt,
   CircleSlash,
-  Loader2
+  Loader2,
+  Clock,
+  Calendar
 } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Card, CardContent } from "@food/components/ui/card"
@@ -375,6 +377,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     assignmentInfo: apiOrder?.assignmentInfo || previousOrder?.assignmentInfo || null,
     tracking: apiOrder?.tracking || previousOrder?.tracking || {},
     deliveryState: apiOrder?.deliveryState || previousOrder?.deliveryState || null,
+    scheduledAt: apiOrder?.scheduledAt || previousOrder?.scheduledAt || null,
     createdAt: apiOrder?.createdAt || previousOrder?.createdAt || null,
     totalAmount: apiOrder?.pricing?.total || apiOrder?.totalAmount || previousOrder?.totalAmount || 0,
     deliveryFee: apiOrder?.pricing?.deliveryFee || apiOrder?.deliveryFee || previousOrder?.deliveryFee || 0,
@@ -473,6 +476,7 @@ function normalizeLookupId(value) {
 
 export default function OrderTracking() {
   const companyName = useCompanyName()
+  const navigate = useNavigate()
   const { orderId } = useParams()
   const [searchParams] = useSearchParams()
   const confirmed = searchParams.get("confirmed") === "true"
@@ -1379,6 +1383,16 @@ export default function OrderTracking() {
   }
 
   const currentStatus = statusConfig[orderStatus] || statusConfig.placed
+  const isScheduledOrder = Boolean(order?.scheduledAt) && !['delivered', 'cancelled'].includes(orderStatus)
+  const scheduledDateFormatted = order?.scheduledAt
+    ? new Date(order.scheduledAt).toLocaleString("en-IN", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null
   const isDeliveredOrder =
     orderStatus === "delivered" ||
     order?.status === "delivered" ||
@@ -1408,7 +1422,7 @@ export default function OrderTracking() {
                 transition={{ delay: 0.9 }}
                 className="text-2xl font-bold text-gray-900 mt-6"
               >
-                Order Confirmed!
+                {isScheduledOrder ? "Order Scheduled!" : "Order Confirmed!"}
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -1416,7 +1430,9 @@ export default function OrderTracking() {
                 transition={{ delay: 1.1 }}
                 className="text-gray-600 mt-2"
               >
-                Your order has been placed successfully
+                {isScheduledOrder
+                  ? `Scheduled for ${scheduledDateFormatted}`
+                  : "Your order has been placed successfully"}
               </motion.p>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -1426,6 +1442,18 @@ export default function OrderTracking() {
               >
                 <div className="w-8 h-8 border-2 border-[#7e3866] border-t-transparent rounded-full animate-spin mx-auto" />
                 <p className="text-sm text-gray-500 mt-3">Loading order details...</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 2.0 }}
+                className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-800"
+              >
+                <div className="flex items-center justify-center gap-2 text-[#7e3866] dark:text-orange-400 font-medium cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/user/profile/report-safety-emergency')}>
+                  <Shield className="w-4 h-4" />
+                  <span className="text-sm">Learn about delivery partner safety</span>
+                </div>
               </motion.div>
             </motion.div>
           </motion.div>
@@ -1459,7 +1487,51 @@ export default function OrderTracking() {
         </div>
 
         {/* Status section - hidden for success milestones as requested */}
-        {!['at_pickup', 'ready', 'on_way', 'at_drop', 'delivered'].includes(orderStatus) && (
+        {isScheduledOrder && ['placed', 'confirmed'].includes(orderStatus) ? (
+          <div className="px-4 pb-5 text-center">
+            <motion.div
+              className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 mb-3"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+            >
+              <Clock className="w-4 h-4" />
+              <span className="text-sm font-semibold">Scheduled Order</span>
+            </motion.div>
+            <motion.h1
+              className="text-2xl font-bold mb-2"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              Order Scheduled
+            </motion.h1>
+            <motion.div
+              className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-5 py-2.5"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="text-sm font-medium">{scheduledDateFormatted}</span>
+              <span className="w-1 h-1 rounded-full bg-white/60" />
+              <motion.button
+                onClick={handleRefresh}
+                className="ml-1"
+                animate={{ rotate: isRefreshing ? 360 : 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <RefreshCw className="w-4 h-4" />
+              </motion.button>
+            </motion.div>
+            <motion.p
+              className="text-xs mt-3 text-white/80"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              The restaurant will start preparing your order closer to the scheduled time
+            </motion.p>
+          </div>
+        ) : !['at_pickup', 'ready', 'on_way', 'at_drop', 'delivered'].includes(orderStatus) && (
           <div className="px-4 pb-4 text-center">
             <motion.h1
               className="text-2xl font-bold mb-3"
@@ -1498,7 +1570,7 @@ export default function OrderTracking() {
       </motion.div>
 
       {/* Map Section */}
-      {!isDeliveredOrder && orderStatus !== 'cancelled' && (
+      {!isDeliveredOrder && orderStatus !== 'cancelled' && !(isScheduledOrder && ['placed', 'confirmed'].includes(orderStatus)) && (
         <MapErrorBoundary>
           <DeliveryMap
             orderId={orderId}
@@ -1531,54 +1603,71 @@ export default function OrderTracking() {
 
         {/* Dynamic Status Card */}
         <motion.div
-          className="bg-white rounded-xl p-4 shadow-sm"
+          className="bg-white dark:bg-[#1a1a1a] rounded-xl p-4 shadow-sm"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-gray-100 ${
-              currentStatus.iconType === 'rider' ? 'bg-blue-50' : 
-              currentStatus.iconType === 'cancelled' ? 'bg-red-50' : 
-              currentStatus.iconType === 'delivered' ? 'bg-green-50' : 
-              'bg-orange-50'
-            }`}>
-              {currentStatus.iconType === 'rider' ? (
-                <div 
-                  dangerouslySetInnerHTML={{ __html: RIDER_BIKE_SVG.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') }} 
-                  className="w-full h-full" 
-                />
-              ) : currentStatus.iconType === 'cancelled' ? (
-                <div className="w-full h-full flex items-center justify-center p-2 text-red-500">
-                  <X className="w-full h-full" />
-                </div>
-              ) : currentStatus.iconType === 'delivered' ? (
-                <div className="w-full h-full flex items-center justify-center p-2 text-green-500">
-                  <Check className="w-full h-full" />
-                </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center p-2 text-orange-500">
-                  <Receipt className="w-full h-full" />
-                </div>
-              )}
+          {isScheduledOrder && ['placed', 'confirmed'].includes(orderStatus) ? (
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-blue-100 bg-blue-50">
+                <Clock className="w-7 h-7 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900 dark:text-gray-100 leading-tight">Order Scheduled</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug">
+                  {scheduledDateFormatted}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  We'll notify you when the restaurant starts preparing
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold text-gray-900 leading-tight">{currentStatus.title}</p>
-              <p className="text-sm text-gray-500 mt-1 leading-snug">{currentStatus.subtitle}</p>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-gray-100 ${
+                currentStatus.iconType === 'rider' ? 'bg-blue-50' : 
+                currentStatus.iconType === 'cancelled' ? 'bg-red-50' : 
+                currentStatus.iconType === 'delivered' ? 'bg-green-50' : 
+                'bg-orange-50'
+              }`}>
+                {currentStatus.iconType === 'rider' ? (
+                  <div 
+                    dangerouslySetInnerHTML={{ __html: RIDER_BIKE_SVG.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') }} 
+                    className="w-full h-full" 
+                  />
+                ) : currentStatus.iconType === 'cancelled' ? (
+                  <div className="w-full h-full flex items-center justify-center p-2 text-red-500">
+                    <X className="w-full h-full" />
+                  </div>
+                ) : currentStatus.iconType === 'delivered' ? (
+                  <div className="w-full h-full flex items-center justify-center p-2 text-green-500">
+                    <Check className="w-full h-full" />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center p-2 text-orange-500">
+                    <Receipt className="w-full h-full" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900 dark:text-gray-100 leading-tight">{currentStatus.title}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug">{currentStatus.subtitle}</p>
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
 
         {/* Delivery Partner Info */}
         {order?.deliveryPartnerId && (
           <motion.div
-            className="bg-white rounded-xl shadow-sm overflow-hidden"
+            className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-sm overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55 }}
           >
-            <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
-              <div className="w-12 h-12 rounded-full bg-blue-50 overflow-hidden flex items-center justify-center flex-shrink-0 border border-blue-100 p-1">
+            <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200 dark:border-gray-800">
+              <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 overflow-hidden flex items-center justify-center flex-shrink-0 border border-blue-100 dark:border-blue-900/30 p-1">
                 {order.deliveryPartner?.avatar ? (
                   <img src={order.deliveryPartner.avatar} alt="Rider" className="w-full h-full object-cover" />
                 ) : (
@@ -1589,8 +1678,8 @@ export default function OrderTracking() {
                 )}
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">{order.deliveryPartner?.name || 'Delivery Partner'}</p>
-                <p className="text-sm text-gray-500">Your delivery partner is arriving</p>
+                <p className="font-semibold text-gray-900 dark:text-gray-100">{order.deliveryPartner?.name || 'Delivery Partner'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Your delivery partner is arriving</p>
               </div>
               <motion.button
                 className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"
@@ -1601,11 +1690,11 @@ export default function OrderTracking() {
               </motion.button>
             </div>
             {order?.note && (
-              <div className="bg-blue-50/50 p-3 mx-4 mb-4 rounded-lg flex items-start gap-2 border border-blue-100">
+              <div className="bg-blue-50/50 dark:bg-blue-900/10 p-3 mx-4 mb-4 rounded-lg flex items-start gap-2 border border-blue-100 dark:border-blue-900/20">
                 <MessageSquare className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">Instruction for Rider</p>
-                  <p className="text-xs text-gray-700 leading-relaxed font-medium">"{order.note}"</p>
+                  <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-0.5">Instruction for Rider</p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed font-medium">"{order.note}"</p>
                 </div>
               </div>
             )}
@@ -1614,14 +1703,15 @@ export default function OrderTracking() {
 
         {/* Delivery Partner Safety */}
         <motion.button
-          className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center gap-3"
+          className="w-full bg-white dark:bg-[#1a1a1a] rounded-xl p-4 shadow-sm flex items-center gap-3"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
           whileTap={{ scale: 0.99 }}
+          onClick={() => navigate('/user/profile/report-safety-emergency')}
         >
-          <Shield className="w-6 h-6 text-gray-600" />
-          <span className="flex-1 text-left font-medium text-gray-900">
+          <Shield className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+          <span className="flex-1 text-left font-medium text-gray-900 dark:text-gray-100">
             Learn about delivery partner safety
           </span>
           <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -1641,7 +1731,7 @@ export default function OrderTracking() {
 
         {/* Contact & Address Section */}
         <motion.div
-          className="bg-white rounded-xl shadow-sm overflow-hidden"
+          className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-sm overflow-hidden"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
@@ -1729,12 +1819,12 @@ export default function OrderTracking() {
 
         {/* Restaurant Section */}
         <motion.div
-          className="bg-white rounded-xl shadow-sm overflow-hidden"
+          className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-sm overflow-hidden"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.75 }}
         >
-          <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
+          <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200 dark:border-gray-800">
             <div className="w-12 h-12 rounded-full bg-orange-100 overflow-hidden flex items-center justify-center flex-shrink-0">
               <div
                 dangerouslySetInnerHTML={{ __html: SAFE_RESTAURANT_PIN }}
@@ -1742,8 +1832,8 @@ export default function OrderTracking() {
               />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-gray-900">{order.restaurant}</p>
-              <p className="text-sm text-gray-500">{order.restaurantAddress || 'Restaurant location'}</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">{order.restaurant}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{order.restaurantAddress || 'Restaurant location'}</p>
             </div>
             <motion.button
               className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center"
@@ -1756,7 +1846,7 @@ export default function OrderTracking() {
 
           {/* Order Items */}
           <div
-            className="p-4 border-b border-dashed border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+            className="p-4 border-b border-dashed border-gray-200 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             onClick={() => setShowOrderDetails(true)}
           >
             <div className="flex items-start gap-3">
@@ -1764,7 +1854,7 @@ export default function OrderTracking() {
               <div className="flex-1">
                 <div className="mt-2 space-y-1">
                   {order?.items?.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm text-gray-600">
+                    <div key={index} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                       <span className="w-4 h-4 rounded border border-green-600 flex items-center justify-center">
                         <span className="w-2 h-2 rounded-full bg-green-600" />
                       </span>
@@ -1778,7 +1868,25 @@ export default function OrderTracking() {
           </div>
         </motion.div>
 
-        {/* Cancel order button removed as per user request */}
+        {!isAdminAccepted && orderStatus !== 'cancelled' && orderStatus !== 'delivered' && (
+          <motion.div
+            className="flex flex-col gap-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+          >
+            <Button
+              variant="outline"
+              className="w-full text-red-600 border-red-100 hover:bg-red-50 h-12 rounded-xl font-semibold"
+              onClick={handleCancelOrder}
+            >
+              Cancel Order
+            </Button>
+            <p className="text-[10px] text-gray-400 text-center px-4">
+              You can cancel your order until the restaurant accepts it.
+            </p>
+          </motion.div>
+        )}
 
       </div>
 
@@ -1875,8 +1983,8 @@ export default function OrderTracking() {
 
       {/* Order Details Dialog */}
       <Dialog open={showOrderDetails} onOpenChange={setShowOrderDetails}>
-        <DialogContent className="max-w-[calc(100vw-32px)] sm:max-w-md bg-white rounded-2xl p-0 overflow-hidden border-none outline-none">
-          <DialogHeader className="p-6 pb-4 border-b border-gray-100 pr-12">
+        <DialogContent className="max-w-[calc(100vw-32px)] sm:max-w-md bg-white dark:bg-[#1a1a1a] rounded-2xl p-0 overflow-hidden border-none outline-none">
+          <DialogHeader className="p-6 pb-4 border-b border-gray-100 dark:border-gray-800 pr-12">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-xl font-bold text-gray-900">Order Details</DialogTitle>
             </div>
@@ -1888,7 +1996,7 @@ export default function OrderTracking() {
               <div className="flex items-center gap-4 mt-2">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wider">Date & Time</p>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {order?.createdAt ? new Date(order.createdAt).toLocaleString('en-IN', {
                       day: '2-digit',
                       month: 'short',
@@ -1986,9 +2094,9 @@ export default function OrderTracking() {
                 </div>
               )}
 
-              <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
-                <span className="text-base font-bold text-gray-900">Total Amount</span>
-                <span className="text-lg font-bold text-gray-900">₹{Number(order?.totalAmount || 0).toFixed(2)}</span>
+              <div className="pt-2 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <span className="text-base font-bold text-gray-900 dark:text-white">Total Amount</span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">₹{Number(order?.totalAmount || 0).toFixed(2)}</span>
               </div>
             </div>
 
@@ -2019,7 +2127,7 @@ export default function OrderTracking() {
 
       {/* Delivery Instructions Modal */}
       <Dialog open={isInstructionsModalOpen} onOpenChange={setIsInstructionsModalOpen}>
-        <DialogContent className="sm:max-w-md w-[95vw] rounded-3xl p-6 border-0 shadow-2xl bg-white max-h-[90vh] overflow-y-auto z-[200]">
+        <DialogContent className="sm:max-w-md w-[95vw] rounded-3xl p-6 border-0 shadow-2xl bg-white dark:bg-[#1a1a1a] max-h-[90vh] overflow-y-auto z-[200]">
           <DialogHeader className="mb-2">
             <DialogTitle className="text-xl font-bold bg-gradient-to-r from-#55254b to-orange-400 bg-clip-text text-transparent">
               Delivery Instructions

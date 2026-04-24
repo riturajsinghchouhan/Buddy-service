@@ -69,13 +69,14 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { isOnline, toggleOnline, riderLocation, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
-  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, adminNotification, clearAdminNotification, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
   const companyName = useCompanyName();
-  const { unreadCount: notificationUnreadCount } = useNotificationInbox("delivery", { limit: 20 });
+  const { items: broadcastItems, unreadCount: notificationUnreadCount, markAsRead: markBroadcastAsRead, dismissAll: dismissAllBroadcast } = useNotificationInbox("delivery", { limit: 20 });
 
   const [incomingOrder, setIncomingOrder] = useState(null);
   const [cashLimitNotice, setCashLimitNotice] = useState(null);
   const [currentTab, setCurrentTab] = useState(tab);
+  const [showNotifications, setShowNotifications] = useState(false);
   
   // Track URL changes (Prop changes) to update sub-page content
   useEffect(() => {
@@ -666,6 +667,21 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     }
   }, [orderStatusUpdate, resetTrip, clearOrderStatusUpdate]);
 
+  // Handle Real-time Admin Notifications
+  useEffect(() => {
+    if (adminNotification) {
+      toast.info(adminNotification.title || "New Notification", {
+        description: adminNotification.message || adminNotification.body || "",
+        duration: 8000,
+        action: {
+          label: "View",
+          onClick: () => setShowNotifications(true)
+        }
+      });
+      clearAdminNotification();
+    }
+  }, [adminNotification, clearAdminNotification]);
+
 
   const handleCenterMap = () => {
     if (mapRef.current && useDeliveryStore.getState().riderLocation) {
@@ -731,7 +747,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           <div className="flex items-center gap-3">
              <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 active:scale-95 transition-all shadow-lg"><AlertTriangle className="w-4 h-4" /></button>
              <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><Contact className="w-4 h-4" /></button>
-             <button onClick={() => navigate('/food/delivery/notifications')} className="relative w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"><Bell className="w-4 h-4" />{notificationUnreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-orange-400 border border-[#1f1f1f]" />}</button>
+             <button onClick={() => setShowNotifications(true)} className="relative w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"><Bell className="w-4 h-4" />{notificationUnreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-orange-400 border border-[#1f1f1f]" />}</button>
           </div>
         </div>
 
@@ -1036,8 +1052,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 {showVerification && tripStatus !== 'COMPLETED' && (
                   <DeliveryVerificationModal 
                     order={activeOrder} 
-                    onComplete={async (otp) => {
-                      const res = await completeDelivery(otp);
+                    onComplete={async (otp, paymentOverride) => {
+                      const res = await completeDelivery(otp, paymentOverride);
                       setShowVerification(false);
                       return res;
                     }}
@@ -1071,6 +1087,88 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                </div>
              </button>
            ))}
+         </div>
+      </BottomPopup>
+
+      <BottomPopup 
+        isOpen={showNotifications} 
+        title="Notifications" 
+        onClose={() => {
+           setShowNotifications(false);
+           // Optional: refresh count if needed
+        }}
+      >
+         <div className="flex flex-col gap-3 -mt-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+            {broadcastItems && broadcastItems.length > 0 ? (
+               <>
+                  <div className="flex justify-end mb-1">
+                     <button 
+                        onClick={() => {
+                           dismissAllBroadcast();
+                           toast.success("All notifications cleared");
+                        }}
+                        className="text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-50 px-3 py-1.5 rounded-full"
+                     >
+                        Clear All
+                     </button>
+                  </div>
+                  <div className="grid gap-2.5">
+                     {broadcastItems.map((item) => (
+                        <div 
+                           key={item.id} 
+                           onClick={() => {
+                              markBroadcastAsRead(item.id);
+                              if (item.link) {
+                                 // Handle link if present
+                                 const path = item.link.startsWith('/') ? item.link : `/${item.link}`;
+                                 navigate(path);
+                                 setShowNotifications(false);
+                              }
+                           }}
+                           className={`p-4 rounded-2xl border transition-all active:scale-[0.98] cursor-pointer ${item.read ? 'bg-gray-50 border-gray-100' : 'bg-orange-50 border-orange-100 shadow-sm shadow-orange-500/5'}`}
+                        >
+                           <div className="flex gap-3 items-start">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.read ? 'bg-gray-200 text-gray-500' : 'bg-[#EB590E] text-white shadow-lg'}`}>
+                                 <Bell className="w-4 h-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                 <div className="flex justify-between items-start gap-2">
+                                    <h4 className={`text-sm font-bold truncate ${item.read ? 'text-gray-600' : 'text-gray-950'}`}>
+                                       {item.title}
+                                    </h4>
+                                    <span className="text-[9px] font-black uppercase text-gray-400 shrink-0 whitespace-nowrap pt-0.5">
+                                       {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                 </div>
+                                 <p className={`text-[12px] leading-relaxed mt-0.5 break-words ${item.read ? 'text-gray-500 line-clamp-2' : 'text-gray-700'}`}>
+                                    {item.message}
+                                 </p>
+                              </div>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </>
+            ) : (
+               <div className="py-20 flex flex-col items-center justify-center text-center px-10">
+                  <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mb-4 border border-gray-100/50">
+                     <Bell className="w-7 h-7 text-gray-300" />
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest leading-none mb-2">No Notifications</h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-tight leading-relaxed">System notifications for order requests and updates will appear here.</p>
+               </div>
+            )}
+         </div>
+         <div className="mt-8 mb-2">
+            <button 
+               onClick={() => {
+                  setShowNotifications(false);
+                  navigate('/food/delivery/notifications');
+               }}
+               className="w-full py-4 rounded-2xl bg-gray-950 text-white text-xs font-black uppercase tracking-[0.2em] shadow-xl shadow-gray-950/20 active:scale-95 transition-all"
+            >
+               View Notification History
+            </button>
          </div>
       </BottomPopup>
 

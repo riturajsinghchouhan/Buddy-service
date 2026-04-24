@@ -219,6 +219,19 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
   };
 
   const isPaid = paymentStatus === 'paid';
+  const [isCashPayment, setIsCashPayment] = useState(false);
+
+  // Toggle handlers
+  const handleCashSelection = () => {
+    setIsCashPayment(true);
+    // If we were waiting for QR, we can stop the active pending UI but keep polling in background if needed
+    // However, the user said "if delivery boy clicks cash, slider enable".
+  };
+
+  const handleQrSelection = () => {
+    setIsCashPayment(false);
+    generateQr();
+  };
 
   return (
     <>
@@ -255,29 +268,46 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
                {isPaid && <div className="bg-green-500 text-white px-4 py-2 rounded-full text-[10px] font-bold">PAID ✓</div>}
              </div>
 
-             {!isPaid && (
-               <div className="space-y-4">
-                 <button 
-                   onClick={generateQr}
-                   disabled={isGeneratingQr}
-                   className="w-full py-3.5 sm:py-4 bg-white border-2 border-amber-200 text-amber-800 rounded-2xl font-bold text-[11px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-                 >
-                   {isGeneratingQr ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" />}
-                   Show Payment QR
-                 </button>
-               </div>
-             )}
+              {!isPaid && (
+                <div className="space-y-3">
+                  <button 
+                    onClick={handleQrSelection}
+                    disabled={isGeneratingQr}
+                    className={`w-full py-3.5 sm:py-4 border-2 rounded-2xl font-bold text-[11px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                      !isCashPayment && paymentStatus === 'pending'
+                        ? 'bg-amber-100 border-amber-400 text-amber-900 shadow-inner'
+                        : 'bg-white border-amber-200 text-amber-800'
+                    }`}
+                  >
+                    {isGeneratingQr ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" />}
+                    {paymentStatus === 'pending' && !isCashPayment ? 'QR Active - Waiting...' : 'Show Payment QR'}
+                  </button>
+
+                  <button 
+                    onClick={handleCashSelection}
+                    className={`w-full py-3.5 sm:py-4 border-2 rounded-2xl font-bold text-[11px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                      isCashPayment
+                        ? 'bg-amber-600 border-amber-600 text-white shadow-lg'
+                        : 'bg-white border-amber-200 text-amber-800'
+                    }`}
+                  >
+                    <DollarSign className="w-5 h-5" />
+                    Cash Payment
+                  </button>
+                </div>
+              )}
           </div>
 
-          {/* If the driver collects physical cash, they can directly slide this, bypassing QR */}
-          <ActionSlider 
+          {/* If the driver collects physical cash, they can directly slide this, bypassing QR. Unless cash is selected or it's paid, lock slider. */}
+            <ActionSlider 
             key="action-payment"
-            label="Slide to Complete Order" 
+            label={isCashPayment ? "Slide to Confirm Cash" : "Slide to Complete Order"} 
             successLabel="Delivered! ✓"
-            disabled={!isPaid && paymentStatus === 'pending'} // Disable only if we are specifically waiting for QR to sync
+            disabled={!isPaid && !isCashPayment}
             onConfirm={async () => {
                 try {
-                    await onComplete(otpString);
+                    // Pass the payment method to completion if needed
+                    await onComplete(otpString, isCashPayment ? 'cash' : 'qr');
                 } catch (e) {
                     // Slider handles reset
                     throw e;
@@ -303,19 +333,19 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
               <h3 className="text-gray-950 font-bold text-xl mb-2">Scan to Pay</h3>
               <p className="text-gray-500 text-sm mb-8 font-medium">Order Total: ₹{amountToCollect.toFixed(2)}</p>
               
-              <div className="relative p-6 bg-gray-50 rounded-3xl border-2 border-gray-100 mb-8">
+              <div className="flex flex-col items-center gap-6 bg-gray-50 rounded-3xl border-2 border-gray-100 p-6 mb-8 w-full">
                  <img 
                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(collectQrLink)}`} 
                    alt="Razorpay QR"
-                   className="w-44 h-44 sm:w-56 sm:h-56"
+                   className="w-44 h-44 sm:w-56 sm:h-56 mix-blend-multiply"
                  />
                  <button 
                     onClick={handleManualCheck}
                     disabled={isSyncing}
-                    className="absolute top-2 right-2 flex gap-1.5 items-center bg-green-500 text-white px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                    className="flex gap-2 items-center bg-green-500 hover:bg-green-600 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-green-500/20 active:scale-95 transition-all"
                  >
-                    {isSyncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} 
-                    Check Status
+                    {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} 
+                    Check Payment Status
                  </button>
               </div>
 

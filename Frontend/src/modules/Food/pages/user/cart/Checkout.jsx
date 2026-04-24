@@ -41,6 +41,8 @@ export default function Checkout() {
   const tax = subtotal * 0.08
   const total = subtotal + deliveryFee + tax
 
+  const [restaurantNote, setRestaurantNote] = useState("")
+
   const handlePlaceOrder = async () => {
     if (!selectedAddress || !selectedPayment) {
       alert("Please select a delivery address and payment method")
@@ -70,7 +72,8 @@ export default function Checkout() {
         deliveryFee,
         tax,
         total,
-        restaurant: cart[0]?.restaurant || cart[0]?.name || "Multiple Restaurants"
+        restaurant: cart[0]?.restaurant || cart[0]?.name || "Multiple Restaurants",
+        note: restaurantNote
       })
 
       clearCart()
@@ -219,7 +222,7 @@ export default function Checkout() {
                                 </div>
                                 <p className="font-semibold">{cardNumber}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {payment.cardHolder} � Expires {payment.expiryMonth}/{payment.expiryYear.slice(-2)}
+                                  {payment.cardHolder}  Expires {payment.expiryMonth}/{payment.expiryYear.slice(-2)}
                                 </p>
                               </div>
                               {isSelected && (
@@ -229,7 +232,7 @@ export default function Checkout() {
                           </div>
                         )
                       })}
-                      <Link to="/user/profile/payments">
+                      <Link to="/user/profile/payments" className="block w-full">
                         <Button variant="outline" className="w-full">
                           Manage Payment Methods
                         </Button>
@@ -243,6 +246,29 @@ export default function Checkout() {
                       </Link>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </ScrollReveal>
+
+            {/* Note for Restaurant */}
+            <ScrollReveal delay={0.25}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-[#7e3866]" />
+                    Add note for restaurant
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    placeholder="E.g. Please make it extra spicy, or no onions..."
+                    value={restaurantNote}
+                    onChange={(e) => setRestaurantNote(e.target.value)}
+                    className="min-h-[100px] resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Your request will be shared with the restaurant.
+                  </p>
                 </CardContent>
               </Card>
             </ScrollReveal>

@@ -1063,6 +1063,45 @@ export default function OrdersMain() {
   const isMutedRef = useRef(isMuted);
   const newOrderRef = useRef(null);
 
+  // Pending counts for tabs
+  const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+
+  // Fetch pending counts
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        // Fetch bookings
+        const resRes = await restaurantAPI.getCurrentRestaurant();
+        const restaurantData = resRes.data?.data?.restaurant || resRes.data?.restaurant || resRes.data?.data;
+        if (restaurantData?._id || restaurantData?.id) {
+          const res = await diningAPI.getRestaurantBookings(restaurantData);
+          if (res.data.success) {
+            const pending = res.data.data.filter(b => String(b.status).toLowerCase() === 'pending').length;
+            setPendingBookingsCount(pending);
+          }
+        }
+
+        // Fetch pending orders
+        const ordersRes = await restaurantAPI.getOrders({ page: 1, limit: 100 });
+        if (ordersRes.data.success) {
+          const pending = ordersRes.data.data.orders.filter(o => 
+            String(o.status).toLowerCase() === 'pending' || 
+            String(o.status).toLowerCase() === 'created' ||
+            String(o.status).toLowerCase() === 'confirmed'
+          ).length;
+          setPendingOrdersCount(pending);
+        }
+      } catch (error) {
+        // Non-blocking
+      }
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   // Global search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -2271,7 +2310,13 @@ export default function OrdersMain() {
                     }}
                   />
                 )}
-                <span className="relative z-10">{tab.label}</span>
+                <div className="flex items-center gap-2 relative z-10">
+                  <span>{tab.label}</span>
+                  {((tab.id === 'table-booking' && pendingBookingsCount > 0) || 
+                    (tab.id === 'all' && pendingOrdersCount > 0)) && (
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                  )}
+                </div>
               </motion.button>
             );
           })}
