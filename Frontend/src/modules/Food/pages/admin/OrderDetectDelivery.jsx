@@ -6,6 +6,7 @@ import OrdersTopbar from "@food/components/admin/orders/OrdersTopbar"
 import OrderDetectDeliveryTable from "@food/components/admin/orders/OrderDetectDeliveryTable"
 import ViewOrderDetectDeliveryDialog from "@food/components/admin/orders/ViewOrderDetectDeliveryDialog"
 import SettingsDialog from "@food/components/admin/orders/SettingsDialog"
+import FilterPanel from "@food/components/admin/orders/FilterPanel"
 import { useGenericTableManagement } from "@food/components/admin/orders/useGenericTableManagement"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -542,6 +543,14 @@ export default function OrderDetectDelivery() {
         visibleColumns={visibleColumns}
         onViewOrder={handleViewOrder}
         onPrintOrder={handlePrintOrder}
+      />
+      <FilterPanel
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        filters={filters}
+        setFilters={setFilters}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
       />
     </div>
   )

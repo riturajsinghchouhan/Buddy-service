@@ -26,7 +26,7 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
               Payment Status
             </label>
             <div className="flex flex-wrap gap-2">
-              {["All", "Paid", "Pending", "Failed", "Refunded", "Processing"].map((status) => (
+              {["All", "paid", "pending", "failed", "refunded"].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilters(prev => ({ ...prev, paymentStatus: status === "All" ? "" : status }))}
@@ -36,7 +36,7 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
                 >
-                  {status}
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>
               ))}
             </div>
@@ -48,7 +48,7 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
               Delivery Type
             </label>
             <div className="flex flex-wrap gap-2">
-              {["All", "Home Delivery", "Take Away", "Dine In"].map((type) => (
+              {["All", "home_delivery", "take_away", "dine_in"].map((type) => (
                 <button
                   key={type}
                   onClick={() => setFilters(prev => ({ ...prev, deliveryType: type === "All" ? "" : type }))}
@@ -58,7 +58,7 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
                 >
-                  {type}
+                  {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                 </button>
               ))}
             </div>
