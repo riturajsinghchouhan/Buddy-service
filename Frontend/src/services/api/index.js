@@ -1395,6 +1395,9 @@ export const restaurantAPI = {
       params,
       contextModule: "restaurant",
     }),
+  /** DELETE /food/restaurant/account - permanently delete restaurant account */
+  deleteAccount: () =>
+    apiClient.delete("/food/restaurant/account", { contextModule: "restaurant" }),
 };
 
 function stableStringify(value) {
@@ -2012,6 +2015,9 @@ export const deliveryAPI = {
       params: { lat, lng, radius: radiusKm },
       contextModule: "delivery",
     }),
+  /** DELETE /food/delivery/account - permanently delete delivery partner account */
+  deleteAccount: () =>
+    apiClient.delete("/food/delivery/account", { contextModule: "delivery" }),
 };
 
 export const userAPI = {
@@ -2175,6 +2181,9 @@ export const userAPI = {
     const platform = options?.platform === "mobile" ? "mobile" : "web";
     return apiClient.post("/fcm-tokens/test", { platform }, { contextModule: "user" });
   },
+  /** DELETE /food/user/account - permanently delete user account */
+  deleteAccount: () =>
+    apiClient.delete("/food/user/account", { contextModule: "user" }),
 };
 export const locationAPI = createStubAPI();
 export const zoneAPI = {

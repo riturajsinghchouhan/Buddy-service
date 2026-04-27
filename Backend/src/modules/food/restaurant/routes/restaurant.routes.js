@@ -54,6 +54,7 @@ import { downloadRestaurantMenuPdf } from '../../admin/controllers/admin.control
 import { authMiddleware } from '../../../../core/auth/auth.middleware.js';
 import { sendError } from '../../../../utils/response.js';
 import { getRestaurantFinanceController } from '../controllers/restaurantFinance.controller.js';
+import { deleteRestaurantAccountController } from '../controllers/deleteAccount.controller.js';
 
 import { cacheResponse, invalidateCache } from '../../../../middleware/cache.js';
 
@@ -213,6 +214,9 @@ router.get('/download-menu-pdf/:id', authMiddleware, (req, res, next) => {
     // Call the download function
     downloadRestaurantMenuPdf(req, res, next);
 });
+
+// Delete account (Bearer RESTAURANT)
+router.delete('/account', authMiddleware, requireRestaurant, deleteRestaurantAccountController);
 
 export default router;
 

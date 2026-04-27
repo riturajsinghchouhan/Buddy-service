@@ -2,10 +2,8 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { 
   GoogleMap, 
   useJsApiLoader, 
-  Marker, 
   OverlayView, 
   DirectionsService, 
-  DirectionsRenderer,
   Polyline
 } from '@react-google-maps/api';
 import io from 'socket.io-client';
@@ -13,7 +11,7 @@ import { API_BASE_URL } from '@food/api/config';
 import bikeLogo from '@food/assets/bikelogo.png';
 import { subscribeOrderTracking } from '@food/realtimeTracking';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Navigation, Info, Circle } from 'lucide-react';
+import { Navigation } from 'lucide-react';
 
 const MAP_LIBRARIES = Object.freeze(['geometry', 'places']);
 
@@ -36,6 +34,47 @@ const CUSTOMER_PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="48" hei
 
 const debugLog = (...args) => console.log('[DeliveryTrackingMap]', ...args);
 
+/**
+ * Given a full route path (array of LatLng) and rider's current position,
+ * returns the index of the closest path point to the rider.
+ * Uses Google Maps geometry library (spherical).
+ */
+function findClosestPointIndex(path, riderLatLng) {
+  if (!path || path.length === 0 || !riderLatLng) return 0;
+  const geo = window.google?.maps?.geometry?.spherical;
+  if (!geo) return 0;
+
+  let minDist = Infinity;
+  let closestIdx = 0;
+
+  for (let i = 0; i < path.length; i++) {
+    const pt = path[i];
+    const lat = typeof pt.lat === 'function' ? pt.lat() : pt.lat;
+    const lng = typeof pt.lng === 'function' ? pt.lng() : pt.lng;
+    const dist = geo.computeDistanceBetween(
+      new window.google.maps.LatLng(lat, lng),
+      new window.google.maps.LatLng(riderLatLng.lat, riderLatLng.lng)
+    );
+    if (dist < minDist) {
+      minDist = dist;
+      closestIdx = i;
+    }
+  }
+  return closestIdx;
+}
+
+/**
+ * Normalise a path point to a plain {lat, lng} object
+ * (handles both Google LatLng objects and plain objects).
+ */
+function normPt(pt) {
+  if (!pt) return null;
+  const lat = typeof pt.lat === 'function' ? pt.lat() : pt.lat;
+  const lng = typeof pt.lng === 'function' ? pt.lng() : pt.lng;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
 const DeliveryTrackingMap = ({
   orderId,
   orderTrackingIds = [],
@@ -46,16 +85,24 @@ const DeliveryTrackingMap = ({
 }) => {
   const [map, setMap] = useState(null);
   const [riderLocation, setRiderLocation] = useState(null);
-  const [directions, setDirections] = useState(null);
-  const [baselineDirections, setBaselineDirections] = useState(null);
-  const [lastDirectionsAt, setLastDirectionsAt] = useState(0);
   const [currentEta, setCurrentEta] = useState(null);
+  /**
+   * fullRoutePath — the decoded overview_path from the baseline Directions call.
+   * We store it as plain [{lat,lng}] so it's React-state-safe.
+   */
+  const [fullRoutePath, setFullRoutePath] = useState(null);
+  /**
+   * cloudPolyline — encoded polyline coming from the driver's real-time Firebase push.
+   * When present, we decode it and use it as the fullRoutePath instead.
+   */
   const [cloudPolyline, setCloudPolyline] = useState(null);
+
   const [smoothLocation, setSmoothLocation] = useState(null);
   const socketRef = useRef(null);
   const interpStateRef = useRef({ lastPos: null, nextPos: null, startTime: 0, durationMs: 1500 });
   const lastUpdateAtRef = useRef(0);
   const lastSmoothSetRef = useRef(0);
+  const baselineRequestedRef = useRef(false);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -109,13 +156,13 @@ const DeliveryTrackingMap = ({
         }));
       }
 
-      // Sync Cloud Polyline and ETA to eliminate Directions API usage on user side
+      // Sync Cloud Polyline and ETA from driver's Firebase push
       if (data?.polyline) {
-        debugLog('?? Received Cloud Polyline for live path');
+        debugLog('📡 Received Cloud Polyline for live path');
         setCloudPolyline(data.polyline);
       }
       if (data?.eta) {
-        debugLog('?? Received real-time ETA:', data.eta);
+        debugLog('⏱️ Received real-time ETA:', data.eta);
         setCurrentEta(data.eta);
         if (onEtaUpdate) onEtaUpdate(data.eta);
       }
@@ -149,14 +196,13 @@ const DeliveryTrackingMap = ({
         const delta = Math.max(300, Math.min(now - (lastUpdateAtRef.current || now), 4000));
         lastUpdateAtRef.current = now;
 
-        // Trigger Smooth Interpolation
         interpStateRef.current = {
           lastPos: interpStateRef.current.nextPos || nextPos,
           nextPos: nextPos,
           startTime: now,
           durationMs: delta
         };
-        
+
         setRiderLocation(nextPos);
       }
     });
@@ -177,12 +223,11 @@ const DeliveryTrackingMap = ({
         const elapsed = Date.now() - startTime;
         const raw = Math.min(elapsed / duration, 1);
         const progress = raw * raw * (3 - 2 * raw); // easeInOut
-        
-        // Linear Interpolation (LERP)
+
         const lat = lastPos.lat + (nextPos.lat - lastPos.lat) * progress;
         const lng = lastPos.lng + (nextPos.lng - lastPos.lng) * progress;
-        
-        // Heading interpolation (shortest path)
+
+        // Shortest-path heading interpolation
         let lastHead = lastPos.heading || 0;
         let nextHead = nextPos.heading || 0;
         if (Math.abs(nextHead - lastHead) > 180) {
@@ -203,94 +248,117 @@ const DeliveryTrackingMap = ({
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  // Use smooth location for sync if available
+  // 4. When cloudPolyline updates: decode & store as fullRoutePath
+  useEffect(() => {
+    if (!cloudPolyline || !isLoaded || !window.google?.maps?.geometry?.encoding) return;
+    try {
+      const decoded = window.google.maps.geometry.encoding.decodePath(
+        typeof cloudPolyline === 'string' ? cloudPolyline : (cloudPolyline.points || '')
+      );
+      const plain = decoded.map(normPt).filter(Boolean);
+      if (plain.length > 1) {
+        setFullRoutePath(plain);
+        debugLog(`🗺️ Cloud polyline decoded: ${plain.length} points`);
+      }
+    } catch (e) {
+      debugLog('Cloud polyline decode error:', e);
+    }
+  }, [cloudPolyline, isLoaded]);
+
   const displayRiderLocation = smoothLocation || riderLocation;
 
   const tripStatus = order?.status || order?.orderStatus || 'pending';
   const isOrderPickedUp = ['picked_up', 'out_for_delivery', 'delivered'].includes(tripStatus.toLowerCase());
 
-  // 2. Pro Camera: Intelligent Frame Management (Throttled)
+  // 5. Smart camera: fit bounds
   const lastCameraUpdateRef = useRef({ time: 0, status: null });
-  
   useEffect(() => {
     if (!map || !restaurantCoords || !customerCoords || !isLoaded) return;
-    
+
     const now = Date.now();
     const statusChanged = lastCameraUpdateRef.current.status !== isOrderPickedUp;
     const timeSinceLastUpdate = now - lastCameraUpdateRef.current.time;
-
-    // Only fitBounds if status changed OR every 15 seconds to avoid flickering
     if (!statusChanged && timeSinceLastUpdate < 15000) return;
 
     lastCameraUpdateRef.current = { time: now, status: isOrderPickedUp };
 
     const bounds = new window.google.maps.LatLngBounds();
-    
-    // Keep both anchor points in view from order placed stage,
-    // then include rider when available for Swiggy-like tracking feel.
     bounds.extend(restaurantCoords);
     bounds.extend(customerCoords);
     if (riderLocation) bounds.extend(riderLocation);
 
-    map.fitBounds(bounds, { 
-      top: 100, 
-      bottom: 120, 
-      left: 60, 
-      right: 60 
-    });
-    
+    map.fitBounds(bounds, { top: 100, bottom: 120, left: 60, right: 60 });
     debugLog(`[Camera] Focusing on ${isOrderPickedUp ? 'Delivery' : 'Pickup'} leg`);
   }, [map, riderLocation, restaurantCoords, customerCoords, isOrderPickedUp, isLoaded]);
 
-  // 3. Directions Management
-  const directionsCallback = useCallback((result, status) => {
+  // 6. Baseline Directions callback — stores the overview_path as fullRoutePath
+  const baselineDirectionsCallback = useCallback((result, status) => {
     if (status === 'OK' && result) {
-      setDirections(result);
-      setLastDirectionsAt(Date.now());
-      
-      // Extract ETA from directions
-      const durationText = result?.routes?.[0]?.legs?.[0]?.duration?.text;
-      if (durationText) {
-        setCurrentEta(durationText);
-        if (onEtaUpdate) {
-          onEtaUpdate(durationText);
-        }
+      const rawPath = result.routes?.[0]?.overview_path || [];
+      const plain = rawPath.map(normPt).filter(Boolean);
+      if (plain.length > 1) {
+        setFullRoutePath(plain);
+        debugLog(`✅ Baseline route stored: ${plain.length} points`);
       }
+      // Also extract ETA from baseline if no real-time ETA yet
+      const durationText = result?.routes?.[0]?.legs?.[0]?.duration?.text;
+      if (durationText && !currentEta) {
+        setCurrentEta(durationText);
+        if (onEtaUpdate) onEtaUpdate(durationText);
+      }
+    } else if (status !== 'OK') {
+      console.error('[DeliveryTrackingMap] Baseline DirectionsService failed:', status);
     }
-  }, [onEtaUpdate]);
+  }, [currentEta, onEtaUpdate]);
 
-  const shouldUpdateRoute = useMemo(() => {
-    if (!directions) return true;
-    return Date.now() - lastDirectionsAt > 15000;
-  }, [directions, lastDirectionsAt]);
-
-  const directionsServiceOptions = useMemo(() => {
-    if (!riderLocation) return null;
-    const dest = isOrderPickedUp ? customerCoords : restaurantCoords;
-    if (!dest) return null;
-    return {
-      origin: riderLocation,
-      destination: dest,
-      travelMode: 'DRIVING'
-    };
-  }, [riderLocation?.lat, riderLocation?.lng, isOrderPickedUp, restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng]);
-
-  const center = useMemo(() => {
-    // Highly stable center: use restaurant or customer as anchor, not the moving rider
-    if (isOrderPickedUp) return customerCoords || { lat: 0, lng: 0 };
-    return restaurantCoords || { lat: 0, lng: 0 };
-  }, [isOrderPickedUp, restaurantCoords, customerCoords]);
-
-  const zoom = useMemo(() => 15, []);
-
-  const baselineDirectionsServiceOptions = useMemo(() => {
-    if (!restaurantCoords || !customerCoords) return null;
+  const baselineDirectionsOptions = useMemo(() => {
+    if (!restaurantCoords || !customerCoords || cloudPolyline) return null;
     return {
       origin: restaurantCoords,
       destination: customerCoords,
       travelMode: 'DRIVING'
     };
-  }, [restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng]);
+  }, [restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng, cloudPolyline]);
+
+  /**
+   * SPLIT POLYLINE LOGIC:
+   * Given the full route path and the rider's current position, split into:
+   *   - traveledPath: restaurant → nearest point to rider (dashed grey)
+   *   - remainingPath: nearest point → destination (solid colored)
+   */
+  const { traveledPath, remainingPath } = useMemo(() => {
+    if (!fullRoutePath || fullRoutePath.length < 2) {
+      return { traveledPath: [], remainingPath: [] };
+    }
+    if (!displayRiderLocation || !isLoaded || !window.google?.maps?.geometry) {
+      // No rider yet: show everything as remaining
+      return { traveledPath: [], remainingPath: fullRoutePath };
+    }
+
+    const splitIdx = findClosestPointIndex(fullRoutePath, displayRiderLocation);
+
+    // traveledPath: start → splitIdx (inclusive) + rider's exact position
+    const traveled = [
+      ...fullRoutePath.slice(0, splitIdx + 1),
+      { lat: displayRiderLocation.lat, lng: displayRiderLocation.lng }
+    ];
+
+    // remainingPath: rider's exact position → end
+    const remaining = [
+      { lat: displayRiderLocation.lat, lng: displayRiderLocation.lng },
+      ...fullRoutePath.slice(splitIdx + 1)
+    ];
+
+    return { traveledPath: traveled, remainingPath: remaining };
+  }, [fullRoutePath, displayRiderLocation, isLoaded]);
+
+  // Route color by phase
+  const remainingColor = isOrderPickedUp ? '#3b82f6' : '#22c55e';
+
+  const center = useMemo(() => {
+    if (isOrderPickedUp) return customerCoords || { lat: 0, lng: 0 };
+    return restaurantCoords || { lat: 0, lng: 0 };
+  }, [isOrderPickedUp, restaurantCoords, customerCoords]);
 
   if (!isLoaded) return <div className="w-full h-full bg-gray-100 animate-pulse" />;
 
@@ -299,7 +367,7 @@ const DeliveryTrackingMap = ({
       <GoogleMap
         mapContainerStyle={{ width: '100%', height: '100%' }}
         center={center}
-        zoom={zoom}
+        zoom={15}
         onLoad={setMap}
         options={{
           disableDefaultUI: false,
@@ -316,139 +384,104 @@ const DeliveryTrackingMap = ({
           ]
         }}
       >
-        {/* 1. PERSISTENT BASELINE (Full journey: Restaurant -> Customer) */}
-        {!baselineDirections && baselineDirectionsServiceOptions && (
-           <DirectionsService
-             options={baselineDirectionsServiceOptions}
-             callback={(r, s) => { 
-                debugLog('?? Baseline Directions Status:', s);
-
-                if (s === 'OK' && r) {
-                    const points = r.routes[0]?.overview_path?.length || 0;
-                    debugLog(`? Baseline directions SET with ${points} points`);
-                    setBaselineDirections(r); 
-                } else if (s !== 'OK') {
-                  console.error('[DeliveryTrackingMap] DirectionsService failed:', s);
-                }
-             }}
-           />
+        {/* BASELINE DIRECTIONS API CALL (only needed if no cloudPolyline) */}
+        {!fullRoutePath && baselineDirectionsOptions && !baselineRequestedRef.current && (
+          <DirectionsService
+            options={baselineDirectionsOptions}
+            callback={(r, s) => {
+              baselineRequestedRef.current = true;
+              baselineDirectionsCallback(r, s);
+            }}
+          />
         )}
 
-        {/* 1. PERSISTENT BASELINE (Full journey: Restaurant -> Customer) */}
-        {baselineDirections && (
+        {/* ── TRAVELED PATH: dashed grey (already covered by driver) ── */}
+        {traveledPath.length > 1 && (
           <Polyline
-            path={baselineDirections.routes[0].overview_path}
+            path={traveledPath}
             options={{
               strokeColor: '#9ca3af',
-              strokeOpacity: 0.9,
-              strokeWeight: 5,
-              zIndex: 5,
+              strokeOpacity: 0,           // hide solid stroke
+              strokeWeight: 6,
+              zIndex: 6,
+              icons: [
+                {
+                  icon: {
+                    path: 'M 0,-1 0,1',  // vertical line = dash segment
+                    strokeOpacity: 0.85,
+                    strokeWeight: 5,
+                    scale: 4,
+                  },
+                  offset: '0',
+                  repeat: '14px',
+                }
+              ]
             }}
           />
         )}
 
-        {/* 2. LIVE RIDER LEG (From Rider's App: Current Rider Pos -> Target) */}
-        {cloudPolyline && window.google?.maps?.geometry?.encoding && (
+        {/* ── REMAINING PATH: solid colored (driver's upcoming route) ── */}
+        {remainingPath.length > 1 && (
           <Polyline
-            path={(() => {
-              const decoded = window.google.maps.geometry.encoding.decodePath(
-                typeof cloudPolyline === 'string' ? cloudPolyline : (cloudPolyline.points || '')
-              );
-              debugLog(`?? Decoded Cloud Polyline with ${decoded?.length || 0} points`);
-              return decoded;
-            })()}
+            path={remainingPath}
             options={{
-              strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
-              strokeWeight: 7,
-              strokeOpacity: 1,
-              zIndex: 10
+              strokeColor: remainingColor,
+              strokeOpacity: 0.95,
+              strokeWeight: 6,
+              zIndex: 8,
             }}
           />
         )}
 
-        {/* 2. LIVE RIDER LEG (Rider -> Target) */}
-        {!cloudPolyline && directionsServiceOptions && (
-          <DirectionsService
-            options={directionsServiceOptions}
-            callback={shouldUpdateRoute ? directionsCallback : undefined}
-          />
-        )}
-
-        {directions && !cloudPolyline && (
-          <DirectionsRenderer
-            directions={directions}
-            options={{
-              suppressMarkers: true,
-              preserveViewport: true,
-              polylineOptions: {
-                strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
-                strokeWeight: 7,
-                strokeOpacity: 0.95,
-                zIndex: 10
-              }
-            }}
-          />
-        )}
-
-        {/* RESTAURANT PIN (OVERLAY VIEW FOR CUSTOM STLYE) */}
-        <OverlayView
-          position={restaurantCoords}
-          mapPaneName={OverlayView.MARKER_LAYER}
-        >
+        {/* ── RESTAURANT PIN ── */}
+        <OverlayView position={restaurantCoords} mapPaneName={OverlayView.MARKER_LAYER}>
           <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
-             {/* Pulsing ring if this is the active destination */}
-             {!isOrderPickedUp && (
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                 <motion.div 
-                   animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                   transition={{ duration: 2, repeat: Infinity }}
-                   className="w-16 h-16 rounded-full border-4 border-[#7e3866]/50"
-                 />
-               </div>
-             )}
-             <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-[#7e3866] overflow-hidden group-hover:scale-110 transition-transform">
-                <img 
-                  src={order?.restaurantLogo || order?.restaurantId?.logo || order?.restaurantId?.profileImage || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`}
-                  alt="Restaurant"
-                  className="w-full h-full object-contain rounded-full bg-gray-50"
-                  onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`; }}
+            {!isOrderPickedUp && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <motion.div
+                  animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="w-16 h-16 rounded-full border-4 border-[#7e3866]/50"
                 />
-             </div>
-             {/* Pin Tip */}
-             <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#7e3866] clip-triangle rotate-180 -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
+              </div>
+            )}
+            <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-[#7e3866] overflow-hidden group-hover:scale-110 transition-transform">
+              <img
+                src={order?.restaurantLogo || order?.restaurantId?.logo || order?.restaurantId?.profileImage || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`}
+                alt="Restaurant"
+                className="w-full h-full object-contain rounded-full bg-gray-50"
+                onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`; }}
+              />
+            </div>
+            <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#7e3866] -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
           </div>
         </OverlayView>
 
-        {/* CUSTOMER PIN (OVERLAY VIEW FOR CUSTOM STYLE) */}
-        <OverlayView
-          position={customerCoords}
-          mapPaneName={OverlayView.MARKER_LAYER}
-        >
+        {/* ── CUSTOMER PIN ── */}
+        <OverlayView position={customerCoords} mapPaneName={OverlayView.MARKER_LAYER}>
           <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
-             {/* Pulsing ring if this is the active destination */}
-             {isOrderPickedUp && (
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                 <motion.div 
-                   animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                   transition={{ duration: 2, repeat: Infinity }}
-                   className="w-16 h-16 rounded-full border-4 border-green-500/50"
-                 />
-               </div>
-             )}
-             <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-green-500 overflow-hidden group-hover:scale-110 transition-transform">
-                <img 
-                  src={order?.customerImage || order?.userId?.profileImage || order?.userId?.avatar || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CUSTOMER_PIN_SVG)}`}
-                  alt="Me"
-                  className="w-full h-full object-contain rounded-full bg-gray-50"
-                  onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CUSTOMER_PIN_SVG)}`; }}
+            {isOrderPickedUp && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <motion.div
+                  animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="w-16 h-16 rounded-full border-4 border-green-500/50"
                 />
-             </div>
-             {/* Pin Tip */}
-             <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-green-500 clip-triangle rotate-180 -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
+              </div>
+            )}
+            <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-green-500 overflow-hidden group-hover:scale-110 transition-transform">
+              <img
+                src={order?.customerImage || order?.userId?.profileImage || order?.userId?.avatar || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CUSTOMER_PIN_SVG)}`}
+                alt="Me"
+                className="w-full h-full object-contain rounded-full bg-gray-50"
+                onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CUSTOMER_PIN_SVG)}`; }}
+              />
+            </div>
+            <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-green-500 -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
           </div>
         </OverlayView>
 
-        {/* PRO RIDER (OVERLAY VIEW FOR SMOOTH ROTATION / GLIDE) */}
+        {/* ── RIDER MARKER ── */}
         {displayRiderLocation && (
           <OverlayView
             position={displayRiderLocation}
@@ -462,23 +495,21 @@ const DeliveryTrackingMap = ({
               }}
               className="relative w-16 h-16"
             >
-              <img 
-                src="/MapRider.png" 
-                alt="Rider" 
+              <img
+                src="/MapRider.png"
+                alt="Rider"
                 className="w-full h-full object-contain drop-shadow-2xl"
-                onError={(e) => {
-                  e.target.src = bikeLogo;
-                }}
+                onError={(e) => { e.target.src = bikeLogo; }}
               />
             </div>
           </OverlayView>
         )}
       </GoogleMap>
 
-      {/* 4. LIVE ARRIVAL BADGE (Pro Orange) */}
+      {/* LIVE ARRIVAL BADGE */}
       <AnimatePresence>
         {riderLocation && currentEta && (
-          <motion.div 
+          <motion.div
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             className="absolute top-4 left-4 z-[150] pointer-events-none"
@@ -492,8 +523,8 @@ const DeliveryTrackingMap = ({
                     {currentEta}
                   </span>
                   <div className="flex items-center gap-1.5 opacity-80">
-                     <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                     <Navigation className="w-3 h-3 text-white rotate-45" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <Navigation className="w-3 h-3 text-white rotate-45" />
                   </div>
                 </div>
               </div>

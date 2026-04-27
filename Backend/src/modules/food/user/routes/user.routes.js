@@ -29,6 +29,7 @@ import {
     createSupportTicketController,
     listMySupportTicketsController
 } from '../controllers/supportTicket.controller.js';
+import { deleteUserAccountController } from '../controllers/deleteAccount.controller.js';
 
 const router = express.Router();
 
@@ -58,5 +59,8 @@ router.post('/addresses', addAddressController);
 router.patch('/addresses/:addressId', updateAddressController);
 router.delete('/addresses/:addressId', deleteAddressController);
 router.patch('/addresses/:addressId/default', setDefaultAddressController);
+
+// Delete account (Bearer USER)
+router.delete('/account', deleteUserAccountController);
 
 export default router;

@@ -10,7 +10,9 @@ import {
   LogOut,
   X,
   Loader2,
-  Briefcase
+  Briefcase,
+  Trash2,
+  AlertTriangle
 } from "lucide-react"
 import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
@@ -28,6 +30,10 @@ export const ProfileV2 = () => {
   const [referralReward, setReferralReward] = useState(0)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [logoutSubmitting, setLogoutSubmitting] = useState(false)
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
+  const [deleteStep, setDeleteStep] = useState(1)
+  const [deleteCaptcha, setDeleteCaptcha] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Fetch profile data
   useEffect(() => {
@@ -173,9 +179,22 @@ export const ProfileV2 = () => {
             </div>
           </div>
 
-          {/* Partner options Section */}
+          {/* Delete Account */}
+          <div className="pt-0">
+            <div
+              onClick={() => { setDeleteStep(1); setDeleteCaptcha(""); setDeleteAccountOpen(true); }}
+              className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer border border-red-100 hover:bg-red-50/30 active:bg-red-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Trash2 className="w-5 h-5 text-red-500" />
+                <span className="text-sm font-bold text-red-500">Delete Account</span>
+              </div>
+              <ArrowRight className="w-5 h-5 text-red-200" />
+            </div>
+          </div>
+
           {/* Logout Section */}
-          <div className="pt-4">
+          <div className="pt-2">
             <div 
               onClick={() => setShowLogoutConfirm(true)}
               className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer border border-red-50 hover:bg-red-50/30 active:bg-red-50 transition-colors"
@@ -217,6 +236,99 @@ export const ProfileV2 = () => {
                 {logoutSubmitting ? "Logging out..." : "Yes"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Confirmation */}
+      {deleteAccountOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center px-4"
+          onClick={() => setDeleteAccountOpen(false)}
+        >
+          <div
+            className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {deleteStep === 1 && (
+              <div className="p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-red-100 rounded-full p-2.5">
+                    <AlertTriangle className="h-6 w-6 text-red-500" />
+                  </div>
+                  <h3 className="text-base font-black text-gray-900">Delete Account?</h3>
+                </div>
+                <div className="bg-red-50 rounded-xl p-3.5 mb-4 border border-red-100">
+                  <p className="text-sm font-semibold text-red-600 mb-2">⚠️ This action is permanent!</p>
+                  <ul className="text-xs text-red-500/80 space-y-1.5">
+                    <li>• Your profile and documents will be deleted</li>
+                    <li>• Wallet balance and earnings will be forfeited</li>
+                    <li>• Trip history will be anonymized</li>
+                    <li>• Pending withdrawals will be cancelled</li>
+                    <li>• You can register again as a new partner</li>
+                  </ul>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setDeleteAccountOpen(false)}
+                    className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep(2)}
+                    className="flex-1 h-11 rounded-xl bg-red-500 text-white font-bold"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteStep === 2 && (
+              <div className="p-5">
+                <h3 className="text-base font-black text-gray-900 mb-2">Confirm Deletion</h3>
+                <p className="text-sm text-gray-500 mb-4">Type <span className="font-bold text-red-500">DELETE MY ACCOUNT</span> to confirm.</p>
+                <input
+                  type="text"
+                  value={deleteCaptcha}
+                  onChange={(e) => setDeleteCaptcha(e.target.value)}
+                  placeholder="Type here..."
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400 mb-4"
+                  autoFocus
+                  autoComplete="off"
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setDeleteStep(1); setDeleteCaptcha(""); }}
+                    className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 font-bold"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (isDeleting) return;
+                      setIsDeleting(true);
+                      try {
+                        await deliveryAPI.deleteAccount();
+                        toast.success("Account deleted successfully");
+                        clearModuleAuth("delivery");
+                        localStorage.removeItem("app:isOnline");
+                        navigate("/food/delivery/login", { replace: true });
+                      } catch (err) {
+                        toast.error(err?.response?.data?.message || "Failed to delete account");
+                      } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
+                    disabled={deleteCaptcha.trim() !== "DELETE MY ACCOUNT" || isDeleting}
+                    className="flex-1 h-11 rounded-xl bg-red-500 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isDeleting ? "Deleting..." : "Delete Forever"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
