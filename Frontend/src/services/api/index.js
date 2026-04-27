@@ -2410,31 +2410,50 @@ const normalizeRestaurantShape = (restaurant) => {
   };
 };
 
-const collectRestaurantBookingKeys = (restaurantCandidate) => {
-  if (!restaurantCandidate) return [];
+const collectRestaurantBookingKeys = (candidate) => {
+  if (!candidate) return [];
 
   const raw =
-    typeof restaurantCandidate === "object"
-      ? restaurantCandidate
-      : { _id: restaurantCandidate, id: restaurantCandidate, restaurantId: restaurantCandidate };
+    typeof candidate === "object"
+      ? candidate
+      : { _id: candidate, id: candidate, restaurantId: candidate };
 
+  // Pull values from current object and nested restaurant object
   const values = [
     raw?._id,
     raw?.id,
     raw?.restaurantId,
     raw?.slug,
+    raw?.name,
+    raw?.restaurantName,
     raw?.restaurantNameNormalized,
+    
+    // Check nested restaurant object if it exists
     raw?.restaurant?._id,
     raw?.restaurant?.id,
     raw?.restaurant?.restaurantId,
     raw?.restaurant?.slug,
+    raw?.restaurant?.name,
+    raw?.restaurant?.restaurantName,
     raw?.restaurant?.restaurantNameNormalized,
+    
+    // Check restaurantRef if it exists
+    raw?.restaurantRef?._id,
+    raw?.restaurantRef?.id,
+    raw?.restaurantRef?.restaurantId,
+    raw?.restaurantRef?.slug,
+    raw?.restaurantRef?.name,
   ];
 
   return Array.from(
     new Set(
       values
-        .map((value) => String(value || "").trim())
+        .map((value) => {
+          if (value === null || value === undefined) return "";
+          if (typeof value === "object") return value._id || value.id || "";
+          // Case-insensitive matching for local dev robustness
+          return String(value).trim().toLowerCase();
+        })
         .filter(Boolean),
     ),
   );

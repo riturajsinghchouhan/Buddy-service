@@ -1684,7 +1684,9 @@ export default function OrderTracking() {
               </div>
               <div className="flex-1">
                 <p className="font-semibold text-gray-900 dark:text-gray-100">{order.deliveryPartner?.name || 'Delivery Partner'}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Your delivery partner is arriving</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {orderStatus === 'delivered' ? 'Delivered your order' : 'Your delivery partner is arriving'}
+                </p>
               </div>
               <motion.button
                 className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"
@@ -1707,32 +1709,36 @@ export default function OrderTracking() {
         )}
 
         {/* Delivery Partner Safety */}
-        <motion.button
-          className="w-full bg-white dark:bg-[#1a1a1a] rounded-xl p-4 shadow-sm flex items-center gap-3"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          whileTap={{ scale: 0.99 }}
-          onClick={() => navigate('/user/profile/report-safety-emergency')}
-        >
-          <Shield className="w-6 h-6 text-gray-600 dark:text-gray-400" />
-          <span className="flex-1 text-left font-medium text-gray-900 dark:text-gray-100">
-            Learn about delivery partner safety
-          </span>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </motion.button>
+        {orderStatus !== 'delivered' && orderStatus !== 'cancelled' && (
+          <motion.button
+            className="w-full bg-white dark:bg-[#1a1a1a] rounded-xl p-4 shadow-sm flex items-center gap-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => navigate('/user/profile/report-safety-emergency')}
+          >
+            <Shield className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            <span className="flex-1 text-left font-medium text-gray-900 dark:text-gray-100">
+              Learn about delivery partner safety
+            </span>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </motion.button>
+        )}
 
         {/* Delivery Details Banner */}
-        <motion.div
-          className="bg-yellow-50 rounded-xl p-4 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.65 }}
-        >
-          <p className="text-yellow-800 font-medium">
-            All your delivery details in one place ??
-          </p>
-        </motion.div>
+        {orderStatus !== 'delivered' && orderStatus !== 'cancelled' && (
+          <motion.div
+            className="bg-yellow-50 rounded-xl p-4 text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+          >
+            <p className="text-yellow-800 font-medium">
+              All your delivery details in one place ??
+            </p>
+          </motion.div>
+        )}
 
         {/* Contact & Address Section */}
         <motion.div

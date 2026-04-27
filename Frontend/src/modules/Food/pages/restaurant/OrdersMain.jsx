@@ -586,12 +586,29 @@ function TableBookings() {
     };
 
     fetchBookings();
-    const interval = setInterval(fetchBookings, 10000);
+    const interval = setInterval(fetchBookings, 8000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
   }, []);
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      const res = await restaurantAPI.getCurrentRestaurant();
+      const restaurant = res.data?.data?.restaurant || res.data?.restaurant || res.data?.data;
+      const response = await diningAPI.getRestaurantBookings(restaurant);
+      if (response.data.success) {
+        setBookings(response.data.data);
+        toast.success("Bookings refreshed");
+      }
+    } catch {
+      toast.error("Refresh failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading)
     return (
@@ -602,7 +619,15 @@ function TableBookings() {
     <div className="pt-4 pb-6 px-1">
       <div className="flex items-baseline justify-between mb-4 px-1">
         <h2 className="text-base font-semibold text-black">Table Bookings</h2>
-        <span className="text-xs text-gray-500">{bookings.length} total</span>
+        <div className="flex items-center gap-3">
+           <button 
+            onClick={handleRefresh}
+            className="text-[10px] font-black text-primary-orange uppercase tracking-widest hover:opacity-80 transition-opacity"
+          >
+            Refresh
+          </button>
+          <span className="text-xs text-gray-500 font-medium">({bookings.length})</span>
+        </div>
       </div>
 
       {bookings.length === 0 ? (
@@ -1069,26 +1094,48 @@ export default function OrdersMain() {
   // Pending counts for tabs
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [pendingDiningRequest, setPendingDiningRequest] = useState(null);
 
-  // Fetch pending counts
+  // Fetch pending counts and settings
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        // Fetch bookings
+        // Fetch current restaurant data
         const resRes = await restaurantAPI.getCurrentRestaurant();
         const restaurantData = resRes.data?.data?.restaurant || resRes.data?.restaurant || resRes.data?.data;
+        
         if (restaurantData?._id || restaurantData?.id) {
+          // 1. Fetch bookings
           const res = await diningAPI.getRestaurantBookings(restaurantData);
           if (res.data.success) {
-            const pending = res.data.data.filter(b => String(b.status).toLowerCase() === 'pending').length;
+            const bookings = Array.isArray(res.data.data) ? res.data.data : [];
+            const pending = bookings.filter(b => String(b.status).toLowerCase() === 'pending').length;
+            
+            // If new pending booking found, maybe show toast
+            if (pending > pendingBookingsCount) {
+              toast.info(`New table booking request! Check the "Table Booking" tab.`);
+              // Optional: Play sound
+              if (audioRef.current && !isMutedRef.current) {
+                audioRef.current.play().catch(() => {});
+              }
+            }
             setPendingBookingsCount(pending);
+          }
+
+          // 2. Fetch pending dining request (for restaurant's own request to enable/update dining)
+          const requestRes = await restaurantAPI.getPendingDiningRequest();
+          if (requestRes.data.success && requestRes.data.data) {
+            setPendingDiningRequest(requestRes.data.data);
+          } else {
+            setPendingDiningRequest(null);
           }
         }
 
-        // Fetch pending orders
+        // 3. Fetch pending orders
         const ordersRes = await restaurantAPI.getOrders({ page: 1, limit: 100 });
         if (ordersRes.data.success) {
-          const pending = ordersRes.data.data.orders.filter(o => 
+          const orders = Array.isArray(ordersRes.data.data?.orders) ? ordersRes.data.data.orders : [];
+          const pending = orders.filter(o => 
             String(o.status).toLowerCase() === 'pending' || 
             String(o.status).toLowerCase() === 'created' ||
             String(o.status).toLowerCase() === 'confirmed'
@@ -2361,7 +2408,19 @@ export default function OrdersMain() {
                   />
                 )}
                 <div className="flex items-center gap-2 relative z-10">
-                  <span>{tab.label}</span>
+                  <span className="flex items-center gap-1.5">
+                    {tab.label}
+                    {tab.id === 'table-booking' && pendingBookingsCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black animate-bounce">
+                        {pendingBookingsCount}
+                      </span>
+                    )}
+                    {tab.id === 'all' && pendingOrdersCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black">
+                        {pendingOrdersCount}
+                      </span>
+                    )}
+                  </span>
                   {((tab.id === 'table-booking' && pendingBookingsCount > 0) || 
                     (tab.id === 'all' && pendingOrdersCount > 0)) && (
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
@@ -2530,6 +2589,33 @@ export default function OrdersMain() {
               )}
             </motion.div>
           )}
+
+        {/* Dining Approval Pending Card */}
+        {pendingDiningRequest && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 mb-4 rounded-2xl shadow-sm px-6 py-4 bg-white border border-blue-200">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-full bg-blue-100">
+                <Clock className="w-4 h-4 text-blue-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900">
+                Dining Activation Request Pending
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              Your request to {pendingDiningRequest.requestedSettings?.isEnabled ? "enable" : "update"} dining services is being reviewed by our team. You'll be notified via SMS/Dashboard once it's approved.
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-[10px] font-black text-blue-500 uppercase tracking-widest">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              Under Review
+            </div>
+          </motion.div>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div

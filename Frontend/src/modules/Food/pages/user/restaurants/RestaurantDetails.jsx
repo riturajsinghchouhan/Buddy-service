@@ -753,11 +753,16 @@ function RestaurantDetailsContent() {
                      if (foodType.toLowerCase() === 'veg') foodType = 'Veg'
                      else if (foodType.toLowerCase() === 'non-veg' || foodType.toLowerCase() === 'nonveg') foodType = 'Non-Veg'
                    }
+                   
+                   // Derive isVeg strictly from foodType
+                   const isVeg = foodType === 'Veg'
+
                    return {
                      ...item,
                       id: String(item.id || item._id || `${Date.now()}-${Math.random()}`),
                       name: item.name || "Unnamed Item",
                       foodType,
+                      isVeg, // Explicitly set isVeg
                       price: getFoodDisplayPrice(item),
                       variants: getFoodVariants(item),
                       variations: getFoodVariants(item),
@@ -1182,7 +1187,8 @@ function RestaurantDetailsContent() {
       restaurantId: validRestaurantId, // Use validated restaurantId
       description: item.description,
       originalPrice: item.originalPrice,
-      isVeg: item.isVeg !== false, // Add isVeg property
+      isVeg: item.isVeg === true, // Use strict check
+      foodType: item.foodType, // Include foodType for robustness
       preparationTime: item.preparationTime, // Add preparationTime property
       priceOnOtherPlatforms: item.priceOnOtherPlatforms || null, // Include platform pricing for savings display
       otherPlatformGst: item.otherPlatformGst ?? null,

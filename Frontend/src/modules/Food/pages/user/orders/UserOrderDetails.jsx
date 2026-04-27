@@ -339,7 +339,7 @@ export default function UserOrderDetails() {
           restaurant: restaurantName,
           restaurantId: restaurantObj._id || restaurantObj.restaurantId || currentOrder?.restaurantId,
           description: item.description || "",
-          isVeg: item.isVeg !== false,
+          isVeg: item.isVeg === true || item.foodType === 'Veg',
           quantity: Math.max(1, Number(item.quantity || item.qty) || 1),
           reorderIndex: index,
         }
@@ -462,11 +462,11 @@ export default function UserOrderDetails() {
             <div key={idx} className="flex justify-between items-start mt-2">
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-3 h-3 border ${item.isVeg ? "border-green-600" : "border-red-600"
+                  className={`w-3 h-3 border ${item.isVeg === true || item.foodType === 'Veg' ? "border-green-600" : "border-red-600"
                     } flex items-center justify-center p-[1px]`}
                 >
                   <div
-                    className={`w-full h-full rounded-full ${item.isVeg ? "bg-green-600" : "bg-red-600"
+                    className={`w-full h-full rounded-full ${item.isVeg === true || item.foodType === 'Veg' ? "bg-green-600" : "bg-red-600"
                       }`}
                   />
                 </div>
