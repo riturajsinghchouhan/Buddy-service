@@ -1862,6 +1862,9 @@ export default function Cart() {
       // Get company name for Razorpay
       const companyName = await getCompanyNameAsync()
 
+      // Flag to prevent double-cancellation (Razorpay can fire both onError + onClose)
+      let paymentHandled = false
+
       // Initialize Razorpay payment
       await initRazorpayPayment({
         key: razorpay.key,
@@ -1881,6 +1884,7 @@ export default function Cart() {
           restaurantId: restaurantId || "unknown"
         },
         handler: async (response) => {
+          paymentHandled = true
           try {
             debugLog("? Payment successful, verifying...", {
               razorpay_order_id: response.razorpay_order_id,
@@ -1935,17 +1939,47 @@ export default function Cart() {
             setIsPlacingOrder(false)
           }
         },
-        onError: (error) => {
+        onError: async (error) => {
+          if (paymentHandled) return
+          paymentHandled = true
           debugError("? Razorpay payment error:", error)
+          // Auto-cancel the unpaid order in backend
+          const cancelOrderId = order?._id || order?.id || order?.orderMongoId
+          if (cancelOrderId) {
+            try {
+              await orderAPI.cancelOrder(cancelOrderId, {
+                reason: "Payment failed or was not completed"
+              })
+            } catch (cancelErr) {
+              debugError("Failed to cancel unpaid order:", cancelErr)
+            }
+          }
           // Don't show alert for user cancellation
           if (error?.code !== 'PAYMENT_CANCELLED' && error?.message !== 'PAYMENT_CANCELLED') {
             const errorMessage = error?.description || error?.message || "Payment failed. Please try again."
             alert(errorMessage)
+          } else {
+            toast.info("Payment was cancelled. No order has been placed.")
           }
           setIsPlacingOrder(false)
         },
-        onClose: () => {
+        onClose: async () => {
+          if (paymentHandled) return
+          paymentHandled = true
           debugLog("?? Payment modal closed by user")
+          // Auto-cancel the unpaid order since user left without paying
+          const cancelOrderId = order?._id || order?.id || order?.orderMongoId
+          if (cancelOrderId) {
+            try {
+              await orderAPI.cancelOrder(cancelOrderId, {
+                reason: "User closed payment gateway without paying"
+              })
+              toast.info("Payment was not completed. No order has been placed.")
+            } catch (cancelErr) {
+              debugError("Failed to cancel unpaid order:", cancelErr)
+              toast.warning("Payment was not completed. If you see a pending order, please cancel it manually.")
+            }
+          }
           setIsPlacingOrder(false)
         }
       })
@@ -2096,46 +2130,67 @@ export default function Cart() {
               {/* Cart Items */}
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 md:py-5 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <div className="space-y-3 md:space-y-4">
-                  {cart.map((item) => (
-                    <div key={item.id} className="flex items-start gap-3 md:gap-4">
-                      {/* Veg/Non-veg indicator */}
-                      <div className={`w-4 h-4 md:w-5 md:h-5 border-2 ${item.isVeg === true || item.foodType === 'Veg' ? 'border-green-600' : 'border-red-600'} flex items-center justify-center mt-1 flex-shrink-0`}>
-                        <div className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${item.isVeg === true || item.foodType === 'Veg' ? 'bg-green-600' : 'bg-red-600'}`} />
-                      </div>
+                  <div className="space-y-6">
+                    {cart.map((item, index) => (
+                      <div key={item.id}>
+                        <div className="flex items-center gap-4">
+                          {/* Veg/Non-veg indicator */}
+                          <div className={`w-4 h-4 border-2 ${item.isVeg === true || item.foodType === 'Veg' ? 'border-green-600' : 'border-red-600'} flex items-center justify-center flex-shrink-0 rounded-[2px]`}>
+                            <div className={`w-2 h-2 rounded-full ${item.isVeg === true || item.foodType === 'Veg' ? 'bg-green-600' : 'bg-red-600'}`} />
+                          </div>
 
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200 leading-tight">{item.name}</p>
-                        {item.variantName ? (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.variantName}</p>
-                        ) : null}
-                      </div>
+                          <div className="flex-1 min-w-0 flex items-center gap-4">
+                            {item.image && (
+                              <div className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800">
+                                <img
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-700"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100 leading-tight truncate">{item.name}</h3>
+                              {item.variantName ? (
+                                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium bg-gray-50 dark:bg-gray-800/50 w-fit px-2 py-0.5 rounded-full">
+                                  {item.variantName}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
 
-                      <div className="flex items-center gap-3 md:gap-4">
-                        {/* Quantity controls */}
-                        <div className="flex items-center border border-[#7e3866] dark:border-[#7e3866]/50 rounded">
-                          <button
-                            className="px-2 md:px-3 py-1 text-[#7e3866] dark:text-[#7e3866] hover:bg-[#7e386605] dark:hover:bg-[#7e386610]"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          >
-                            <Minus className="h-3 w-3 md:h-4 md:w-4" />
-                          </button>
-                          <span className="px-2 md:px-3 text-sm md:text-base font-semibold text-[#7e3866] dark:text-[#7e3866] min-w-[20px] md:min-w-[24px] text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            className="px-2 md:px-3 py-1 text-[#7e3866] dark:text-[#7e3866] hover:bg-[#7e386605] dark:hover:bg-[#7e386610]"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          >
-                            <Plus className="h-3 w-3 md:h-4 md:w-4" />
-                          </button>
+                          <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
+                            <div className="flex items-center border border-[#7e3866]/30 dark:border-[#7e3866]/40 rounded-lg overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                className="px-2.5 py-1.5 hover:bg-[#7e3866]/5 text-[#7e3866] transition-colors"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="px-2 text-sm md:text-base font-black text-[#7e3866] min-w-[28px] text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="px-2.5 py-1.5 hover:bg-[#7e3866]/5 text-[#7e3866] transition-colors"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <p className="text-sm md:text-base font-black text-gray-900 dark:text-gray-100">
+                              {RUPEE_SYMBOL}{((item.price || 0) * (item.quantity || 1)).toFixed(0)}
+                            </p>
+                          </div>
                         </div>
-
-                        <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200 min-w-[50px] md:min-w-[70px] text-right">
-                          {RUPEE_SYMBOL}{((item.price || 0) * (item.quantity || 1)).toFixed(0)}
-                        </p>
+                        {index < cart.length - 1 && (
+                          <div className="mt-6 border-b border-gray-100 dark:border-gray-800/40 border-dashed" />
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 {/* Add more items */}

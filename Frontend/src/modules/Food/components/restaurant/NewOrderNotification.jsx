@@ -68,11 +68,23 @@ export default function NewOrderNotification({ order, onClose, onViewOrder }) {
                 <h4 className="text-sm font-semibold text-gray-700 mb-2">Items:</h4>
                 <div className="space-y-2">
                   {order.items?.slice(0, 3).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">
-                        {item.name} × {item.quantity}
-                      </span>
-                      <span className="text-gray-800 font-medium">
+                    <div key={index} className="flex items-center justify-between text-sm gap-3">
+                      <div className="flex items-center gap-3">
+                        {item.image && (
+                          <div className="w-8 h-8 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
+                            <img 
+                              src={item.image} 
+                              alt={item.name} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          </div>
+                        )}
+                        <span className="text-gray-600 font-medium">
+                          {item.name} × {item.quantity}
+                        </span>
+                      </div>
+                      <span className="text-gray-800 font-bold whitespace-nowrap">
                         ₹{(item.price * item.quantity).toFixed(2)}
                       </span>
                     </div>

@@ -1043,6 +1043,15 @@ function ScheduledOrders({ onSelectOrder, refreshToken }) {
   );
 }
 
+// Helper to calculate initial countdown based on order creation time (3 minutes window)
+const getInitialCountdown = (order) => {
+  if (!order?.createdAt) return 180;
+  const now = Date.now();
+  const created = new Date(order.createdAt).getTime();
+  const diffInSeconds = Math.floor((now - created) / 1000);
+  const remaining = 180 - diffInSeconds;
+  return Math.max(0, Math.min(180, remaining));
+}
 
 export default function OrdersMain() {
   const navigate = useNavigate();
@@ -1428,7 +1437,7 @@ export default function OrdersMain() {
         markOrderAsShown(newOrder);
         setPopupOrder(newOrder);
         setShowNewOrderPopup(true);
-        setCountdown(180); // Reset countdown to 3 minutes
+        setCountdown(getInitialCountdown(newOrder)); // Calculate relative to createdAt
         requestOrdersRefresh();
       }
     }
@@ -1637,7 +1646,7 @@ export default function OrdersMain() {
             markOrderAsShown({ orderId, _id: orderToPopup._id });
             setPopupOrder(orderForPopup);
             setShowNewOrderPopup(true);
-            setCountdown(180);
+            setCountdown(getInitialCountdown(orderForPopup)); // Calculate relative to createdAt
           }
         }
       } catch (error) {
@@ -1726,7 +1735,7 @@ export default function OrdersMain() {
       setShowNewOrderPopup(false);
       setPopupOrder(null);
       clearNewOrder();
-      setCountdown(240);
+      setCountdown(180);
       setPrepTime(11);
     }, 2500);
 
@@ -1890,7 +1899,7 @@ export default function OrdersMain() {
     setShowNewOrderPopup(false);
     setPopupOrder(null);
     clearNewOrder();
-    setCountdown(240);
+    setCountdown(180);
     setPrepTime(11);
     setAcceptSwipeProgress(0);
     setIsAcceptingOrder(false);
@@ -1933,7 +1942,7 @@ export default function OrdersMain() {
     setPopupOrder(null);
     clearNewOrder();
     setRejectReason("");
-    setCountdown(240);
+    setCountdown(180);
     setPrepTime(11);
   };
 
@@ -1943,7 +1952,7 @@ export default function OrdersMain() {
     setPopupOrder(null);
     clearNewOrder();
     setRejectReason("");
-    setCountdown(240);
+    setCountdown(180);
   };
 
   // Handle cancel order (for preparing orders)

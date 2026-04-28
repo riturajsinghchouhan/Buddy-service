@@ -459,22 +459,36 @@ export default function UserOrderDetails() {
 
           {/* Items */}
           {items.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-start mt-2">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-3 h-3 border ${item.isVeg === true || item.foodType === 'Veg' ? "border-green-600" : "border-red-600"
-                    } flex items-center justify-center p-[1px]`}
-                >
-                  <div
-                    className={`w-full h-full rounded-full ${item.isVeg === true || item.foodType === 'Veg' ? "bg-green-600" : "bg-red-600"
-                      }`}
-                  />
+            <div key={idx} className="flex justify-between items-start mt-4 first:mt-0">
+              <div className="flex items-center gap-3">
+                {item.image && (
+                  <div className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800">
+                    <img 
+                      src={item.image} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 border ${item.isVeg === true || item.foodType === 'Veg' ? "border-green-600" : "border-red-600"
+                        } flex items-center justify-center p-[1px]`}
+                    >
+                      <div
+                        className={`w-full h-full rounded-full ${item.isVeg === true || item.foodType === 'Veg' ? "bg-green-600" : "bg-red-600"
+                          }`}
+                      />
+                    </div>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                      {item.quantity || item.qty || 1} x {item.name}{item.variantName ? ` (${item.variantName})` : ""}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-                  {item.quantity || item.qty || 1} x {item.name}{item.variantName ? ` (${item.variantName})` : ""}
-                </span>
               </div>
-              <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">
+              <span className="text-sm text-gray-800 dark:text-gray-200 font-medium whitespace-nowrap">
                 ₹{(item.price || 0).toFixed(2)}
               </span>
             </div>

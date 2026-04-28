@@ -2234,72 +2234,79 @@ export default function Inventory() {
 
                 {/* Category Header - Clickable */}
                 <div
-                  className="cursor-pointer bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_58%,#f1f5f9_100%)] p-5"
+                  className="cursor-pointer bg-white dark:bg-gray-900 px-6 py-5 hover:bg-slate-50/50 transition-colors"
                   onClick={() => toggleCategory(category.id)}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
-                      <div className="mb-2 flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-bold tracking-[-0.02em] text-slate-950">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h3 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
                           {category.name}
                         </h3>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                          {category.items?.length || category.itemCount || 0} items
-                        </span>
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          category.inStock
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700"
-                        }`}>
-                          {category.inStock ? "Healthy" : "Needs attention"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-slate-100 dark:bg-gray-800 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            {category.items?.length || category.itemCount || 0} items
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                            category.inStock
+                              ? "bg-green-50 text-green-700 border border-green-100"
+                              : "bg-amber-50 text-amber-700 border border-amber-100"
+                          }`}>
+                            {category.inStock ? "Healthy" : "Needs attention"}
+                          </span>
+                        </div>
                       </div>
-                      {category.description ? (
-                        <p className="text-sm leading-6 text-slate-500">{category.description}</p>
-                      ) : null}
-                      <div className="mt-4 flex items-center gap-2 flex-wrap">
+                      
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
                         {category.inStock ? (
-                          <p className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            All visible items are in stock
-                          </p>
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50/50 rounded-xl border border-green-100/50">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            <p className="text-[10px] font-bold text-green-700">All items live</p>
+                          </div>
                         ) : (
-                          <p className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                            {getOutOfStockCount(category)} out of {(category.items?.length || category.itemCount || 0)} item{(category.items?.length || category.itemCount || 0) !== 1 ? 's' : ''} out of stock
-                          </p>
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50/50 rounded-xl border border-rose-100/50">
+                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            <p className="text-[10px] font-bold text-rose-700">
+                              {getOutOfStockCount(category)} Items paused
+                            </p>
+                          </div>
                         )}
-                        <p className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                          {(categoryItems.filter((item) => item.isRecommended).length)} recommended
-                        </p>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50/50 rounded-xl border border-blue-100/50">
+                          <p className="text-[10px] font-bold text-blue-700">
+                            {(categoryItems.filter((item) => item.isRecommended).length)} Recommended
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="ml-2 flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-4">
                       {/* Category Toggle Switch */}
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="rounded-full bg-slate-100 px-2 py-1 shadow-inner"
+                        className="scale-110"
                       >
                         <Switch
                           checked={category.inStock}
                           onCheckedChange={(checked) =>
                             handleToggleChange("category", category.id, null, checked)
                           }
-                          className="data-[state=checked]:bg-green-600"
+                          className="data-[state=checked]:bg-green-500"
                         />
                       </div>
 
-                      {/* Expand/Collapse Button - Right of In stock */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           toggleCategory(category.id)
                         }}
-                        className="rounded-full border border-slate-200 bg-white p-2 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                        className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${
+                          isExpanded ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
                       >
                         {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-slate-600" />
+                          <ChevronUp className="h-5 w-5" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-600" />
+                          <ChevronDown className="h-5 w-5" />
                         )}
                       </button>
                     </div>
@@ -2313,98 +2320,104 @@ export default function Inventory() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
+                      transition={{ duration: 0.3, ease: "circOut" }}
+                      className="overflow-hidden bg-slate-50/30"
                     >
-                      {/* Divider */}
-                      <div className="mx-5 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
-                      <div className="space-y-3 px-5 pb-5 pt-4">
+                      <div className="space-y-4 px-6 pb-6 pt-2">
                         {categoryItems.map((item) => {
                           const approvalMeta = getApprovalDisplayMeta(item.approvalStatus)
                           const isRejectedItem = item.approvalStatus === "rejected"
 
                           return (
-                          <div key={item.id}>
-                            <div className="flex items-start justify-between gap-3 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3.5">
-                              <div className="flex min-w-0 flex-1 items-start gap-3">
-                                {/* Veg/Non-veg Icon */}
-                                <div className={`mt-0.5 h-[18px] w-[18px] shrink-0 rounded-sm border-2 flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'
-                                  }`}>
-                                  <div className={`h-2.5 w-2.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'
-                                    }`} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{item.name}</p>
+                          <div key={item.id} className="group px-1">
+                            <div className="flex items-center justify-between gap-3 sm:gap-4 rounded-[28px] border border-slate-100/80 bg-white p-3 sm:p-4 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_40px_-20px_rgba(0,0,0,0.12)] hover:border-slate-200 transition-all duration-500">
+                              <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
+                                {item.image && (
+                                  <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0 rounded-[20px] overflow-hidden shadow-md border-2 border-white ring-1 ring-slate-100/50">
+                                    <img
+                                      src={item.image}
+                                      alt={item.name}
+                                      className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
                                   </div>
-                                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="line-clamp-1 text-sm sm:text-base md:text-lg font-black text-slate-950 tracking-tight leading-tight mb-1.5">
+                                    {item.name}
+                                  </h4>
+                                  
+                                  <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-sm transition-all ${
                                       item.isVeg
-                                        ? "bg-emerald-50 text-emerald-700"
-                                        : "bg-rose-50 text-rose-700"
+                                        ? "bg-white text-green-600 border border-green-100"
+                                        : "bg-white text-red-600 border border-red-100"
                                     }`}>
+                                      <div className={`h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0 rounded-[2px] border flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-600'}`}>
+                                        <div className={`h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
+                                      </div>
                                       {item.isVeg ? "Veg" : "Non-veg"}
                                     </span>
-                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${approvalMeta.className}`}>
+                                    <span className={`rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border shadow-sm ${approvalMeta.className.replace('text-', 'text-').replace('bg-', 'bg-white border-')}`}>
                                       {approvalMeta.label}
                                     </span>
-                                    {item.isRecommended ? (
-                                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
-                                        Recommended
-                                      </span>
-                                    ) : null}
                                   </div>
-                                  <p className={`mt-1 text-xs font-medium ${
-                                    item.inStock ? "text-green-600" : "text-rose-600"
-                                  }`}>
-                                    {item.inStock ? "In stock" : getRuleStatusLabel(item.stockRule)}
-                                  </p>
-                                  {item.approvalStatus === "rejected" && item.rejectionReason ? (
-                                    <p className="mt-1 line-clamp-2 text-[11px] font-medium text-red-600">
-                                      Reason: {item.rejectionReason}
+                                  
+                                  <div className="flex items-center gap-3 sm:gap-4 mt-1">
+                                    <p className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${
+                                      item.inStock ? "text-green-500" : "text-rose-500"
+                                    }`}>
+                                      {item.inStock ? "● Live" : `● ${getRuleStatusLabel(item.stockRule)}`}
                                     </p>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditItem(category, item)}
-                                    className={`mt-2.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-                                      isRejectedItem
-                                        ? "bg-red-600 text-white hover:bg-red-700"
-                                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                    {isRejectedItem ? "Fix & resubmit" : "Edit"}
-                                  </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditItem(category, item)}
+                                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
+                                        isRejectedItem
+                                          ? "bg-red-600 text-white hover:bg-red-700"
+                                          : "bg-slate-100 text-slate-800 hover:bg-slate-800 hover:text-white"
+                                      }`}
+                                    >
+                                      <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                      {isRejectedItem ? "Fix" : "Edit"}
+                                    </button>
+                                  </div>
+
+                                  {item.approvalStatus === "rejected" && item.rejectionReason && (
+                                    <p className="mt-2 text-[9px] sm:text-[10px] font-bold text-red-600 bg-red-50/50 border border-red-100/50 px-2.5 py-1 rounded-lg italic">
+                                      {item.rejectionReason}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex shrink-0 flex-col items-end gap-2 self-start sm:flex-row sm:items-center">
-                                {/* Recommend Thumb Icon */}
+
+                              <div className="flex shrink-0 flex-col items-center gap-3 sm:gap-4">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleRecommendToggle(category.id, item.id)
                                   }}
-                                  className={`rounded-xl p-2 transition-colors ${
+                                  className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-[14px] sm:rounded-2xl transition-all shadow-sm border ${
                                     item.isRecommended
-                                      ? "bg-blue-100 text-blue-600"
-                                      : "bg-white text-gray-400 hover:bg-slate-100"
+                                      ? "bg-blue-600 border-blue-600 text-white rotate-12 scale-110"
+                                      : "bg-white border-slate-100 text-slate-300 hover:border-slate-200 hover:text-slate-600"
                                   }`}
-                                  title={item.isRecommended ? "Recommended" : "Click to recommend"}
                                 >
-                                  <ThumbsUp className="w-4 h-4" />
+                                  <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" />
                                 </button>
-                                {/* Item Toggle Switch */}
+                                
                                 <div
                                   onClick={(e) => e.stopPropagation()}
-                                  className="rounded-full bg-white px-2 py-1 shadow-inner"
+                                  className="scale-100 sm:scale-125 origin-right"
                                 >
                                   <Switch
                                     checked={item.inStock}
                                     onCheckedChange={(checked) =>
                                       handleToggleChange("item", category.id, item.id, checked)
                                     }
-                                    className="data-[state=checked]:bg-green-600"
+                                    className="data-[state=checked]:bg-green-500 scale-90 sm:scale-100"
                                   />
                                 </div>
                               </div>

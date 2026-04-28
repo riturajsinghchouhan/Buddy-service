@@ -223,7 +223,8 @@ export default function OrderDetails() {
               name: item.name,
               quantity: item.quantity,
               price: item.price,
-              type: item.isVeg ? 'Veg' : 'Non-Veg'
+              image: item.image,
+              type: item.isVeg || item.foodType === 'Veg' ? 'Veg' : 'Non-Veg'
             })) || [],
             billing: {
               itemSubtotal,
@@ -847,17 +848,27 @@ export default function OrderDetails() {
           
           {orderData.items.map((item, index) => (
             <div key={index} className="bg-white rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center mt-0.5">
-                  <div className={`w-3 h-3 rounded-full border ${String(item.type).toLowerCase().includes("non") ? "border-red-600" : "border-green-600"} flex items-center justify-center`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${String(item.type).toLowerCase().includes("non") ? "bg-red-600" : "bg-green-600"}`}></div>
+              <div className="flex items-start gap-4">
+                {item.image && (
+                  <div className="w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden shadow-sm border border-gray-100">
+                    <img 
+                      src={item.image} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
                   </div>
-                </div>
+                )}
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {item.quantity} x {item.name}
-                    </p>
+                    <div className="flex items-center gap-2">
+                       <div className={`w-3 h-3 rounded-full border ${String(item.type).toLowerCase().includes("non") ? "border-red-600" : "border-green-600"} flex items-center justify-center p-[1px]`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${String(item.type).toLowerCase().includes("non") ? "bg-red-600" : "bg-green-600"}`}></div>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {item.quantity} x {item.name}
+                      </p>
+                    </div>
                     <p className="text-sm font-semibold text-gray-900">{formatMoney(item.price)}</p>
                   </div>
                   {item.type && (
