@@ -217,15 +217,28 @@ export default function AddressSelectorPage() {
         const newPos = [loc.latitude, loc.longitude]
         setMapPosition(newPos)
         
+        // Update local currentAddress state immediately with the detailed info from the hook
+        const detailedAddress = loc.formattedAddress || loc.address || ""
+        setCurrentAddress(detailedAddress)
+        
         // Explicitly pan the map to center the user location
         if (googleMapRef.current) {
           googleMapRef.current.panTo({ lat: loc.latitude, lng: loc.longitude })
           googleMapRef.current.setZoom(17)
         }
         
-        try { localStorage.setItem("deliveryAddressMode", "current") } catch {}
-        toast.success("Location updated", { id: "geo" })
-        // Removed handleBack() to prevent unwanted redirection
+        try { 
+          localStorage.setItem("deliveryAddressMode", "current")
+          // Also ensure userLocation is saved (hook does this, but being explicit doesn't hurt)
+          localStorage.setItem("userLocation", JSON.stringify(loc))
+        } catch {}
+        
+        toast.success("Location ready: " + (loc.area || loc.city || "Current Location"), { id: "geo" })
+        
+        // Return to previous page after a short delay to allow map to pan visually
+        setTimeout(() => {
+          handleBack()
+        }, 800)
       }
     } catch (e) {
       toast.error("Failed to get location", { id: "geo" })
@@ -300,13 +313,44 @@ export default function AddressSelectorPage() {
   const handleMapMoveEnd = async (lat, lng) => {
     if (!ENABLE_LOCATION_REVERSE_GEOCODE) return
     try {
-      // Use Nominatim for free reverse geocoding on the client side
+      // Prioritize Google Maps API if available
+      if (GOOGLE_MAPS_API_KEY) {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
+        const response = await fetch(url)
+        const data = await response.json()
+        
+        if (data.status === "OK" && data.results && data.results.length > 0) {
+          const result = data.results[0]
+          const components = result.address_components
+          
+          const area = components.find(c => c.types.includes("sublocality_level_1"))?.long_name || 
+                       components.find(c => c.types.includes("sublocality"))?.long_name || 
+                       components.find(c => c.types.includes("neighborhood"))?.long_name || ""
+          
+          const city = components.find(c => c.types.includes("locality"))?.long_name || ""
+          const state = components.find(c => c.types.includes("administrative_area_level_1"))?.long_name || ""
+          const zip = components.find(c => c.types.includes("postal_code"))?.long_name || ""
+          
+          setCurrentAddress(result.formatted_address)
+          setAddressFormData(prev => ({
+            ...prev,
+            street: result.formatted_address.split(',')[0] || "",
+            additionalDetails: area,
+            city: city,
+            state: state,
+            zipCode: zip
+          }))
+          return
+        }
+      }
+
+      // Fallback to Nominatim if Google fails
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
       const response = await fetch(url, { 
         headers: { 
           "Accept-Language": "en",
-          "User-Agent": "AppZeto-Food-App" 
-        } 
+          "User-Agent": "Foodelo-App"
+        }
       })
       const json = await response.json()
       
@@ -335,8 +379,8 @@ export default function AddressSelectorPage() {
           zipCode: postcode || prev.zipCode,
         }))
       }
-    } catch (e) {
-      debugError("Reverse geocode error:", e)
+    } catch (error) {
+      debugError("? Reverse geocoding failed:", error)
     }
   }
 

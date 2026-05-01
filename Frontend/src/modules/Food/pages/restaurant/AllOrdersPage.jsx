@@ -498,7 +498,7 @@ export default function AllOrdersPage() {
             </p>
           </div>
           <button
-            onClick={() => navigate('/food/restaurant/support')}
+            onClick={() => navigate('/food/restaurant/help-centre/support')}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Help"
           >

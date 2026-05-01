@@ -32,6 +32,8 @@ let globalReverseGeocodeLastSuccess = null
 // then rely on localStorage/DB. Live watching is enabled only via explicit user action.
 const AUTO_START_LIVE_WATCH = false
 
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+
 const reverseGeocodeDirect = async (latitude, longitude) => {
   const now = Date.now()
   const movedMeters = geoDistanceMeters(
@@ -73,70 +75,109 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
 
   const run = (async () => {
     try {
-      const controller = new AbortController()
-      setTimeout(() => controller.abort(), 3000) // Faster timeout
+      let googleData = null
+      let area = ""
+      let city = ""
+      let state = ""
+      let country = "India"
+      let formattedAddress = ""
 
-      const res = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
-        { signal: controller.signal }
-      )
-
-      const data = await res.json()
-
-      // Extract parts from formatted address for better area/city isolation
-      const formattedAddress = data.formattedAddress || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-      const addrParts = formattedAddress.split(',').map(p => p.trim()).filter(Boolean)
-      
-      // Dig into informative locations if available
-      let area = data.subLocality || ""
-      if (!area && data.localityInfo?.informative) {
-        // Find sublocality in informative array
-        const infoArea = data.localityInfo.informative.find(i => 
-          i.description?.toLowerCase().includes("sublocality") || 
-          i.description?.toLowerCase().includes("neighborhood")
-        )
-        if (infoArea) area = infoArea.name
-      }
-
-      if (!area && addrParts.length >= 1) {
-        // Find the first part that isn't the city or state
-        const cityLower = (data.city || data.locality || "").toLowerCase()
-        const stateLower = (data.principalSubdivision || "").toLowerCase()
-        
-        for (const part of addrParts) {
-          const partLower = part.toLowerCase()
-          if (partLower !== cityLower && 
-              partLower !== stateLower && 
-              !/^-?\d/.test(part) && 
-              part.length > 2) {
-            area = part
-            break
+      // 1. Try Google Maps Reverse Geocoding (Primary - highest precision)
+      if (GOOGLE_MAPS_API_KEY) {
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 4000)
+          const response = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`,
+            { signal: controller.signal }
+          )
+          clearTimeout(timeout)
+          const data = await response.json()
+          
+          if (data.status === "OK" && data.results && data.results.length > 0) {
+            googleData = data.results[0]
+            formattedAddress = googleData.formatted_address
+            
+            // Extract components
+            const components = googleData.address_components
+            
+            // Area extraction (sublocality_level_1 or sublocality)
+            const subLocality1 = components.find(c => c.types.includes("sublocality_level_1"))?.long_name
+            const subLocality = components.find(c => c.types.includes("sublocality"))?.long_name
+            const neighborhood = components.find(c => c.types.includes("neighborhood"))?.long_name
+            area = subLocality1 || subLocality || neighborhood || ""
+            
+            // City extraction (locality)
+            city = components.find(c => c.types.includes("locality"))?.long_name || ""
+            
+            // State extraction (administrative_area_level_1)
+            state = components.find(c => c.types.includes("administrative_area_level_1"))?.long_name || ""
+            
+            // Country extraction
+            country = components.find(c => c.types.includes("country"))?.long_name || "India"
           }
+        } catch (err) {
+          debugError("?? Google Maps Geocoding failed:", err)
         }
       }
 
-      const city = data.city || data.locality || (addrParts.length > 1 ? addrParts[addrParts.length - 2] : "Indore")
+      // 2. Fallback to BigDataCloud + Nominatim if Google fails or is missing key info
+      if (!googleData) {
+        // ... previous logic as fallback ...
+        const controller = new AbortController()
+        const bdcTimeout = setTimeout(() => controller.abort(), 3000)
+        const bdcRes = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+          { signal: controller.signal }
+        )
+        clearTimeout(bdcTimeout)
+        const bdcData = await bdcRes.json()
+
+        let nominatimData = null
+        try {
+          const nomController = new AbortController()
+          const nomTimeout = setTimeout(() => nomController.abort(), 3000)
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            { 
+              signal: nomController.signal,
+              headers: { 'Accept-Language': 'en', 'User-Agent': 'Foodelo-App' }
+            }
+          )
+          clearTimeout(nomTimeout)
+          nominatimData = await nomRes.json()
+        } catch (e) {}
+
+        const bdcFormatted = bdcData.formattedAddress || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+        formattedAddress = nominatimData?.display_name || bdcFormatted
+        city = bdcData.city || bdcData.locality || "Indore"
+        state = bdcData.principalSubdivision || ""
+        
+        if (nominatimData?.address) {
+          const a = nominatimData.address
+          area = a.suburb || a.neighbourhood || a.road || ""
+        }
+        if (!area) area = bdcData.subLocality || ""
+      }
 
       const value = {
         city: city,
-        state: data.principalSubdivision || (addrParts.length > 0 ? addrParts[addrParts.length - 1] : ""),
-        country: data.countryName || "",
+        state: state,
+        country: country,
         area: area,
-        mainTitle: area || city, // Useful for components that prefer a single title
+        mainTitle: area || city,
         address: formattedAddress,
         formattedAddress: formattedAddress,
       }
 
       globalReverseGeocodeLastSuccess = value
       return value
-    } catch {
-      const fallback = {
+    } catch (err) {
+      return {
         city: "Current Location",
         address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
         formattedAddress: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
       }
-      // Don't cache failures as "success" (keeps retries possible), but still return something usable.
-      return fallback
     } finally {
       globalReverseGeocodeInFlight = null
     }
