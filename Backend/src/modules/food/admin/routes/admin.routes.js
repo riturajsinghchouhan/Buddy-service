@@ -122,6 +122,10 @@ router.delete('/feedback-experiences/:id', feedbackExperienceController.deleteFe
 router.get('/fee-settings', adminController.getFeeSettings);
 router.put('/fee-settings', adminController.createOrUpdateFeeSettings);
 
+// ----- Delivery Boy Settings -----
+router.get('/delivery-boy-settings', adminController.getDeliveryBoySettings);
+router.put('/delivery-boy-settings', adminController.upsertDeliveryBoySettings);
+
 // ----- Referral Settings -----
 router.get('/referral-settings', adminController.getReferralSettings);
 router.put('/referral-settings', adminController.createOrUpdateReferralSettings);
@@ -176,6 +180,7 @@ router.get('/delivery/support-tickets', adminController.getSupportTickets);
 router.patch('/delivery/support-tickets/:id', adminController.updateSupportTicket);
 router.get('/delivery/partners', adminController.getDeliveryPartners);
 router.get('/delivery/:id', adminController.getDeliveryPartnerById);
+router.patch('/delivery/:id', adminController.updateDeliveryPartner);
 router.patch('/delivery/:id/approve', adminController.approveDeliveryPartner);
 router.patch('/delivery/:id/reject', adminController.rejectDeliveryPartner);
 

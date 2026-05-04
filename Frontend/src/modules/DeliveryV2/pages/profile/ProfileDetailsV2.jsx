@@ -937,3 +937,4 @@ export const ProfileDetailsV2 = () => {
 }
 
 export default ProfileDetailsV2
+

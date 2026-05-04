@@ -22,3 +22,4 @@ export default function ProtectedRoute({ children, requiredRole, loginPath = "/u
 
   return children;
 }
+

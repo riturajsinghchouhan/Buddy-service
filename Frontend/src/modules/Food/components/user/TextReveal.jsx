@@ -55,3 +55,4 @@ export default function TextReveal({ children, delay = 0, className = "" }) {
     </div>
   )
 }
+

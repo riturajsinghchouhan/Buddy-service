@@ -513,3 +513,4 @@ export default function FoodReport() {
     </div>
   )
 }
+

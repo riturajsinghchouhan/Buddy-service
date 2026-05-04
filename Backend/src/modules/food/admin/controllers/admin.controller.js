@@ -1017,6 +1017,25 @@ export async function toggleDeliveryCommissionRuleStatus(req, res, next) {
     }
 }
 
+// ----- Delivery Boy Settings (admin) -----
+export async function getDeliveryBoySettings(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryBoySettings();
+        res.status(200).json({ success: true, message: 'Settings fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function upsertDeliveryBoySettings(req, res, next) {
+    try {
+        const settings = await adminService.upsertDeliveryBoySettings(req.body || {});
+        res.status(200).json({ success: true, message: 'Settings saved successfully', data: { settings } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Fee Settings (admin) -----
 export async function getFeeSettings(req, res, next) {
     try {
@@ -1302,6 +1321,25 @@ export async function getDeliveryPartnerById(req, res, next) {
             success: true,
             message: 'Delivery partner fetched successfully',
             data: { delivery }
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateDeliveryPartner(req, res, next) {
+    try {
+        const partner = await adminService.updateDeliveryPartner(req.params.id, req.body || {});
+        if (!partner) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery partner not found'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Delivery partner updated successfully',
+            data: { delivery: partner }
         });
     } catch (error) {
         next(error);

@@ -133,8 +133,17 @@ export default function ProductDetail() {
 
   const handleAddToCart = () => {
     if (product) {
+      const restaurantData = product.restaurantSlug ? restaurantsData[product.restaurantSlug] : null
+      
+      const enrichedProduct = {
+        ...product,
+        restaurantId: product.restaurantId || restaurantData?.id || restaurantData?.restaurantId || restaurantData?._id,
+        latitude: product.latitude || restaurantData?.latitude || (restaurantData?.location?.coordinates ? restaurantData.location.coordinates[1] : null),
+        longitude: product.longitude || restaurantData?.longitude || (restaurantData?.location?.coordinates ? restaurantData.location.coordinates[0] : null),
+      }
+
       for (let i = 0; i < quantity; i++) {
-        const result = addToCart(product)
+        const result = addToCart(enrichedProduct)
         if (result?.ok === false) {
           alert(result.error || "Cannot add item from different restaurant. Please clear cart first.")
           break
@@ -294,7 +303,7 @@ export default function ProductDetail() {
 
           {/* Rating Badge - Top Right */}
           <div className="absolute top-4 right-4 z-10">
-            <Badge className="bg-[#7e3866] text-white shadow-lg">
+            <Badge className="bg-[#23361A] text-white shadow-lg">
               <Star className="h-3 w-3 fill-white text-white mr-1" />
               {averageRating}
             </Badge>
@@ -328,7 +337,7 @@ export default function ProductDetail() {
                 </div>
               </div>
               <div className="flex-shrink-0 text-right">
-                <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#7e3866]">
+                <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#23361A]">
                   ₹{(product.price * 83).toFixed(0)}
                 </div>
                 <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">per serving</p>
@@ -344,7 +353,7 @@ export default function ProductDetail() {
             <div className="space-y-4">
               {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
-                <Link to="/user" className="hover:text-[#7e3866] transition-colors">Home</Link>
+                <Link to="/user" className="hover:text-[#23361A] transition-colors">Home</Link>
                 <span>/</span>
                 <span className="text-foreground font-medium truncate">{restaurant?.name || "Restaurant"}</span>
                 <span>/</span>
@@ -360,11 +369,11 @@ export default function ProductDetail() {
               <h2 className="text-xl font-bold">Order</h2>
               {inCart ? (
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 border border-[#7e3866] rounded-lg">
+                  <div className="flex items-center gap-2 border border-[#23361A] rounded-lg">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-10 w-10 hover:bg-[#F9F9FB]"
+                      className="h-10 w-10 hover:bg-[#F7FBEA]"
                       onClick={handleDecrease}
                     >
                       <Minus className="h-5 w-5" />
@@ -375,7 +384,7 @@ export default function ProductDetail() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-10 w-10 hover:bg-[#F9F9FB]"
+                      className="h-10 w-10 hover:bg-[#F7FBEA]"
                       onClick={handleIncrease}
                     >
                       <Plus className="h-5 w-5" />
@@ -383,7 +392,7 @@ export default function ProductDetail() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-muted-foreground">In cart</p>
-                    <p className="text-lg font-bold text-[#7e3866]">
+                    <p className="text-lg font-bold text-[#23361A]">
                       ₹{(product.price * 83 * (cartItem?.quantity || 0)).toFixed(0)}
                     </p>
                   </div>
@@ -416,7 +425,7 @@ export default function ProductDetail() {
                   >
                     <Button
                       onClick={handleAddToCart}
-                      className="bg-[#7e3866] hover:opacity-90 text-white"
+                      className="bg-[#23361A] hover:opacity-90 text-white"
                     >
                       <ShoppingBag className="h-5 w-5 mr-2" />
                       Add to Cart - ₹{(product.price * 83 * quantity).toFixed(0)}
@@ -438,7 +447,7 @@ export default function ProductDetail() {
                     </h3>
                     <p className="text-sm md:text-base text-muted-foreground">{restaurant.cuisine}</p>
                   </div>
-                  <Badge className="bg-[#7e3866] text-white text-sm md:text-base">{restaurant.priceRange}</Badge>
+                  <Badge className="bg-[#23361A] text-white text-sm md:text-base">{restaurant.priceRange}</Badge>
                 </div>
                 <div className="flex items-center gap-4 md:gap-6 flex-wrap text-sm md:text-base">
                   <div className="flex items-center gap-1.5">
@@ -531,7 +540,7 @@ export default function ProductDetail() {
                 {!showReviewForm && (
                   <Button
                     onClick={() => setShowReviewForm(true)}
-                    className="bg-[#7e3866] hover:opacity-90 text-white"
+                    className="bg-[#23361A] hover:opacity-90 text-white"
                   >
                     <MessageCircle className="h-4 w-4 mr-2" />
                     Write a Review
@@ -586,7 +595,7 @@ export default function ProductDetail() {
                       </Button>
                       <Button
                         type="submit"
-                        className="flex-1 bg-gradient-to-r bg-[#7e3866] hover:from-yellow-600 hover:to-#55254b"
+                        className="flex-1 bg-gradient-to-r bg-[#23361A] hover:from-yellow-600 hover:to-#A2B447"
                       >
                         <Send className="h-4 w-4 mr-2" />
                         Submit Review
@@ -640,17 +649,17 @@ export default function ProductDetail() {
                               <button
                                 onClick={() => handleHelpful(review.id)}
                                 className={`flex items-center gap-2 text-sm transition-colors ${helpfulVotes.has(review.id)
-                                    ? "text-[#7e3866] font-semibold"
+                                    ? "text-[#23361A] font-semibold"
                                     : "text-muted-foreground hover:text-foreground"
                                   }`}
                               >
-                                <ThumbsUp className={`h-4 w-4 ${helpfulVotes.has(review.id) ? "fill-[#7e3866]" : ""}`} />
+                                <ThumbsUp className={`h-4 w-4 ${helpfulVotes.has(review.id) ? "fill-[#23361A]" : ""}`} />
                                 <span>Helpful ({review.helpful})</span>
                               </button>
                               <button
                                 onClick={() => handleReplyClick(review.id)}
                                 className={`flex items-center gap-2 text-sm transition-colors ${replyStates[review.id]
-                                    ? "text-[#7e3866] font-semibold"
+                                    ? "text-[#23361A] font-semibold"
                                     : "text-muted-foreground hover:text-foreground"
                                   }`}
                               >
@@ -685,7 +694,7 @@ export default function ProductDetail() {
                                       <Button
                                         type="button"
                                         size="sm"
-                                        className="bg-[#7e3866] hover:opacity-90 text-white"
+                                        className="bg-[#23361A] hover:opacity-90 text-white"
                                         onClick={() => {
                                           const textarea = document.getElementById(`reply-${review.id}`)
                                           if (textarea) {
@@ -750,4 +759,5 @@ export default function ProductDetail() {
     </AnimatedPage>
   )
 }
+
 

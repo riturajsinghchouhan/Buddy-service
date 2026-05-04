@@ -1,9 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@500;600;700;800&family=Sora:wght@600;700&display=swap");
 
 .delivery-v2-theme {
-  --dv-primary: #15498b;
-  --dv-primary-strong: #000000;
-  --dv-primary-soft: #e7effa;
+  --dv-primary: #23361A;
+  --dv-primary-strong: #A2B447;
+  --dv-primary-soft: #F7FBEA;
   --dv-accent: #000000;
   --dv-surface: #ffffff;
   --dv-bg: #eef3fb;
@@ -110,7 +110,7 @@
 .delivery-v2-theme .hover\:bg-cyan-600:hover,
 .delivery-v2-theme .hover\:bg-indigo-600:hover,
 .delivery-v2-theme [class*="hover:bg-[#00A055]"]:hover,
-.delivery-v2-theme [class*="hover:bg-[#6a2f56]"]:hover {
+.delivery-v2-theme [class*="hover:bg-[#1a2614]"]:hover {
   background-color: var(--dv-primary-strong) !important;
 }
 

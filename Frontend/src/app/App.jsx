@@ -21,10 +21,10 @@ function App() {
     return (
       <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-white dark:bg-[#0a0a0a]">
         <div className="relative w-16 h-16 flex items-center justify-center">
-          <div className="absolute inset-0 border-4 border-[#7e3866]/10 rounded-full" />
-          <div className="absolute inset-0 border-4 border-t-[#7e3866] rounded-full animate-spin" />
+          <div className="absolute inset-0 border-4 border-[#23361A]/10 rounded-full" />
+          <div className="absolute inset-0 border-4 border-t-[#23361A] rounded-full animate-spin" />
         </div>
-        <h1 className="text-2xl font-black text-[#7e3866] italic uppercase tracking-tighter mt-6">FOODELO</h1>
+        <h1 className="text-2xl font-black text-[#23361A] italic uppercase tracking-tighter mt-6">BUDDY SERVICE</h1>
       </div>
     )
   }
@@ -38,3 +38,4 @@ function App() {
 }
 
 export default App
+

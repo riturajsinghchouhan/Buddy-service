@@ -1,21 +1,34 @@
-﻿import mongoose from 'mongoose';
+import mongoose from 'mongoose';
 import { FoodOrder } from '../models/order.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodFeeSettings } from '../../admin/models/feeSettings.model.js';
+import { FoodDeliveryCommissionRule } from '../../admin/models/deliveryCommissionRule.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { haversineKm } from './order.helpers.js';
-
+import { FoodDeliveryBoySettings } from '../../admin/models/deliveryBoySettings.model.js';
 export async function calculateOrderPricing(userId, dto) {
-  const restaurant = await FoodRestaurant.findById(dto.restaurantId)
-    .select("status location")
-    .lean();
-  if (!restaurant) throw new ValidationError("Restaurant not found");
-  if (restaurant.status !== "approved")
-    throw new ValidationError("Restaurant not available");
-
   const items = Array.isArray(dto.items) ? dto.items : [];
+  
+  // Identify unique restaurants
+  const restaurantIds = [...new Set(items.map(it => it.restaurantId).filter(Boolean))];
+  if (dto.restaurantId && !restaurantIds.includes(dto.restaurantId)) {
+    restaurantIds.push(dto.restaurantId);
+  }
+
+  if (restaurantIds.length === 0) throw new ValidationError("No restaurant specified");
+
+  const restaurants = await FoodRestaurant.find({ _id: { $in: restaurantIds } })
+    .select("status location name")
+    .lean();
+
+  if (restaurants.length === 0) throw new ValidationError("Restaurants not found");
+  
+  const mainRestaurant = restaurants[0];
+  if (mainRestaurant.status !== "approved")
+    throw new ValidationError(`Restaurant ${mainRestaurant.name} is not available`);
+
   const subtotal = items.reduce(
     (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
     0,
@@ -34,23 +47,53 @@ export async function calculateOrderPricing(userId, dto) {
     gstRate: 5,
   };
 
+  let deliveryBoySettings = await FoodDeliveryBoySettings.findOne({ isActive: true })
+    .sort({ createdAt: -1 })
+    .lean();
+  if (!deliveryBoySettings) {
+    deliveryBoySettings = await FoodDeliveryBoySettings.findOne()
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
   const packagingFee = feeSettings.packagingFee != null ? Number(feeSettings.packagingFee) : 0;
   const platformFee = feeSettings.platformFee != null ? Number(feeSettings.platformFee) : 0;
 
   const freeUpTo = Number(feeSettings.freeDeliveryUpTo || 0);
   const freeThreshold = Number(feeSettings.freeDeliveryThreshold || 0);
-  let distanceKm = null;
-  if (
-    restaurant?.location?.coordinates?.length === 2 &&
-    dto?.deliveryAddress?.location?.coordinates?.length === 2
-  ) {
-    const [rLng, rLat] = restaurant.location.coordinates;
-    const [dLng, dLat] = dto.deliveryAddress.location.coordinates;
-    const d = haversineKm(rLat, rLng, dLat, dLng);
-    distanceKm = Number.isFinite(d) ? d : null;
+  
+  let distanceKm = 0;
+  const userLoc = dto?.deliveryAddress?.location?.coordinates;
+
+  if (restaurants.length === 2 && userLoc?.length === 2) {
+    const r1 = restaurants[0];
+    const r2 = restaurants[1];
+    
+    if (r1.location?.coordinates?.length === 2 && r2.location?.coordinates?.length === 2) {
+      const distBetweenRestaurants = haversineKm(
+        r1.location.coordinates[1], r1.location.coordinates[0],
+        r2.location.coordinates[1], r2.location.coordinates[0]
+      );
+      const distToUser = haversineKm(
+        r2.location.coordinates[1], r2.location.coordinates[0],
+        userLoc[1], userLoc[0]
+      );
+      distanceKm = distBetweenRestaurants + distToUser;
+    }
+  } else if (mainRestaurant?.location?.coordinates?.length === 2 && userLoc?.length === 2) {
+    distanceKm = haversineKm(
+      mainRestaurant.location.coordinates[1], mainRestaurant.location.coordinates[0],
+      userLoc[1], userLoc[0]
+    );
   }
+
+  if (!Number.isFinite(distanceKm)) distanceKm = 0;
   let deliveryFee = 0;
   let deliveryFeeBreakdown = null;
+  const multiOrderCharge = (restaurants.length > 1 && deliveryBoySettings?.multiOrderAdditionalCharge) 
+    ? Number(deliveryBoySettings.multiOrderAdditionalCharge) 
+    : 0;
+
   if (
     Number.isFinite(freeUpTo) &&
     freeUpTo > 0 &&
@@ -64,52 +107,43 @@ export async function calculateOrderPricing(userId, dto) {
   ) {
     deliveryFee = 0;
   } else {
-    const ranges = Array.isArray(feeSettings.deliveryFeeRanges)
-      ? [...feeSettings.deliveryFeeRanges]
-      : [];
-    if (ranges.length > 0) {
-      ranges.sort((a, b) => Number(a.min) - Number(b.min));
-      let matched = null;
-      for (let i = 0; i < ranges.length; i += 1) {
-        const r = ranges[i] || {};
-        const min = Number(r.min);
-        const max = Number(r.max);
-        const fee = Number(r.fee);
-        if (
-          !Number.isFinite(min) ||
-          !Number.isFinite(max) ||
-          !Number.isFinite(fee)
-        ) {
-          continue;
-        }
-        const isLast = i === ranges.length - 1;
-        if (!Number.isFinite(distanceKm)) {
-          continue;
-        }
-        const inRange = isLast
-          ? distanceKm >= min && distanceKm <= max
-          : distanceKm >= min && distanceKm < max;
-        if (inRange) {
-          matched = fee;
-          if (Number.isFinite(distanceKm)) {
-            deliveryFeeBreakdown = {
-              source: "distance",
-              distanceKm,
-              minKm: min,
-              maxKm: max,
-              fee,
-            };
-          }
+    const rules = await FoodDeliveryCommissionRule.find({ status: true }).lean();
+    if (rules && rules.length > 0 && Number.isFinite(distanceKm)) {
+      // Find matching rule
+      let matchedRule = null;
+      for (const rule of rules) {
+        const min = Number(rule.minDistance) || 0;
+        const max = rule.maxDistance !== null ? Number(rule.maxDistance) : null;
+        if (distanceKm >= min && (max === null || distanceKm <= max)) {
+          matchedRule = rule;
           break;
         }
       }
-      deliveryFee = Number.isFinite(matched)
-        ? matched
-        : Number(feeSettings.deliveryFee || 0);
+      
+      if (matchedRule) {
+        const min = Number(matchedRule.minDistance) || 0;
+        const extraDistance = Math.max(0, distanceKm - min);
+        const kmForRate = min === 0 ? distanceKm : extraDistance;
+        deliveryFee = Number(matchedRule.basePayout) + (kmForRate * Number(matchedRule.commissionPerKm));
+      } else {
+        deliveryFee = Number(feeSettings.deliveryFee || 0);
+      }
     } else {
       deliveryFee = Number(feeSettings.deliveryFee || 0);
     }
   }
+
+  // Always add multi-order charge if applicable, even if base delivery is free
+  deliveryFee += multiOrderCharge;
+
+  deliveryFeeBreakdown = {
+    source: "distance",
+    distanceKm,
+    isMultiRestaurant: restaurants.length > 1,
+    additionalCharge: multiOrderCharge,
+    baseFee: deliveryFee - multiOrderCharge,
+    fee: deliveryFee
+  };
 
   const gstRate = feeSettings.gstRate != null ? Number(feeSettings.gstRate) : 0;
   const tax =

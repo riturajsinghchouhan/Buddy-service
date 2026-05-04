@@ -48,6 +48,7 @@ router.patch('/orders/:orderId/complete', authMiddleware, requireRoles('DELIVERY
 router.patch('/orders/:orderId/status', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.updateOrderStatusDeliveryController);
 router.post('/orders/:orderId/collect/qr', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.createCollectQrController);
 router.get('/orders/:orderId/payment-status', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.getPaymentStatusController);
+router.post('/orders/:orderId/resend-to-restaurant', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.resendOrderToRestaurantController);
 
 // ----- Earnings / Settings -----
 router.get('/earning-addons/active', authMiddleware, requireRoles('DELIVERY_PARTNER'), getActiveEarningAddonsController);
@@ -69,4 +70,3 @@ router.get('/referrals/stats', authMiddleware, requireRoles('DELIVERY_PARTNER'),
 router.delete('/account', authMiddleware, requireRoles('DELIVERY_PARTNER'), deleteDeliveryAccountController);
 
 export default router;
-

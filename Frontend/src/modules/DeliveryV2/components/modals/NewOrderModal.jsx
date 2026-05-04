@@ -11,7 +11,7 @@ import { getHaversineDistance, calculateETA } from '@/modules/DeliveryV2/utils/g
  */
 export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   const { riderLocation } = useDeliveryStore();
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(60);
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -137,23 +137,62 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
           </div>
         </div>
 
+        {/* Multi-Restaurant Alert */}
+        {order.pickups && order.pickups.length > 1 && (
+          <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-2">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-600 rounded-2xl p-3 sm:p-4 flex items-start gap-2.5 sm:gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-yellow-400 dark:bg-yellow-500 flex items-center justify-center text-sm font-bold">
+                  ⚡
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-yellow-800 dark:text-yellow-200 mb-0.5">
+                  Multiple Restaurants
+                </p>
+                <p className="text-[10px] sm:text-xs text-yellow-700 dark:text-yellow-300 leading-tight">
+                  User ordered from {order.pickups.length} restaurants. Pickup items from each location.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Info Body */}
         <div className="p-4 sm:p-8 pb-6 sm:pb-12 space-y-5 sm:space-y-10 overflow-y-auto max-h-[78vh]">
+          {/* Multi-Pickup / Drop Timeline */}
           <div className="flex gap-3 sm:gap-6">
             <div className="flex flex-col items-center gap-1.5 mt-2 py-1">
-              <div className="w-5 h-5 rounded-full bg-green-500 border-4 border-green-50 shadow-lg shadow-green-500/20" />
-              <div className="w-0.5 h-16 bg-dashed border-l-2 border-gray-100" />
+              {/* Pickup Points */}
+              {(order.pickups && order.pickups.length > 0 ? order.pickups : [{ restaurantName, restaurantAddress }]).map((_, idx, arr) => (
+                <React.Fragment key={`dot-pickup-${idx}`}>
+                  <div className="w-5 h-5 rounded-full bg-green-500 border-4 border-green-50 shadow-lg shadow-green-500/20" />
+                  <div className="w-0.5 h-16 bg-dashed border-l-2 border-gray-100" />
+                </React.Fragment>
+              ))}
+              
+              {/* Customer Drop Dot */}
               <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-blue-50 shadow-lg shadow-blue-500/20" />
             </div>
+
             <div className="flex-1 space-y-5 sm:space-y-10">
-              <div>
-                <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-green-600">
-                  <ChefHat className="w-4 h-4" />
-                  <span>Restaurant Pickup</span>
+              {/* Pickups */}
+              {(order.pickups && order.pickups.length > 0 ? order.pickups : [{ restaurantName, restaurantAddress }]).map((pickup, idx) => (
+                <div key={`pickup-${idx}`}>
+                  <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-green-600">
+                    <ChefHat className="w-4 h-4" />
+                    <span>Restaurant Pickup {order.pickups?.length > 1 ? `#${idx + 1}` : ''}</span>
+                  </div>
+                  <p className="text-gray-950 font-bold text-base sm:text-xl leading-tight">
+                    {pickup.restaurantName || pickup.restaurant_name || restaurantName}
+                  </p>
+                  <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                    {pickup.restaurantAddress || pickup.location?.address || restaurantAddress}
+                  </p>
                 </div>
-                <p className="text-gray-950 font-bold text-base sm:text-xl leading-tight">{restaurantName}</p>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">{restaurantAddress}</p>
-              </div>
+              ))}
+
+              {/* Customer Drop */}
               <div>
                 <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-blue-600">
                   <MapPin className="w-4 h-4" />
@@ -213,3 +252,4 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
     </motion.div>
   );
 };
+

@@ -248,3 +248,4 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
     </Dialog>
   )
 }
+

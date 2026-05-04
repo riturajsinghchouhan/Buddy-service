@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  NAME: 'Foodelo',
+  NAME: 'Buddy Service',
   VERSION: '1.0.0',
 };
 

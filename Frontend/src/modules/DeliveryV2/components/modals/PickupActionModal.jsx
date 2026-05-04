@@ -99,42 +99,99 @@ export const PickupActionModal = ({
         </div>
 
         {/* Restaurant Header */}
-        <div className="flex items-start justify-between mb-5 sm:mb-8 pb-3 sm:pb-4 border-b border-gray-50">
-          <div className="flex gap-3 sm:gap-4">
-            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/5 overflow-hidden border border-gray-100">
-              <img src={restaurantLogo} alt="Logo" className="w-full h-full object-cover" />
+        {!order.isMultiRestaurant ? (
+          <div className="flex items-start justify-between mb-5 sm:mb-8 pb-3 sm:pb-4 border-b border-gray-50">
+            <div className="flex gap-3 sm:gap-4">
+              <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/5 overflow-hidden border border-gray-100">
+                <img src={restaurantLogo} alt="Logo" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <h3 className="text-gray-950 text-lg sm:text-xl font-bold">{restaurantName}</h3>
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
+                  {isAtPickup ? (
+                    <span className="text-green-600">Reached Location √</span>
+                  ) : (
+                    <span className="text-orange-500">
+                      {(distanceToTarget / 1000).toFixed(1)} km • {eta || '--'} min to Store
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-gray-950 text-lg sm:text-xl font-bold">{restaurantName}</h3>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
-                {isAtPickup ? (
-                  <span className="text-green-600">Reached Location √</span>
-                ) : (
-                  <span className="text-orange-500">
-                    {(distanceToTarget / 1000).toFixed(1)} km • {eta || '--'} min to Store
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
 
-          <div className="flex gap-2">
-            {restaurantPhone && (
-              <button
-                onClick={() => window.location.href = `tel:${restaurantPhone}`}
-                className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100"
+            <div className="flex gap-2">
+              {restaurantPhone && (
+                <button
+                  onClick={() => window.location.href = `tel:${restaurantPhone}`}
+                  className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100"
+                >
+                  <Phone className="w-5 h-5" />
+                </button>
+              )}
+              <button 
+                onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurantAddress)}`, '_blank')}
+                className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white shadow-lg"
               >
-                <Phone className="w-5 h-5" />
+                <Navigation className="w-5 h-5" />
               </button>
-            )}
-            <button 
-              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurantAddress)}`, '_blank')}
-              className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white shadow-lg"
-            >
-              <Navigation className="w-5 h-5" />
-            </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center justify-between">
+               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Multi-Pickup Route</p>
+               <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">
+                  {order.pickups?.filter(p => ['picked_up', 'ready_for_handover'].includes(p.status)).length} / {order.pickups?.length} Picked
+               </p>
+            </div>
+            {order.pickups?.map((p, idx) => {
+               const isDone = ['picked_up', 'ready_for_handover'].includes(p.status);
+               const isCurrent = !isDone && order.pickups.findIndex(px => !['picked_up', 'ready_for_handover'].includes(px.status)) === idx;
+               
+               return (
+                 <div key={idx} className={`p-4 rounded-2xl border-2 transition-all ${isCurrent ? 'bg-orange-50/50 border-orange-200' : isDone ? 'bg-green-50/30 border-green-100 opacity-60' : 'bg-gray-50/50 border-gray-100'}`}>
+                    <div className="flex items-start justify-between">
+                       <div className="flex gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${isCurrent ? 'bg-orange-500 text-white' : 'bg-white text-gray-400'}`}>
+                             <ChefHat className="w-5 h-5" />
+                          </div>
+                          <div>
+                             <h4 className="text-sm font-bold text-gray-950">{p.restaurantName}</h4>
+                             <p className="text-[10px] text-gray-500 line-clamp-1">{p.location?.address || 'Pickup location'}</p>
+                          </div>
+                       </div>
+                       <div className="flex gap-2">
+                          {p.phone && (
+                            <button onClick={() => window.location.href = `tel:${p.phone}`} className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-green-600 border border-gray-100">
+                               <Phone className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.location?.address || p.restaurantName)}`, '_blank')}
+                            className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white"
+                          >
+                             <Navigation className="w-4 h-4" />
+                          </button>
+                       </div>
+                    </div>
+                    {isCurrent && (
+                       <div className="mt-3 flex items-center justify-between border-t border-orange-100 pt-3">
+                          <p className="text-[9px] font-bold text-orange-600 uppercase tracking-widest">
+                             {isAtPickup ? "Reached Pickup Location" : `${(distanceToTarget / 1000).toFixed(1)} km to this store`}
+                          </p>
+                       </div>
+                    )}
+                    {isDone && (
+                       <div className="mt-2 flex items-center gap-1 text-[9px] font-bold text-green-600 uppercase tracking-widest">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Picked Up</span>
+                       </div>
+                    )}
+                 </div>
+               );
+            })}
+          </div>
+        )}
 
         {/* Action Sliders */}
           <div className="space-y-4 sm:space-y-6">
@@ -255,3 +312,4 @@ export const PickupActionModal = ({
 };
 
 export default PickupActionModal;
+

@@ -237,6 +237,28 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
     }
   }
 
+  const [employmentUpdating, setEmploymentUpdating] = useState(false)
+  const handleEmploymentUpdate = async (type, value) => {
+    if (!viewDetails || !viewDetails._id) return
+    try {
+      setEmploymentUpdating(true)
+      const data = { [type]: value }
+      const res = await adminAPI.updateDeliveryPartner(viewDetails._id, data)
+      if (res.data?.success) {
+        setViewDetails(prev => ({ ...prev, [type]: value }))
+        setDeliverymen(prev => prev.map(dm => 
+          dm._id === viewDetails._id ? { ...dm, [type]: value } : dm
+        ))
+        toast.success("Employment settings updated successfully")
+      }
+    } catch (err) {
+      debugError("Error updating employment:", err)
+      toast.error(err.response?.data?.message || "Failed to update employment")
+    } finally {
+      setEmploymentUpdating(false)
+    }
+  }
+
   const handleExportPDF = () => {
     if (filteredDeliverymen.length === 0) {
       alert("No data to export")
@@ -846,6 +868,56 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                   </div>
                 </div>
 
+                {/* Employment & Payout Settings */}
+                <div className="pb-6 border-b border-slate-200">
+                  <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4" /> Employment & Payout Model
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 relative">
+                      {employmentUpdating && (
+                        <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                        </div>
+                      )}
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Employment Type</label>
+                      <select 
+                        value={viewDetails.employmentType || "per_order"} 
+                        onChange={(e) => handleEmploymentUpdate("employmentType", e.target.value)}
+                        className="mt-2 block w-full text-sm rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      >
+                        <option value="per_order">Per Order (Commission)</option>
+                        <option value="salary">Salary Base</option>
+                      </select>
+                      <p className="text-xs text-slate-500 mt-2">
+                        {viewDetails.employmentType === 'salary' ? 'Partner receives a fixed salary based on slab.' : 'Partner earns per delivery based on distance rules.'}
+                      </p>
+                    </div>
+
+                    {viewDetails.employmentType === 'salary' && (
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 relative">
+                        {employmentUpdating && (
+                          <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
+                            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                          </div>
+                        )}
+                        <label className="text-xs font-semibold text-slate-500 uppercase">Salary Duration</label>
+                        <select 
+                          value={viewDetails.salaryDuration || "weekly"} 
+                          onChange={(e) => handleEmploymentUpdate("salaryDuration", e.target.value)}
+                          className="mt-2 block w-full text-sm rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="weekly">Weekly Slab</option>
+                          <option value="monthly">Monthly Slab</option>
+                        </select>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Choose the payout cycle. Slabs are defined in global settings.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Location Details */}
                 {viewDetails.location && (
                   <div className="pb-6 border-b border-slate-200">
@@ -1211,3 +1283,4 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
     </div>
   )
 }
+

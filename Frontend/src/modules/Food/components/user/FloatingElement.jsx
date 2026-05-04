@@ -51,3 +51,4 @@ export default function FloatingElement({ children, delay = 0, className = "" })
     </div>
   )
 }
+

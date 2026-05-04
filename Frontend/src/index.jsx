@@ -77,8 +77,24 @@ bootstrapNativeHashRoute()
 // ─── Suppress known non-critical errors ──────────────────────────────────────
 
 const originalError = console.error
+const safeToString = (value) => {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (value instanceof Error) return value.message || '[Error]'
+  try {
+    return JSON.stringify(value)
+  } catch {
+    try {
+      return String(value)
+    } catch {
+      return Object.prototype.toString.call(value)
+    }
+  }
+}
+
 console.error = (...args) => {
-  const errorStr = args.join(' ')
+  const errorStr = args.map(safeToString).join(' ')
 
   if (typeof args[0] === 'string' && (
     args[0].includes('chrome-extension://') ||
@@ -114,12 +130,12 @@ console.error = (...args) => {
     (errorStr.includes('WebSocket connection to') && errorStr.includes('socket.io') && errorStr.includes('failed'))
   ) return
 
-  originalError.apply(console, args)
+  originalError.call(console, errorStr)
 }
 
 window.addEventListener('unhandledrejection', (event) => {
   const error = event.reason || event
-  const errorMsg = error?.message || String(error) || ''
+  const errorMsg = safeToString(error?.message || error)
   const errorName = error?.name || ''
   if (
     errorMsg.includes('Timeout expired') ||
@@ -144,3 +160,4 @@ createRoot(rootElement).render(
     <App />
   </AppProviders>
 )
+

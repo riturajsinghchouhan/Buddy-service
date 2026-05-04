@@ -40,3 +40,4 @@ export const RiderMarker = ({ google, map, position, heading = 0 }) => {
 
   return null;
 };
+

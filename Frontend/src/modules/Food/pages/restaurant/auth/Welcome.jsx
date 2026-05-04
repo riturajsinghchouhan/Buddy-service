@@ -289,7 +289,7 @@ export default function RestaurantWelcome() {
         {/* Login Button */}
         <Button
           onClick={handleLogin}
-          className="w-full bg-[#7e3866] hover:bg-[#6a2f56] text-white font-bold py-6 md:py-7 text-base md:text-lg rounded-lg transition-colors shadow-lg"
+          className="w-full bg-[#23361A] hover:bg-[#1a2614] text-white font-bold py-6 md:py-7 text-base md:text-lg rounded-lg transition-colors shadow-lg"
         >
           Login
         </Button>
@@ -298,7 +298,7 @@ export default function RestaurantWelcome() {
         {/* <Button
           onClick={handlePartner}
           variant="outline"
-          className="w-full border-2 border-[#7e3866] text-[#7e3866] hover:bg-[#7e3866] hover:text-white font-bold py-6 md:py-7 text-base md:text-lg rounded-lg transition-all shadow-lg bg-transparent"
+          className="w-full border-2 border-[#23361A] text-[#23361A] hover:bg-[#23361A] hover:text-white font-bold py-6 md:py-7 text-base md:text-lg rounded-lg transition-all shadow-lg bg-transparent"
         >
           Partner with Foodelo
         </Button> */}
@@ -316,3 +316,4 @@ export default function RestaurantWelcome() {
     </div>
   )
 }
+

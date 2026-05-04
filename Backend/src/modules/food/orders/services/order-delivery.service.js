@@ -5,6 +5,7 @@ import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
 import { FoodDeliveryCashLimit } from '../../admin/models/deliveryCashLimit.model.js';
+import { FoodDeliveryBoySettings } from '../../admin/models/deliveryBoySettings.model.js';
 import {
   ValidationError,
   ForbiddenError,
@@ -28,6 +29,7 @@ import {
   generateFourDigitDeliveryOtp,
   notifyOwnerSafely,
   notifyOwnersSafely,
+  notifyRestaurantNewOrder,
   pushStatusHistory,
   sanitizeOrderForExternal,
   isStatusAdvance,
@@ -146,10 +148,16 @@ function emitOrderUpdate(order, deliveryPartnerId, options = {}) {
         'order_status_update',
         payload,
       );
-      io.to(rooms.restaurant(order.restaurantId)).emit(
-        'order_status_update',
-        payload,
-      );
+      const pickupRestaurantIds = Array.isArray(order.pickups)
+        ? [...new Set(order.pickups.map((p) => String(p?.restaurantId || '')).filter(Boolean))]
+        : [];
+      const targetRestaurants = pickupRestaurantIds.length
+        ? pickupRestaurantIds
+        : [order.restaurantId].filter(Boolean).map((id) => String(id));
+
+      for (const rid of targetRestaurants) {
+        io.to(rooms.restaurant(rid)).emit('order_status_update', payload);
+      }
       io.to(rooms.user(order.userId)).emit('order_status_update', payload);
     }
 
@@ -297,6 +305,21 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
   if (!order) return null;
   const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
   const out = sanitizeOrderForExternal(order);
+  
+  // Fix for '0 items' issue: Ensure pickups have items by filtering from main items list
+  if (Array.isArray(out.pickups) && Array.isArray(out.items)) {
+    out.pickups = out.pickups.map(p => {
+      if (!p.items || p.items.length === 0) {
+        // Filter items belonging to this restaurant
+        const pItems = out.items
+          .filter(it => String(it.restaurantId || '') === String(p.restaurantId || ''))
+          .map(it => it.name);
+        if (pItems.length > 0) p.items = pItems;
+      }
+      return p;
+    });
+  }
+
   if (tx) {
     out.paymentMethod = tx.payment?.method || tx.paymentMethod || out.paymentMethod;
     out.payment = tx.payment || out.payment;
@@ -414,7 +437,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
   }
 
   const now = new Date();
-  const acceptedStatuses = ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up'];
+  const acceptedStatuses = ['created', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up'];
   const cancellableStatuses = [
     'cancelled_by_user',
     'cancelled_by_restaurant',
@@ -429,6 +452,25 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     note: 'Delivery partner accepted order',
     at: now,
   };
+
+  const deliveryPartner = await FoodDeliveryPartner.findById(partnerId).lean();
+  const settings = await FoodDeliveryBoySettings.findOne().lean();
+
+  const isSalary = deliveryPartner?.employmentType === 'salary';
+  const baseRiderEarning = Number(existingOrder.riderEarning) || 0;
+  
+  let finalRiderEarning = baseRiderEarning;
+  if (isSalary) {
+    finalRiderEarning = 0;
+  } else {
+    const adminComm = Number(settings?.adminCommissionPercentage) || 0;
+    finalRiderEarning = Math.max(0, baseRiderEarning - (baseRiderEarning * (adminComm / 100)));
+  }
+
+  const basePlatformProfit = Number(existingOrder.platformProfit) || 0;
+  // If rider earning decreased, platform profit increases by that difference
+  const earningDifference = baseRiderEarning - finalRiderEarning;
+  const newPlatformProfit = Math.max(0, basePlatformProfit + earningDifference);
 
   const order = await FoodOrder.findOneAndUpdate(
     {
@@ -448,6 +490,8 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
         'dispatch.status': 'accepted',
         'dispatch.assignedAt': now,
         'dispatch.acceptedAt': now,
+        riderEarning: finalRiderEarning,
+        platformProfit: newPlatformProfit
       },
       $push: {
         statusHistory: statusHistoryEntry,
@@ -553,7 +597,19 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
           dispatchStatus: order.dispatch?.status,
         };
         io.to(rooms.delivery(deliveryPartnerId)).emit('order_status_update', payload);
-        io.to(rooms.restaurant(order.restaurantId)).emit('order_status_update', payload);
+        
+        const pickupRestaurantIds = Array.isArray(order.pickups)
+          ? [...new Set(order.pickups.map((p) => String(p?.restaurantId || '')).filter(Boolean))]
+          : [];
+
+        if (pickupRestaurantIds.length > 0) {
+          pickupRestaurantIds.forEach(rid => {
+            io.to(rooms.restaurant(rid)).emit('order_status_update', payload);
+          });
+        } else {
+          io.to(rooms.restaurant(order.restaurantId)).emit('order_status_update', payload);
+        }
+
         io.to(rooms.user(order.userId)).emit('order_status_update', payload);
 
         // Broadcast order_claimed to ALL online delivery partners so every popup is dismissed
@@ -583,20 +639,45 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
         },
       );
 
-      await notifyOwnerSafely(
-        { ownerType: 'RESTAURANT', ownerId: order.restaurantId },
-        {
-          title: `Rider assigned`,
-          body: `Order #${order._id.toString()} is now assigned to a delivery partner.`,
-          data: {
-            type: 'delivery_accepted',
-            orderId: order._id.toString(),
-            orderMongoId: order._id?.toString?.() || '',
-            dispatchStatus: order.dispatch?.status,
-            link: '/food/restaurant/orders',
+      const pickupRestaurantIds = Array.isArray(order.pickups)
+        ? [...new Set(order.pickups.map((p) => String(p?.restaurantId || '')).filter(Boolean))]
+        : [];
+
+      if (pickupRestaurantIds.length > 0) {
+        for (const rid of pickupRestaurantIds) {
+          await notifyRestaurantNewOrder(order, rid);
+          await notifyOwnerSafely(
+            { ownerType: 'RESTAURANT', ownerId: rid },
+            {
+              title: 'Rider assigned',
+              body: `Order #${order._id.toString()} is now assigned to a delivery partner.`,
+              data: {
+                type: 'delivery_accepted',
+                orderId: order._id.toString(),
+                orderMongoId: order._id?.toString?.() || '',
+                dispatchStatus: order.dispatch?.status,
+                link: '/food/restaurant/orders',
+              },
+            },
+          );
+        }
+      } else {
+        await notifyRestaurantNewOrder(order);
+        await notifyOwnerSafely(
+          { ownerType: 'RESTAURANT', ownerId: order.restaurantId },
+          {
+            title: 'Rider assigned',
+            body: `Order #${order._id.toString()} is now assigned to a delivery partner.`,
+            data: {
+              type: 'delivery_accepted',
+              orderId: order._id.toString(),
+              orderMongoId: order._id?.toString?.() || '',
+              dispatchStatus: order.dispatch?.status,
+              link: '/food/restaurant/orders',
+            },
           },
-        },
-      );
+        );
+      }
     } catch (error) {
       logger.error(
         `Error notifying delivery acceptance for ${order._id}: ${
@@ -684,6 +765,16 @@ export async function confirmReachedPickupDelivery(orderId, deliveryPartnerId) {
   }
 
   const from = currentStatus || currentPhase || order.orderStatus;
+  
+  // Handle Multi-Restaurant Specific Pickup Status
+  if (order.isMultiRestaurant && Array.isArray(order.pickups) && order.pickups.length > 0) {
+    const firstPendingIdx = order.pickups.findIndex(p => !['picked_up', 'ready'].includes(p.status));
+    if (firstPendingIdx !== -1) {
+      order.pickups[firstPendingIdx].status = 'ready';
+      order.markModified('pickups');
+    }
+  }
+
   order.deliveryState = {
     ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
     currentPhase: 'at_pickup',
@@ -755,26 +846,60 @@ export async function confirmPickupDelivery(orderId, deliveryPartnerId, billImag
 
   const from = order.orderStatus;
   const nextStatus = 'picked_up';
-  if (!isStatusAdvance(from, nextStatus)) {
-      throw new ValidationError(`Order is already at status '${from}'. Cannot re-mark as '${nextStatus}'.`);
-  }
-  order.orderStatus = nextStatus;
-  order.deliveryState = {
-    ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
-    currentPhase: 'en_route_to_delivery',
-    status: 'picked_up',
-    pickedUpAt: new Date(),
-    billImageUrl,
-  };
 
-  // OTP should be generated/sent only when rider explicitly requests it at drop.
+  // BLOCK pickup if restaurant hasn't accepted yet
+  if (order.isMultiRestaurant && Array.isArray(order.pickups)) {
+    const nextPickup = order.pickups.find(p => p.status !== 'picked_up');
+    if (nextPickup && nextPickup.status === 'pending') {
+      throw new ValidationError(`Restaurant "${nextPickup.restaurantName}" has not accepted this order yet. Please wait for the restaurant to confirm.`);
+    }
+  } else if (!order.isMultiRestaurant) {
+    if (from === 'created') {
+      throw new ValidationError('Restaurant has not accepted this order yet. Please wait for confirmation.');
+    }
+  }
+  
+  // Handle Multi-Restaurant Specific Pickup Status
+  let allPickupsDone = true;
+  if (order.isMultiRestaurant && Array.isArray(order.pickups) && order.pickups.length > 0) {
+    const firstNonPickedIdx = order.pickups.findIndex(p => p.status !== 'picked_up');
+    if (firstNonPickedIdx !== -1) {
+      order.pickups[firstNonPickedIdx].status = 'picked_up';
+      order.markModified('pickups');
+    }
+    allPickupsDone = order.pickups.every(p => p.status === 'picked_up');
+  }
+
+  if (allPickupsDone) {
+    if (!isStatusAdvance(from, nextStatus)) {
+        throw new ValidationError(`Order is already at status '${from}'. Cannot re-mark as '${nextStatus}'.`);
+    }
+    order.orderStatus = nextStatus;
+    order.deliveryState = {
+      ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+      currentPhase: 'en_route_to_delivery',
+      status: 'picked_up',
+      pickedUpAt: order.deliveryState?.pickedUpAt || new Date(),
+      billImageUrl,
+    };
+  } else {
+    // Reset to en_route for next pickup
+    order.deliveryState = {
+      ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+      currentPhase: 'en_route_to_pickup',
+      status: 'accepted', // or 'moving_to_next_pickup'
+      billImageUrl, // Keep last bill or append? Usually per pickup? 
+      // For now we just keep it.
+    };
+    // Note: order.orderStatus stays 'preparing' or 'ready_for_pickup'
+  }
 
   pushStatusHistory(order, {
     byRole: 'DELIVERY_PARTNER',
     byId: deliveryPartnerId,
     from,
-    to: 'picked_up',
-    note: 'Order picked up',
+    to: allPickupsDone ? 'picked_up' : 'pickup_completed_partial',
+    note: allPickupsDone ? 'All items picked up' : 'Partial pickup completed, moving to next restaurant',
   });
   await order.save();
 
@@ -971,6 +1096,12 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
 
   const from = order.orderStatus;
   const nextStatus = 'delivered';
+  
+  // CRITICAL: Block delivery if not picked up
+  if (!['picked_up', 'reached_drop'].includes(from)) {
+      throw new ValidationError(`Cannot complete delivery. Current status is '${from}'. Please confirm pickup from restaurant(s) first.`);
+  }
+
   if (!isStatusAdvance(from, nextStatus)) {
       throw new ValidationError(`Order is already at status '${from}'. Cannot re-mark as '${nextStatus}'.`);
   }

@@ -1,6 +1,28 @@
-// src/context/cart-context.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { buildCartLineId } from "@food/utils/foodVariants"
+import { adminAPI } from "@food/api"
+
+const geoDistanceMeters = (lat1, lng1, lat2, lng2) => {
+  if (
+    typeof lat1 !== "number" ||
+    typeof lng1 !== "number" ||
+    typeof lat2 !== "number" ||
+    typeof lng2 !== "number"
+  ) {
+    return Number.POSITIVE_INFINITY
+  }
+  const R = 6371e3 // Earth's radius in meters
+  const dLat = (lat2 - lat1) * (Math.PI / 180)
+  const dLng = (lng2 - lng1) * (Math.PI / 180)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -158,6 +180,19 @@ export function CartProvider({ children }) {
   const [lastAddEvent, setLastAddEvent] = useState(null)
   // Track last remove event for animation
   const [lastRemoveEvent, setLastRemoveEvent] = useState(null)
+  const [adminSettings, setAdminSettings] = useState(null)
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await adminAPI.getDeliveryBoySettings()
+        if (res.data?.success) setAdminSettings(res.data.data)
+      } catch (err) {
+        debugError('Failed to fetch admin settings for multi-order:', err)
+      }
+    }
+    fetchSettings()
+  }, [])
 
   // Persist to localStorage whenever cart changes
   useEffect(() => {
@@ -174,30 +209,57 @@ export function CartProvider({ children }) {
 
   const addToCart = (item, sourcePosition = null) => {
     const safeCart = normalizeCartData(cart)
+    const newItemRestaurantId = String(item?.restaurantId || '')
+    const newItemRestaurantName = item?.restaurant || ''
+
     if (safeCart.length > 0) {
-      const firstItemRestaurantId = safeCart[0]?.restaurantId
-      const firstItemRestaurantName = safeCart[0]?.restaurant
-      const newItemRestaurantId = item?.restaurantId
-      const newItemRestaurantName = item?.restaurant
-      const normalizeName = (name) => (name ? String(name).trim().toLowerCase() : '')
+      const uniqueRestaurants = []
+      const restaurantMap = new Map()
 
-      const firstRestaurantNameNormalized = normalizeName(firstItemRestaurantName)
-      const newRestaurantNameNormalized = normalizeName(newItemRestaurantName)
-      const hasNameMismatch =
-        firstRestaurantNameNormalized &&
-        newRestaurantNameNormalized &&
-        firstRestaurantNameNormalized !== newRestaurantNameNormalized
+      safeCart.forEach(i => {
+        const rid = String(i.restaurantId || '')
+        if (rid && !restaurantMap.has(rid)) {
+          restaurantMap.set(rid, {
+            id: rid,
+            name: i.restaurant,
+            lat: i.latitude,
+            lng: i.longitude
+          })
+          uniqueRestaurants.push(restaurantMap.get(rid))
+        }
+      })
 
-      const hasIdMismatch =
-        !firstRestaurantNameNormalized &&
-        !newRestaurantNameNormalized &&
-        firstItemRestaurantId &&
-        newItemRestaurantId &&
-        String(firstItemRestaurantId) !== String(newItemRestaurantId)
+      const isNewRestaurant = !restaurantMap.has(newItemRestaurantId)
 
-      if (hasNameMismatch || hasIdMismatch) {
-        const message = `Cart already contains items from "${firstItemRestaurantName || 'another restaurant'}". Please clear cart or complete order first.`
-        return { ok: false, error: message, code: 'RESTAURANT_MISMATCH' }
+      if (isNewRestaurant) {
+        // Feature Check
+        if (adminSettings && !adminSettings.multiOrderEnabled) {
+          const message = `Cart already contains items from "${uniqueRestaurants[0]?.name || 'another restaurant'}". Please clear cart to order from here.`
+          return { ok: false, error: message, code: 'MULTI_ORDER_DISABLED' }
+        }
+
+        // Capacity Check (Max 2)
+        if (uniqueRestaurants.length >= 2) {
+          const message = `You can only order from a maximum of 2 restaurants at once.`
+          return { ok: false, error: message, code: 'MAX_RESTAURANTS_EXCEEDED' }
+        }
+
+        // Distance Check
+        if (adminSettings?.multiOrderMaxDistance) {
+          const firstRestaurant = uniqueRestaurants[0]
+          if (firstRestaurant?.lat && firstRestaurant?.lng && item?.latitude && item?.longitude) {
+            const distMeters = geoDistanceMeters(
+              firstRestaurant.lat, firstRestaurant.lng,
+              item.latitude, item.longitude
+            )
+            const maxMeters = (Number(adminSettings.multiOrderMaxDistance) || 3) * 1000
+            
+            if (distMeters > maxMeters) {
+              const message = `This restaurant is too far from "${firstRestaurant.name}". Multi-restaurant orders must be within ${adminSettings.multiOrderMaxDistance}km.`
+              return { ok: false, error: message, code: 'RESTAURANTS_TOO_FAR' }
+            }
+          }
+        }
       }
     }
 
@@ -211,46 +273,6 @@ export function CartProvider({ children }) {
 
     setCart((prev) => {
       const safePrev = normalizeCartData(prev)
-      // CRITICAL: Validate restaurant consistency
-      // If cart already has items, ensure new item belongs to the same restaurant
-      if (safePrev.length > 0) {
-        const firstItemRestaurantId = safePrev[0]?.restaurantId;
-        const firstItemRestaurantName = safePrev[0]?.restaurant;
-        const newItemRestaurantId = item?.restaurantId;
-        const newItemRestaurantName = item?.restaurant;
-        
-        // Normalize restaurant names for comparison (trim and case-insensitive)
-        const normalizeName = (name) => name ? name.trim().toLowerCase() : '';
-        const firstRestaurantNameNormalized = normalizeName(firstItemRestaurantName);
-        const newRestaurantNameNormalized = normalizeName(newItemRestaurantName);
-        
-        // Check restaurant name first (more reliable than IDs which can have different formats)
-        // If names match, allow it even if IDs differ (same restaurant, different ID format)
-        if (firstRestaurantNameNormalized && newRestaurantNameNormalized) {
-          if (firstRestaurantNameNormalized !== newRestaurantNameNormalized) {
-            debugError('❌ Cannot add item: Restaurant name mismatch!', {
-              cartRestaurantId: firstItemRestaurantId,
-              cartRestaurantName: firstItemRestaurantName,
-              newItemRestaurantId: newItemRestaurantId,
-              newItemRestaurantName: newItemRestaurantName
-            });
-            return safePrev;
-          }
-          // Names match - allow it (even if IDs differ, it's the same restaurant)
-        } else if (firstItemRestaurantId && newItemRestaurantId) {
-          // If names are not available, fallback to ID comparison
-          if (firstItemRestaurantId !== newItemRestaurantId) {
-            debugError('❌ Cannot add item: Cart contains items from different restaurant!', {
-              cartRestaurantId: firstItemRestaurantId,
-              cartRestaurantName: firstItemRestaurantName,
-              newItemRestaurantId: newItemRestaurantId,
-              newItemRestaurantName: newItemRestaurantName
-            });
-            return safePrev;
-          }
-        }
-      }
-      
       const existing = safePrev.find((i) => i.id === item.id)
       if (existing) {
         // Set last add event for animation when incrementing existing item
@@ -437,64 +459,14 @@ export function CartProvider({ children }) {
     });
   }
 
-  // Validate and clean cart on mount/load to prevent multiple restaurant items
-  // This runs only once on initial load to clean up any corrupted cart data from localStorage
+  // Removed restrictive multi-restaurant cleanup logic to support multi-order feature
   useEffect(() => {
     const safeCart = normalizeCartData(cart)
     if (safeCart.length !== cart.length) {
       setCart(safeCart)
-      return
-    }
-    if (safeCart.length === 0) return;
-    
-    // Get unique restaurant IDs and names
-    const restaurantIds = safeCart.map(item => item.restaurantId).filter(Boolean);
-    const restaurantNames = safeCart.map(item => item.restaurant).filter(Boolean);
-    const uniqueRestaurantIds = [...new Set(restaurantIds)];
-    const uniqueRestaurantNames = [...new Set(restaurantNames)];
-    
-    // Normalize restaurant names for comparison
-    const normalizeName = (name) => name ? name.trim().toLowerCase() : '';
-    const uniqueRestaurantNamesNormalized = uniqueRestaurantNames.map(normalizeName);
-    const uniqueRestaurantNamesSet = new Set(uniqueRestaurantNamesNormalized);
-    
-    // Check if cart has items from multiple restaurants
-    if (uniqueRestaurantIds.length > 1 || uniqueRestaurantNamesSet.size > 1) {
-      debugWarn('⚠️ Cart contains items from multiple restaurants. Cleaning cart...', {
-        restaurantIds: uniqueRestaurantIds,
-        restaurantNames: uniqueRestaurantNames
-      });
-      
-      // Keep items from the first restaurant (most recent or first in cart)
-      const firstRestaurantId = uniqueRestaurantIds[0];
-      const firstRestaurantName = uniqueRestaurantNames[0];
-      
-      setCart((prev) => {
-        const safePrev = normalizeCartData(prev)
-        const normalizeName = (name) => name ? name.trim().toLowerCase() : '';
-        const firstRestaurantNameNormalized = normalizeName(firstRestaurantName);
-        
-        return safePrev.filter((item) => {
-          const itemRestaurantId = item?.restaurantId;
-          const itemRestaurantName = item?.restaurant;
-          const itemRestaurantNameNormalized = normalizeName(itemRestaurantName);
-          
-          // Check by restaurant name first
-          if (firstRestaurantNameNormalized && itemRestaurantNameNormalized) {
-            return itemRestaurantNameNormalized === firstRestaurantNameNormalized;
-          }
-          // Fallback to ID comparison
-          if (firstRestaurantId && itemRestaurantId) {
-            return itemRestaurantId === firstRestaurantId || 
-                   itemRestaurantId === firstRestaurantId.toString() ||
-                   itemRestaurantId.toString() === firstRestaurantId;
-          }
-          return false;
-        });
-      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run once on mount to clean up localStorage data
+  }, []) // Only run once on mount for normalization
 
   // Transform cart to match AddToCartAnimation expected structure
   const cartForAnimation = useMemo(() => {
@@ -559,4 +531,5 @@ export function useCart() {
   }
   return context
 }
+
 

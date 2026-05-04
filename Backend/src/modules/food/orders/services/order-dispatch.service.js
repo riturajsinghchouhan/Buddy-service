@@ -230,9 +230,10 @@ export async function updateDispatchSettings(dispatchMode, adminId) {
 
 export async function tryAutoAssign(orderId, options = {}) {
   const attempt = options.attempt || 1;
-  const lockTimeout = 55000; // 55 seconds lock interval
+  const lockTimeout = 90000; // 90 seconds lock interval
 
   const dispatchableStatuses = new Set([
+    'created',
     'confirmed',
     'preparing',
     'ready_for_pickup',

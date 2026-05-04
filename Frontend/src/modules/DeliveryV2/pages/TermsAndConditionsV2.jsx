@@ -81,3 +81,4 @@ export default function TermsAndConditionsV2() {
     </div>
   )
 }
+

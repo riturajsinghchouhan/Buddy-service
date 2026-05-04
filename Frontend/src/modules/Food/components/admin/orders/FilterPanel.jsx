@@ -156,3 +156,4 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
     </div>
   )
 }
+

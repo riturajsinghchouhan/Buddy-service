@@ -375,3 +375,14 @@ export async function resendDeliveryNotificationRestaurantController(req, res, n
         next(err);
     }
 }
+
+export async function resendOrderToRestaurantController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.resendOrderToRestaurant(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Order resent to restaurant successfully', { order });
+    } catch (err) {
+        next(err);
+    }
+}

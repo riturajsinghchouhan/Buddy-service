@@ -25,3 +25,4 @@ export default function Toast({ show, message, onClose }) {
     </AnimatePresence>
   )
 }
+

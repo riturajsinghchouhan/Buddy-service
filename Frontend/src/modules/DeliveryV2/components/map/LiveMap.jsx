@@ -348,3 +348,4 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
 };
 
 export default LiveMap;
+

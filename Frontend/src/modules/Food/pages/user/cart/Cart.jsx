@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react"
 import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
-import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles, Banknote, Zap, CheckCircle2, MessageCircle, Send, Mail, Copy } from "lucide-react"
+import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles, Banknote, Zap, CheckCircle2, MessageCircle, Send, Mail, Copy, AlertCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 
@@ -80,7 +80,7 @@ const RUPEE_SYMBOL = "\u20B9"
 const CART_RECIPIENT_DETAILS_STORAGE_KEY = "food-cart-recipient-details-v1"
 const CART_ORDER_NOTE_STORAGE_KEY = "food-cart-order-note-v1"
 
-export default function Cart() {
+function Cart() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
@@ -894,7 +894,8 @@ export default function Cart() {
           quantity: item.quantity || 1,
           image: item.image,
           description: item.description,
-          isVeg: item.isVeg !== false
+          isVeg: item.isVeg !== false,
+          restaurantId: item.restaurantId || item.restaurant?._id || item.restaurant
         }))
 
         const resolvedRestaurantId = restaurantData?.restaurantId || restaurantData?._id || restaurantId || undefined
@@ -1061,6 +1062,16 @@ export default function Cart() {
   const deliveryFeeBreakdownText = hasDistanceDeliveryBreakdown
     ? `Distance ${Number(deliveryFeeBreakdown.distanceKm).toFixed(1)} km`
     : null
+  
+  // Detect multi-restaurant order
+  const uniqueRestaurantIds = [...new Set(cart
+    .map(item => item.restaurantId || item.restaurant)
+    .filter(Boolean)
+    .map(id => String(id).trim())
+  )]
+  const isMultiRestaurantOrder = uniqueRestaurantIds.length > 1
+  const multiRestaurantExtraCharge = isMultiRestaurantOrder ? 150 : 0
+  
   const platformFee = pricing != null ? (pricing.platformFee ?? 0) : (feeSettings.platformFee ?? 0)
   const packagingFee = pricing != null ? (pricing.packagingFee ?? 0) : (feeSettings.packagingFee ?? 0)
   const gstCharges = pricing != null ? (pricing.tax ?? 0) : Math.round(subtotal * ((feeSettings.gstRate ?? 0) / 100))
@@ -1354,7 +1365,8 @@ export default function Cart() {
           quantity: item.quantity || 1,
           image: item.image,
           description: item.description,
-          isVeg: item.isVeg !== false
+          isVeg: item.isVeg !== false,
+          restaurantId: item.restaurantId
         }))
 
         const response = await orderAPI.calculateOrder({
@@ -1415,7 +1427,8 @@ export default function Cart() {
         quantity: item.quantity || 1,
         image: item.image,
         description: item.description,
-        isVeg: item.isVeg !== false
+        isVeg: item.isVeg !== false,
+        restaurantId: item.restaurantId
       }))
 
       const response = await orderAPI.calculateOrder({
@@ -1474,7 +1487,8 @@ export default function Cart() {
           quantity: item.quantity || 1,
           image: item.image,
           description: item.description,
-          isVeg: item.isVeg === true || item.foodType === 'Veg'
+          isVeg: item.isVeg === true || item.foodType === 'Veg',
+          restaurantId: item.restaurantId
         }))
 
         const response = await orderAPI.calculateOrder({
@@ -1558,7 +1572,8 @@ export default function Cart() {
         image: item.image || "",
         description: item.description || "",
         isVeg: item.isVeg === true || item.foodType === 'Veg',
-        preparationTime: item.preparationTime
+        preparationTime: item.preparationTime,
+        restaurantId: item.restaurantId
       }))
 
       debugLog("?? Order items to send:", orderItems)
@@ -1596,7 +1611,7 @@ export default function Cart() {
         return;
       }
 
-      // CRITICAL: Validate that ALL cart items belong to the SAME restaurant
+      // Validate cart restaurant items - support both single and multi-restaurant orders
       const cartRestaurantIds = cart
         .map(item => item.restaurantId)
         .filter(Boolean)
@@ -1611,84 +1626,33 @@ export default function Cart() {
       const uniqueRestaurantIds = [...new Set(cartRestaurantIds)];
       const uniqueRestaurantNames = [...new Set(cartRestaurantNames)];
 
-      // Check if cart has items from multiple restaurants
-      // Note: If restaurant names match, allow even if IDs differ (same restaurant, different ID format)
-      if (uniqueRestaurantNames.length > 1) {
-        // Different restaurant names = definitely different restaurants
-        debugError('? CRITICAL ERROR: Cart contains items from multiple restaurants!', {
-          restaurantIds: uniqueRestaurantIds,
-          restaurantNames: uniqueRestaurantNames,
-          cartItems: cart.map(item => ({
-            id: item.id,
-            name: item.name,
-            restaurant: item.restaurant,
-            restaurantId: item.restaurantId
-          }))
-        });
+      // Allow both single and multi-restaurant orders if admin has enabled it
+      // CartContext already validates distance, capacity (max 2), etc. during addToCart
+      // So if cart has multiple restaurants, they've already passed validation
+      debugLog('?? Order validation - Restaurant count:', {
+        uniqueRestaurantNames: uniqueRestaurantNames.length,
+        isMultiRestaurant: uniqueRestaurantNames.length > 1,
+        restaurants: uniqueRestaurantNames
+      });
 
-        // Automatically clean cart to keep items from the restaurant matching restaurantData
-        if (finalRestaurantId && finalRestaurantName) {
-          debugLog('?? Auto-cleaning cart to keep items from:', finalRestaurantName);
-          cleanCartForRestaurant(finalRestaurantId, finalRestaurantName);
-          toast.error('Cart contained items from different restaurants. Items from other restaurants have been removed.');
-        } else {
-          // If restaurantData is not available, keep items from first restaurant in cart
-          const firstRestaurantId = cart[0]?.restaurantId;
-          const firstRestaurantName = cart[0]?.restaurant;
-          if (firstRestaurantId && firstRestaurantName) {
-            debugLog('?? Auto-cleaning cart to keep items from first restaurant:', firstRestaurantName);
-            cleanCartForRestaurant(firstRestaurantId, firstRestaurantName);
-            toast.error('Cart contained items from different restaurants. Items from other restaurants have been removed.');
-          } else {
-            toast.error('Cart contains items from different restaurants. Please clear cart and try again.');
-          }
-        }
-
-        setIsPlacingOrder(false);
-        return;
-      }
-
-      // If restaurant names match but IDs differ, that's OK (same restaurant, different ID format)
-      // But log a warning in development
-      if (uniqueRestaurantIds.length > 1 && uniqueRestaurantNames.length === 1) {
-        if (process.env.NODE_ENV === 'development') {
-          debugWarn('?? Cart items have different restaurant IDs but same name. This is OK if IDs are in different formats.', {
-            restaurantIds: uniqueRestaurantIds,
-            restaurantName: uniqueRestaurantNames[0]
-          });
-        }
-      }
-
-      // Validate that cart items' restaurantId matches the restaurantData
       if (cartRestaurantIds.length > 0) {
-        const cartRestaurantId = cartRestaurantIds[0];
-
-        // Check if cart restaurantId matches restaurantData
-        const restaurantIdMatches =
-          cartRestaurantId === finalRestaurantId ||
-          cartRestaurantId === restaurantData?._id?.toString() ||
-          cartRestaurantId === restaurantData?.restaurantId;
-
-        if (!restaurantIdMatches) {
-          debugError('? CRITICAL ERROR: Cart restaurantId does not match restaurantData!', {
-            cartRestaurantId: cartRestaurantId,
-            finalRestaurantId: finalRestaurantId,
-            restaurantDataId: restaurantData?._id?.toString(),
-            restaurantDataRestaurantId: restaurantData?.restaurantId,
-            restaurantDataName: restaurantData?.name,
-            cartRestaurantName: cartRestaurantNames[0]
-          });
-          alert(`Error: Cart items belong to "${cartRestaurantNames[0] || 'Unknown Restaurant'}" but restaurant data doesn't match. Please refresh the page and try again.`);
+        // For multi-restaurant orders, just validate all items have valid restaurant info
+        // Backend will handle the multi-restaurant logic
+        const invalidItems = cart.filter(item => !item.restaurantId && !item.restaurant);
+        if (invalidItems.length > 0) {
+          debugError('? Invalid cart items found - missing restaurant info!', invalidItems);
+          alert('Error: Some items are missing restaurant information. Please refresh and try again.');
           setIsPlacingOrder(false);
           return;
         }
       }
 
-      // Validate restaurant name matches
-      if (cartRestaurantNames.length > 0 && finalRestaurantName) {
+      // Validate restaurant name matches (for single-restaurant orders or when checking first restaurant)
+      if (cartRestaurantNames.length > 0 && finalRestaurantName && uniqueRestaurantNames.length === 1) {
         const cartRestaurantName = cartRestaurantNames[0];
+        // For single restaurant orders, validate name matches
         if (cartRestaurantName.toLowerCase().trim() !== finalRestaurantName.toLowerCase().trim()) {
-          debugError('? CRITICAL ERROR: Restaurant name mismatch!', {
+          debugError('? Restaurant name mismatch in single-restaurant order!', {
             cartRestaurantName: cartRestaurantName,
             finalRestaurantName: finalRestaurantName
           });
@@ -1699,33 +1663,13 @@ export default function Cart() {
       }
 
       // Log order details for debugging
-      debugLog('? Order validation passed - Placing order with restaurant:', {
+      debugLog('? Order validation passed - Placing order with:', {
         restaurantId: finalRestaurantId,
         restaurantName: finalRestaurantName,
-        restaurantDataId: restaurantData?._id,
-        restaurantDataRestaurantId: restaurantData?.restaurantId,
-        cartRestaurantId: cartRestaurantIds[0],
-        cartRestaurantName: cartRestaurantNames[0],
+        cartRestaurantCount: uniqueRestaurantNames.length,
+        restaurants: uniqueRestaurantNames,
         cartItemCount: cart.length
       });
-
-      // FINAL VALIDATION: Double-check restaurantId before sending to backend
-      const cartRestaurantId = cart[0]?.restaurantId;
-      if (cartRestaurantId && cartRestaurantId !== finalRestaurantId &&
-        cartRestaurantId !== restaurantData?._id?.toString() &&
-        cartRestaurantId !== restaurantData?.restaurantId) {
-        debugError('? CRITICAL: Final validation failed - restaurantId mismatch!', {
-          cartRestaurantId: cartRestaurantId,
-          finalRestaurantId: finalRestaurantId,
-          restaurantDataId: restaurantData?._id?.toString(),
-          restaurantDataRestaurantId: restaurantData?.restaurantId,
-          cartRestaurantName: cart[0]?.restaurant,
-          finalRestaurantName: finalRestaurantName
-        });
-        alert('Error: Restaurant information mismatch detected. Please refresh the page and try again.');
-        setIsPlacingOrder(false);
-        return;
-      }
 
       const orderPayload = {
         items: orderItems,
@@ -2068,7 +2012,7 @@ export default function Cart() {
           <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">Your cart is empty</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-center">Add items from a restaurant to start a new order</p>
           <Link to="/user">
-            <Button className="bg-[#7e3866] hover:bg-[#55254b] text-white">Browse Restaurants</Button>
+            <Button className="bg-[#23361A] hover:bg-[#A2B447] text-white">Browse Restaurants</Button>
           </Link>
         </div>
       </AnimatedPage>
@@ -2163,19 +2107,19 @@ export default function Cart() {
                           </div>
 
                           <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
-                            <div className="flex items-center border border-[#7e3866]/30 dark:border-[#7e3866]/40 rounded-lg overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+                            <div className="flex items-center border border-[#23361A]/30 dark:border-[#23361A]/40 rounded-lg overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
                               <button
                                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                className="px-2.5 py-1.5 hover:bg-[#7e3866]/5 text-[#7e3866] transition-colors"
+                                className="px-2.5 py-1.5 hover:bg-[#23361A]/5 text-[#23361A] transition-colors"
                               >
                                 <Minus className="w-3.5 h-3.5" />
                               </button>
-                              <span className="px-2 text-sm md:text-base font-black text-[#7e3866] min-w-[28px] text-center">
+                              <span className="px-2 text-sm md:text-base font-black text-[#23361A] min-w-[28px] text-center">
                                 {item.quantity}
                               </span>
                               <button
                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                className="px-2.5 py-1.5 hover:bg-[#7e3866]/5 text-[#7e3866] transition-colors"
+                                className="px-2.5 py-1.5 hover:bg-[#23361A]/5 text-[#23361A] transition-colors"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                               </button>
@@ -2196,7 +2140,7 @@ export default function Cart() {
                 {/* Add more items */}
                 <button
                   onClick={handleBack}
-                  className="flex items-center gap-2 mt-4 md:mt-6 text-[#7e3866] dark:text-[#7e3866]"
+                  className="flex items-center gap-2 mt-4 md:mt-6 text-[#23361A] dark:text-[#23361A]"
                 >
                   <Plus className="h-4 w-4 md:h-5 md:w-5" />
                   <span className="text-sm md:text-base font-medium">Add more items</span>
@@ -2217,7 +2161,7 @@ export default function Cart() {
                 </div>
                 <button
                   onClick={() => setSendCutlery(!sendCutlery)}
-                  className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border rounded-lg md:rounded-xl text-sm md:text-base h-full ${sendCutlery ? 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300' : 'border-[#7e3866] dark:border-[#7e3866]/50 text-[#7e3866] dark:text-[#7e3866] bg-[#7e386605] dark:bg-[#7e386610]'}`}
+                  className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border rounded-lg md:rounded-xl text-sm md:text-base h-full ${sendCutlery ? 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300' : 'border-[#23361A] dark:border-[#23361A]/50 text-[#23361A] dark:text-[#23361A] bg-[#23361A05] dark:bg-[#23361A10]'}`}
                 >
                   <Utensils className="h-4 w-4 md:h-5 md:w-5" />
                   <span className="whitespace-nowrap">
@@ -2236,7 +2180,7 @@ export default function Cart() {
                     value={restaurantNote}
                     onChange={(e) => setRestaurantNote(e.target.value)}
                     placeholder="Eg. Don't add onions, make it extra spicy, etc."
-                     className="w-full border border-gray-200 dark:border-gray-700 rounded-lg md:rounded-xl p-3 md:p-4 text-sm md:text-base resize-none h-20 md:h-24 focus:outline-none focus:border-[#7e3866] dark:focus:border-[#7e3866] bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-gray-100"
+                     className="w-full border border-gray-200 dark:border-gray-700 rounded-lg md:rounded-xl p-3 md:p-4 text-sm md:text-base resize-none h-20 md:h-24 focus:outline-none focus:border-[#23361A] dark:focus:border-[#23361A] bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-gray-100"
                     maxLength={240}
                   />
                   <div className="mt-2 flex items-center justify-between gap-3">
@@ -2255,7 +2199,7 @@ export default function Cart() {
                 <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
                   <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                     <div className="w-6 h-6 md:w-8 md:h-8 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
-                       <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#7e3866]" />
+                       <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#23361A]" />
                     </div>
                     <span className="text-sm md:text-base font-semibold text-gray-800 dark:text-gray-200">Complete your meal with</span>
                   </div>
@@ -2317,9 +2261,9 @@ export default function Cart() {
                                   restaurantId: cartRestaurantId
                                 });
                               }}
-                               className="absolute bottom-1 md:bottom-2 right-1 md:right-2 w-6 h-6 md:w-7 md:h-7 bg-white border border-[#7e3866] rounded flex items-center justify-center shadow-sm hover:bg-[#7e386605] dark:hover:bg-[#7e386610] transition-colors"
+                               className="absolute bottom-1 md:bottom-2 right-1 md:right-2 w-6 h-6 md:w-7 md:h-7 bg-white border border-[#23361A] rounded flex items-center justify-center shadow-sm hover:bg-[#23361A05] dark:hover:bg-[#23361A10] transition-colors"
                             >
-                               <Plus className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#7e3866]" />
+                               <Plus className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#23361A]" />
                             </button>
                           </div>
                           <p className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200 mt-1.5 md:mt-2 line-clamp-2 leading-tight">{addon.name}</p>
@@ -2347,13 +2291,13 @@ export default function Cart() {
                 {appliedCoupon ? (
                   <div className="px-4 py-3 md:px-6 md:py-4 flex items-center justify-between">
                     <div className="flex items-start gap-3">
-                       <Percent className="h-5 w-5 text-[#7e3866] mt-0.5" />
+                       <Percent className="h-5 w-5 text-[#23361A] mt-0.5" />
                       <div>
                         <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">'{appliedCoupon.code}' applied</p>
-                         <p className="text-xs text-[#7e3866] font-medium mt-0.5">You saved {RUPEE_SYMBOL}{discount}</p>
+                         <p className="text-xs text-[#23361A] font-medium mt-0.5">You saved {RUPEE_SYMBOL}{discount}</p>
                       </div>
                     </div>
-                     <button onClick={handleRemoveCoupon} className="text-[#7e3866] text-xs font-semibold px-2 hover:underline">REMOVE</button>
+                     <button onClick={handleRemoveCoupon} className="text-[#23361A] text-xs font-semibold px-2 hover:underline">REMOVE</button>
                   </div>
                 ) : (
                   /* Available / Input View */
@@ -2369,20 +2313,20 @@ export default function Cart() {
                               {availableCoupons[0].discountDisplay || `Save ${RUPEE_SYMBOL}${availableCoupons[0].discount}`} with '{availableCoupons[0].code}'
                             </p>
                             {availableCoupons[0].customerGroup === "new" ? (
-                               <p className="text-[11px] text-[#7e3866] mb-1">First-time users only</p>
+                               <p className="text-[11px] text-[#23361A] mb-1">First-time users only</p>
                             ) : subtotal < availableCoupons[0].minOrder ? (
                               <p className="text-xs text-blue-600 font-medium mb-1">Add items worth {RUPEE_SYMBOL}{(availableCoupons[0].minOrder - subtotal).toFixed(0)} more to unlock</p>
                             ) : null}
 
                             {availableCoupons.length > 1 && (
-                               <button onClick={() => setShowCoupons(!showCoupons)} className="text-[11px] text-[#7e3866] hover:underline flex items-center mt-1">
+                               <button onClick={() => setShowCoupons(!showCoupons)} className="text-[11px] text-[#23361A] hover:underline flex items-center mt-1">
                                  View all coupons <ChevronRight className="h-3 w-3 ml-0.5" />
                                </button>
                             )}
                           </div>
                         </div>
                         <button
-                           className="border border-[#7e3866] text-[#7e3866] dark:hover:bg-[#7e386610] rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed ml-2 shadow-sm"
+                           className="border border-[#23361A] text-[#23361A] dark:hover:bg-[#23361A10] rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed ml-2 shadow-sm"
                           onClick={() => handleApplyCoupon(availableCoupons[0])}
                           disabled={subtotal < availableCoupons[0].minOrder || (availableCoupons[0].customerGroup === "new" && userOrderCount > 0)}
                         >
@@ -2406,10 +2350,10 @@ export default function Cart() {
                             value={manualCouponCode}
                             onChange={(e) => setManualCouponCode(e.target.value.toUpperCase())}
                             placeholder="Enter coupon code"
-                             className="flex-1 h-9 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0a0a0a] px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#7e3866]"
+                             className="flex-1 h-9 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0a0a0a] px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#23361A]"
                           />
                           <button
-                             className="bg-white dark:bg-[#1a1a1a] border border-[#7e3866] text-[#7e3866] rounded px-4 h-9 text-xs font-semibold uppercase hover:bg-[#7e386605] dark:hover:bg-[#7e386610]"
+                             className="bg-white dark:bg-[#1a1a1a] border border-[#23361A] text-[#23361A] rounded px-4 h-9 text-xs font-semibold uppercase hover:bg-[#23361A05] dark:hover:bg-[#23361A10]"
                             onClick={handleApplyCouponCode}
                           >
                             APPLY
@@ -2424,7 +2368,7 @@ export default function Cart() {
                                   {coupon.discountDisplay || `Save ${RUPEE_SYMBOL}${coupon.discount}`} with '{coupon.code}'
                                 </p>
                                 {coupon.customerGroup === "new" ? (
-                                   <p className="text-[11px] text-[#7e3866] mb-1">First-time users only</p>
+                                   <p className="text-[11px] text-[#23361A] mb-1">First-time users only</p>
                                 ) : subtotal < coupon.minOrder ? (
                                   <p className="text-xs text-blue-600 font-medium mb-1 line-clamp-1">Add items worth {RUPEE_SYMBOL}{(coupon.minOrder - subtotal).toFixed(0)} more to unlock</p>
                                 ) : (
@@ -2485,7 +2429,7 @@ export default function Cart() {
                         max={new Date(Date.now() + 86400000).toLocaleDateString('en-CA')}
                         value={scheduledDate}
                         onChange={(e) => setScheduledDate(e.target.value)}
-                        className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#7e3866]"
+                        className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#23361A]"
                       />
                     </div>
                     <div className="flex-1">
@@ -2495,7 +2439,7 @@ export default function Cart() {
                           <select
                             value={scheduledTime}
                             onChange={(e) => setScheduledTime(e.target.value)}
-                             className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#7e3866] appearance-none pr-8"
+                             className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#23361A] appearance-none pr-8"
                           >
                             {availableTimeSlots.map(slot => (
                               <option key={slot.value} value={slot.value}>{slot.label}</option>
@@ -2517,8 +2461,8 @@ export default function Cart() {
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <div className="flex items-start justify-between w-full text-left">
                   <div className="flex items-start gap-4 flex-1">
-                     <div className="bg-[#7e386605] dark:bg-[#7e386610] p-2 rounded-xl mt-0.5">
-                       <MapPin className="h-5 w-5 text-[#7e3866]" />
+                     <div className="bg-[#23361A05] dark:bg-[#23361A10] p-2 rounded-xl mt-0.5">
+                       <MapPin className="h-5 w-5 text-[#23361A]" />
                      </div>
                     <div className="flex-1">
                         <div className="flex flex-col">
@@ -2543,7 +2487,7 @@ export default function Cart() {
                                 </p>
                               )}
                               <div className="mt-1 flex items-center gap-2">
-                                 <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-semibold bg-[#7e386605] text-[#7e3866] dark:bg-[#7e386610] dark:text-[#7e3866] border border-[#7e3866]/30">
+                                 <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-semibold bg-[#23361A05] text-[#23361A] dark:bg-[#23361A10] dark:text-[#23361A] border border-[#23361A]/30">
                                    GPS enabled
                                  </span>
                               </div>
@@ -2555,7 +2499,7 @@ export default function Cart() {
                           )}
                         </div>
                         {!hasSavedAddress && (
-                           <p className="text-sm text-[#7e3866] mt-2 font-medium">
+                           <p className="text-sm text-[#23361A] mt-2 font-medium">
                              Select a delivery location to continue
                            </p>
                         )}
@@ -2598,7 +2542,7 @@ export default function Cart() {
                                     handleSelectSavedAddress(address)
                                   }}
                                    className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${isSelected
-                                     ? "border-[#7e3866] bg-[#7e386605] dark:bg-[#7e3866]/5"
+                                     ? "border-[#23361A] bg-[#23361A05] dark:bg-[#23361A]/5"
                                      : "border-slate-100 dark:border-gray-800 hover:border-slate-200"
                                      }`}
                                 >
@@ -2612,7 +2556,7 @@ export default function Cart() {
                                       </p>
                                     </div>
                                     {isSelected && (
-                                       <span className="text-[10px] bg-[#7e3866] text-white px-2 py-0.5 rounded uppercase font-bold tracking-wider whitespace-nowrap">
+                                       <span className="text-[10px] bg-[#23361A] text-white px-2 py-0.5 rounded uppercase font-bold tracking-wider whitespace-nowrap">
                                          Selected
                                        </span>
                                     )}
@@ -2627,7 +2571,7 @@ export default function Cart() {
                   <button
                     type="button"
                      onClick={openLocationSelector}
-                     className="p-2 text-[#7e3866] bg-[#7e386605] rounded-full hover:bg-[#7e386610] transition-colors dark:bg-[#7e386615] dark:hover:bg-[#7e386620]"
+                     className="p-2 text-[#23361A] bg-[#23361A05] rounded-full hover:bg-[#23361A10] transition-colors dark:bg-[#23361A15] dark:hover:bg-[#23361A20]"
                      aria-label="Open location selector"
                    >
                      <ChevronRight className="h-5 w-5" />
@@ -2652,7 +2596,7 @@ export default function Cart() {
                   <button
                     type="button"
                     onClick={() => setIsEditingRecipient((prev) => !prev)}
-                     className="text-[#7e3866] text-xs md:text-sm font-semibold whitespace-nowrap"
+                     className="text-[#23361A] text-xs md:text-sm font-semibold whitespace-nowrap"
                   >
                     {isEditingRecipient ? "Done" : "Change"}
                   </button>
@@ -2674,7 +2618,7 @@ export default function Cart() {
                           }))
                         }
                         placeholder="Enter recipient name"
-                         className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111111] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#7e3866]"
+                         className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111111] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#23361A]"
                       />
                     </div>
                     <div>
@@ -2691,7 +2635,7 @@ export default function Cart() {
                           }))
                         }
                         placeholder="Enter recipient phone"
-                         className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111111] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#7e3866]"
+                         className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111111] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#23361A]"
                       />
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -2735,7 +2679,7 @@ export default function Cart() {
 
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
-                       <span className={deliveryFee === 0 ? "text-[#7e3866] font-medium" : "text-gray-800 dark:text-gray-200 font-medium"}>
+                       <span className={deliveryFee === 0 ? "text-[#23361A] font-medium" : "text-gray-800 dark:text-gray-200 font-medium"}>
                          {deliveryFee === 0 ? "FREE" : `${RUPEE_SYMBOL}${deliveryFee.toFixed(2)}`}
                        </span>
                     </div>
@@ -2744,12 +2688,27 @@ export default function Cart() {
                         {deliveryFeeBreakdownText}
                       </div>
                     )}
+                    {isMultiRestaurantOrder && multiRestaurantExtraCharge > 0 && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg p-2.5 -mx-1 mt-1">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+                              Multiple restaurants selected
+                            </p>
+                            <p className="text-[10px] text-amber-800 dark:text-amber-200 mt-0.5">
+                              Extra {RUPEE_SYMBOL}{multiRestaurantExtraCharge} charge applies for multi-restaurant orders
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {Number((pricing?.freeDeliveryUpTo ?? feeSettings.freeDeliveryUpTo) || 0) > 0 && (
                       <div className="-mt-1.5">
-                        <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#7e3866]/10 via-[#7e3866]/20 to-[#7e3866]/10 text-[#7e3866] border border-[#7e3866]/25 px-2.5 py-1 text-[11px] font-semibold shadow-sm animate-pulse">
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#23361A]/10 via-[#23361A]/20 to-[#23361A]/10 text-[#23361A] border border-[#23361A]/25 px-2.5 py-1 text-[11px] font-semibold shadow-sm animate-pulse">
                           <Sparkles className="h-3 w-3" />
                           <span>Free delivery at</span>
-                          <span className="text-[#55254b]">
+                          <span className="text-[#A2B447]">
                             {RUPEE_SYMBOL}{Number((pricing?.freeDeliveryUpTo ?? feeSettings.freeDeliveryUpTo) || 0).toFixed(0)}+
                           </span>
                         </div>
@@ -2768,7 +2727,7 @@ export default function Cart() {
                       <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{gstCharges.toFixed(2)}</span>
                     </div>
                     {discount > 0 && (
-                       <div className="flex justify-between text-sm text-[#7e3866] font-medium">
+                       <div className="flex justify-between text-sm text-[#23361A] font-medium">
                          <span>Coupon Discount</span>
                          <span>-{RUPEE_SYMBOL}{discount.toFixed(2)}</span>
                        </div>
@@ -2776,11 +2735,11 @@ export default function Cart() {
 
                     {/* Platform Pricing Comparison - Bottom */}
                     {platformPricingSavings.hasPlatformPricing && (
-                      <div className="rounded-lg bg-gradient-to-r from-[#7e3866]/5 via-[#7e3866]/12 to-[#7e3866]/5 dark:from-[#7e3866]/10 dark:via-[#7e3866]/15 dark:to-[#7e3866]/10 border border-[#7e3866]/20 p-3 space-y-2 mt-2 shadow-sm animate-pulse">
+                      <div className="rounded-lg bg-gradient-to-r from-[#23361A]/5 via-[#23361A]/12 to-[#23361A]/5 dark:from-[#23361A]/10 dark:via-[#23361A]/15 dark:to-[#23361A]/10 border border-[#23361A]/20 p-3 space-y-2 mt-2 shadow-sm animate-pulse">
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-[#7e3866]" />
-                            <span className="font-semibold text-[#7e3866]">Other platform total</span>
+                            <Sparkles className="h-4 w-4 text-[#23361A]" />
+                            <span className="font-semibold text-[#23361A]">Other platform total</span>
                           </div>
                           <span className="text-gray-700 dark:text-gray-300 font-medium">{RUPEE_SYMBOL}{platformPricingSavings.totalPlatformPrice.toFixed(2)}</span>
                         </div>
@@ -2793,21 +2752,21 @@ export default function Cart() {
                           <span>{RUPEE_SYMBOL}{platformPricingSavings.totalPlatformPriceWithGst.toFixed(2)}</span>
                         </div>
                         {platformPricingSavings.items.length > 0 && (
-                          <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 border-t border-[#7e3866]/15 pt-2">
+                          <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 border-t border-[#23361A]/15 pt-2">
                             {platformPricingSavings.items.slice(0, 2).map((item, idx) => (
                               <div key={idx} className="flex justify-between">
                                 <span>{item.name} x{item.quantity}</span>
-                                <span className="font-medium text-[#7e3866]">-{RUPEE_SYMBOL}{item.savings.toFixed(0)}</span>
+                                <span className="font-medium text-[#23361A]">-{RUPEE_SYMBOL}{item.savings.toFixed(0)}</span>
                               </div>
                             ))}
                             {platformPricingSavings.items.length > 2 && (
-                              <div className="text-center font-semibold text-[#7e3866]">
+                              <div className="text-center font-semibold text-[#23361A]">
                                 +{platformPricingSavings.items.length - 2} more items
                               </div>
                             )}
                           </div>
                         )}
-                        <div className="flex items-center justify-between text-xs font-bold text-white bg-[#7e3866] rounded px-2 py-1.5 -mx-3 -mb-3">
+                        <div className="flex items-center justify-between text-xs font-bold text-white bg-[#23361A] rounded px-2 py-1.5 -mx-3 -mb-3">
                           <span>You save approx</span>
                           <span>{RUPEE_SYMBOL}{platformPricingSavings.totalSavings.toFixed(0)} ({platformPricingSavings.savingsPercentage}%)</span>
                         </div>
@@ -2835,13 +2794,13 @@ export default function Cart() {
               onClick={() => setShowPaymentSheet(true)}
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#7e386610] dark:bg-[#7e386620] flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-[#23361A10] dark:bg-[#23361A20] flex items-center justify-center flex-shrink-0">
                    {selectedPaymentMethod === "wallet" ? (
-                    <Wallet className="h-5 w-5 text-[#7e3866]" />
+                    <Wallet className="h-5 w-5 text-[#23361A]" />
                   ) : selectedPaymentMethod === "razorpay" ? (
-                    <Zap className="h-5 w-5 text-[#7e3866]" />
+                    <Zap className="h-5 w-5 text-[#23361A]" />
                   ) : (
-                    <Banknote className="h-5 w-5 text-[#7e3866]" />
+                    <Banknote className="h-5 w-5 text-[#23361A]" />
                   )}
                 </div>
                 <div className="leading-tight">
@@ -2861,7 +2820,7 @@ export default function Cart() {
                 </div>
               </div>
 
-               <div className="flex items-center gap-0.5 text-[#7e3866] font-bold text-[11px] uppercase tracking-widest bg-[#7e386605] dark:bg-[#7e386610] px-2.5 py-1 rounded-lg">
+               <div className="flex items-center gap-0.5 text-[#23361A] font-bold text-[11px] uppercase tracking-widest bg-[#23361A05] dark:bg-[#23361A10] px-2.5 py-1 rounded-lg">
                 CHANGE <ChevronRight className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -2870,7 +2829,7 @@ export default function Cart() {
             <button
               onClick={handlePlaceOrder}
               disabled={isPlacingOrder || (selectedPaymentMethod === "wallet" && walletBalance < total)}
-              className="w-full bg-gradient-to-r from-[#7e3866] to-[#55254b] hover:from-[#55254b] hover:to-[#3c0f3d] text-white px-6 h-12 md:h-14 rounded-2xl font-bold shadow-lg shadow-[#7e3866]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between transition-transform active:scale-[0.98]"
+              className="w-full bg-gradient-to-r from-[#23361A] to-[#A2B447] hover:from-[#A2B447] hover:to-[#1a2614] text-white px-6 h-12 md:h-14 rounded-2xl font-bold shadow-lg shadow-[#23361A]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between transition-transform active:scale-[0.98]"
             >
               {(selectedPaymentMethod === "razorpay" || selectedPaymentMethod === "wallet" || selectedPaymentMethod === "cash") && (
                 <div className="text-left flex flex-col justify-center border-r-[1.5px] border-white/20 pr-4">
@@ -2947,7 +2906,7 @@ export default function Cart() {
                   <div className="relative mb-6">
                     <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                         className="h-full bg-gradient-to-r from-[#7e3866] to-[#55254b] rounded-full transition-all duration-100 ease-linear"
+                         className="h-full bg-gradient-to-r from-[#23361A] to-[#A2B447] rounded-full transition-all duration-100 ease-linear"
                         style={{
                            width: `${orderProgress}%`,
                            boxShadow: '0 0 10px rgba(126, 56, 102, 0.5)'
@@ -2973,7 +2932,7 @@ export default function Cart() {
                     }}
                     className="w-full text-right"
                   >
-                    <span className="text-[#7e3866] font-semibold text-base hover:text-[#55254b] transition-colors">
+                    <span className="text-[#23361A] font-semibold text-base hover:text-[#A2B447] transition-colors">
                       CANCEL
                     </span>
                   </button>
@@ -3067,7 +3026,7 @@ export default function Cart() {
                     style={{
                       left: `${Math.random() * 100}%`,
                       top: `-10%`,
-                      backgroundColor: ['#7e3866', '#3b82f6', '#f59e0b', '#ef4444', '#55254b', '#ec4899'][Math.floor(Math.random() * 6)],
+                      backgroundColor: ['#23361A', '#3b82f6', '#f59e0b', '#ef4444', '#A2B447', '#ec4899'][Math.floor(Math.random() * 6)],
                       animation: `confettiFall ${2 + Math.random() * 2}s linear ${Math.random() * 2}s infinite`,
                       transform: `rotate(${Math.random() * 360}deg)`,
                     }}
@@ -3145,10 +3104,10 @@ export default function Cart() {
                   className="mt-12 text-center"
                   style={{ animation: 'slideUp 0.5s ease-out 0.8s both' }}
                 >
-                  <h3 className="text-3xl font-bold text-[#7e3866] dark:text-[#a65d8a] mb-2">Order Placed!</h3>
+                  <h3 className="text-3xl font-bold text-[#23361A] dark:text-[#B4D957] mb-2">Order Placed!</h3>
                   <p className="text-gray-600 dark:text-gray-300">Your delicious food is on its way</p>
                   {orderSuccessSavingsAmount > 0 && (
-                    <p className="mt-2 text-sm text-[#7e3866] dark:text-[#a65d8a]">
+                    <p className="mt-2 text-sm text-[#23361A] dark:text-[#B4D957]">
                       You save approx {RUPEE_SYMBOL}{orderSuccessSavingsAmount.toFixed(0)} on this order
                     </p>
                   )}
@@ -3157,17 +3116,17 @@ export default function Cart() {
                 {/* Platform Pricing Savings Celebration */}
                 {platformPricingSavings.hasPlatformPricing && platformPricingSavings.totalSavings > 0 && (
                   <motion.div
-                    className="mt-8 w-full max-w-sm bg-gradient-to-br from-[#7e3866]/10 to-[#7e3866]/5 dark:from-[#7e3866]/20 dark:to-[#7e3866]/10 border border-[#7e3866]/30 rounded-2xl p-4"
+                    className="mt-8 w-full max-w-sm bg-gradient-to-br from-[#23361A]/10 to-[#23361A]/5 dark:from-[#23361A]/20 dark:to-[#23361A]/10 border border-[#23361A]/30 rounded-2xl p-4"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.6, delay: 1.0 }}
                   >
                     <div className="flex items-center justify-center gap-2 mb-3">
-                      <Sparkles className="h-5 w-5 text-[#7e3866]" />
-                      <span className="font-bold text-[#7e3866]">You Saved on this Order</span>
+                      <Sparkles className="h-5 w-5 text-[#23361A]" />
+                      <span className="font-bold text-[#23361A]">You Saved on this Order</span>
                     </div>
                     <div className="text-center space-y-1">
-                      <div className="text-4xl font-black text-[#7e3866]">
+                      <div className="text-4xl font-black text-[#23361A]">
                         {RUPEE_SYMBOL}{platformPricingSavings.totalSavings.toFixed(0)}
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -3183,7 +3142,7 @@ export default function Cart() {
                 {/* Action Button */}
                  <button
                   onClick={handleGoToOrders}
-                  className="mt-10 bg-[#7e3866] hover:bg-[#55254b] text-white font-semibold py-4 px-12 rounded-xl shadow-lg shadow-[#7e3866]/20 dark:shadow-[#7e3866]/40 transition-all hover:shadow-xl hover:scale-105"
+                  className="mt-10 bg-[#23361A] hover:bg-[#A2B447] text-white font-semibold py-4 px-12 rounded-xl shadow-lg shadow-[#23361A]/20 dark:shadow-[#23361A]/40 transition-all hover:shadow-xl hover:scale-105"
                   style={{ animation: 'slideUp 0.5s ease-out 1s both' }}
                 >
                   Track Your Order
@@ -3255,8 +3214,8 @@ export default function Cart() {
                           name: 'Cash on Delivery',
                           description: 'Pay when order arrives',
                           icon: <Banknote className="w-5 h-5" />,
-                          color: 'bg-orange-50 text-#55254b dark:bg-orange-900/40 dark:text-orange-400',
-                          selectedColor: 'bg-[#7e3866] text-white'
+                          color: 'bg-orange-50 text-#A2B447 dark:bg-orange-900/40 dark:text-orange-400',
+                          selectedColor: 'bg-[#23361A] text-white'
                         }
                       ].map((option) => (
                         <button
@@ -3268,8 +3227,8 @@ export default function Cart() {
                             }
                           }}
                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-300 group ${selectedPaymentMethod === option.id
-                               ? 'border-[#7e3866] bg-[#7e3866] shadow-lg shadow-[#7e3866]/30'
-                               : 'border-gray-100 dark:border-gray-800/80 bg-white dark:bg-[#222222] hover:border-[#7e3866]/30 dark:hover:border-[#7e3866]/30 shadow-sm'
+                               ? 'border-[#23361A] bg-[#23361A] shadow-lg shadow-[#23361A]/30'
+                               : 'border-gray-100 dark:border-gray-800/80 bg-white dark:bg-[#222222] hover:border-[#23361A]/30 dark:hover:border-[#23361A]/30 shadow-sm'
                              } ${option.disabled ? 'opacity-40 grayscale-[0.8] cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'}`}
                         >
                           <div className="flex items-center gap-4">
@@ -3322,7 +3281,7 @@ export default function Cart() {
                               ? 'bg-white border-white'
                               : 'border-gray-200 dark:border-gray-700'
                             }`}>
-                             {selectedPaymentMethod === option.id && <Check className="w-3.5 h-3.5 text-[#7e3866]" strokeWidth={4} />}
+                             {selectedPaymentMethod === option.id && <Check className="w-3.5 h-3.5 text-[#23361A]" strokeWidth={4} />}
                            </div>
                         </button>
                       ))}
@@ -3334,11 +3293,11 @@ export default function Cart() {
                     >
                       <div className="flex-shrink-0">
                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Total Pay</p>
-                         <p className="text-xl font-black text-[#7e3866] tabular-nums">{RUPEE_SYMBOL}{total.toFixed(0)}</p>
+                         <p className="text-xl font-black text-[#23361A] tabular-nums">{RUPEE_SYMBOL}{total.toFixed(0)}</p>
                        </div>
                        <Button
                         onClick={() => setShowPaymentSheet(false)}
-                        className="flex-1 bg-[#7e3866] hover:bg-[#55254b] text-white h-11 rounded-xl text-sm font-bold shadow-lg shadow-[#7e3866]/20 transition-all active:scale-[0.98]"
+                        className="flex-1 bg-[#23361A] hover:bg-[#A2B447] text-white h-11 rounded-xl text-sm font-bold shadow-lg shadow-[#23361A]/20 transition-all active:scale-[0.98]"
                       >
                         Confirm Order
                       </Button>
@@ -3512,3 +3471,6 @@ export default function Cart() {
     </div>
   )
 }      
+
+export default Cart
+

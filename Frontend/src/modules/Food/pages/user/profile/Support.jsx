@@ -365,3 +365,4 @@ export default function Support() {
     </AnimatedPage>
   )
 }
+

@@ -397,13 +397,43 @@ export default function DeliveryWithdrawal() {
                 )}
               </div>
             )}
-            <DialogFooter className="px-6 pb-6">
+            <DialogFooter className="px-6 pb-6 flex gap-2 justify-end">
               <button
                 onClick={() => setIsViewOpen(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-all"
               >
                 Close
               </button>
+              {selectedRequest?.status === "Pending" && (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsViewOpen(false)
+                      setShowRejectModal(true)
+                    }}
+                    disabled={processingAction === selectedRequest.id}
+                    className="px-4 py-2 text-sm font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all flex items-center gap-2"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleApprove(selectedRequest.id)
+                      setIsViewOpen(false)
+                    }}
+                    disabled={processingAction === selectedRequest.id}
+                    className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all flex items-center gap-2"
+                  >
+                    {processingAction === selectedRequest.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Approve
+                  </button>
+                </>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -453,4 +483,5 @@ export default function DeliveryWithdrawal() {
     </div>
   )
 }
+
 

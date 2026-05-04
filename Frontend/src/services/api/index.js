@@ -321,6 +321,12 @@ export const adminAPI = {
     }),
   getDeliveryPartnerById: (id) =>
     apiClient.get(`/food/admin/delivery/${id}`, { contextModule: "admin" }),
+  updateDeliveryPartner: (id, body) =>
+    apiClient.patch(`/food/admin/delivery/${id}`, body ?? {}, { contextModule: "admin" }),
+  getDeliveryBoySettings: () =>
+    apiClient.get('/food/admin/delivery-boy-settings', { contextModule: "admin" }),
+  updateDeliveryBoySettings: (body) =>
+    apiClient.put('/food/admin/delivery-boy-settings', body ?? {}, { contextModule: "admin" }),
   approveDeliveryPartner: (id) =>
     apiClient.patch(
       `/food/admin/delivery/${String(id)}/approve`,
@@ -1842,6 +1848,14 @@ export const deliveryAPI = {
     apiClient.patch(
       `/food/delivery/orders/${String(orderId)}/accept`,
       body ?? {},
+      {
+        contextModule: "delivery",
+      },
+    ),
+  resendOrderToRestaurant: (orderId) =>
+    apiClient.post(
+      `/food/delivery/orders/${String(orderId)}/resend-to-restaurant`,
+      {},
       {
         contextModule: "delivery",
       },

@@ -27,3 +27,4 @@ export const GlassCard = ({ children, className, priority = 'normal', ...props }
     </motion.div>
   );
 };
+

@@ -115,3 +115,4 @@ export const ProfileBankV2 = () => {
     </div>
   );
 };
+

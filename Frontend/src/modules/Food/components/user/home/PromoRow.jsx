@@ -76,3 +76,4 @@ export default function PromoRow({ handleVegModeChange, navigate, isVegMode, tog
     </div>
   );
 }
+

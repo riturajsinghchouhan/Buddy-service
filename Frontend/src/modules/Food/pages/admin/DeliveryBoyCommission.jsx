@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react"
-import { Search, Edit, Trash2, IndianRupee, Settings, Check, Columns, MapPin, Loader2 } from "lucide-react"
+import { Search, Edit, Trash2, IndianRupee, Settings, Check, Columns, MapPin, Loader2, Save, Plus } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { adminAPI } from "@food/api"
 import { API_BASE_URL } from "@food/api/config"
@@ -19,6 +19,20 @@ export default function DeliveryBoyCommission() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [selectedCommission, setSelectedCommission] = useState(null)
+  
+  // Delivery Boy Settings state
+  const [deliveryBoySettings, setDeliveryBoySettings] = useState({
+    adminCommissionPercentage: 0,
+    weeklySalarySlabs: [],
+    monthlySalarySlabs: [],
+    multiOrderEnabled: false,
+    multiOrderMaxDistance: 3,
+    multiOrderAdditionalCharge: 0
+  })
+  const [loadingSettings, setLoadingSettings] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [activeTab, setActiveTab] = useState('weekly')
+  
   const [formData, setFormData] = useState({
     name: "",
     minDistance: "",
@@ -81,10 +95,89 @@ export default function DeliveryBoyCommission() {
     return calculateTotalCommission(commission, midDistance)
   }
 
-  // Fetch commission rules on component mount
+  // Fetch commission rules and settings on component mount
   useEffect(() => {
     fetchCommissionRules()
+    fetchDeliveryBoySettings()
   }, [])
+
+  const fetchDeliveryBoySettings = async () => {
+    try {
+      setLoadingSettings(true)
+      const response = await adminAPI.getDeliveryBoySettings()
+      if (response.data.success && response.data.data) {
+        setDeliveryBoySettings({
+          adminCommissionPercentage: response.data.data.adminCommissionPercentage || 0,
+          weeklySalarySlabs: response.data.data.weeklySalarySlabs || [],
+          monthlySalarySlabs: response.data.data.monthlySalarySlabs || [],
+          multiOrderEnabled: response.data.data.multiOrderEnabled || false,
+          multiOrderMaxDistance: response.data.data.multiOrderMaxDistance || 0,
+          multiOrderAdditionalCharge: response.data.data.multiOrderAdditionalCharge || 0
+        })
+      }
+    } catch (error) {
+      debugError('Error fetching settings:', error)
+    } finally {
+      setLoadingSettings(false)
+    }
+  }
+
+  const saveDeliveryBoySettings = async () => {
+    try {
+      setSavingSettings(true)
+      
+      // Sanitize slabs: remove empty ones and ensure numbers
+      const sanitizeSlabs = (slabs) => slabs
+        .filter(s => s.orderCount !== "" && s.salaryAmount !== "")
+        .map(s => ({
+          orderCount: Number(s.orderCount),
+          salaryAmount: Number(s.salaryAmount)
+        }))
+
+      const payload = {
+        adminCommissionPercentage: Number(deliveryBoySettings.adminCommissionPercentage) || 0,
+        multiOrderEnabled: Boolean(deliveryBoySettings.multiOrderEnabled),
+        multiOrderMaxDistance: Number(deliveryBoySettings.multiOrderMaxDistance) || 0,
+        multiOrderAdditionalCharge: Number(deliveryBoySettings.multiOrderAdditionalCharge) || 0,
+        weeklySalarySlabs: sanitizeSlabs(deliveryBoySettings.weeklySalarySlabs),
+        monthlySalarySlabs: sanitizeSlabs(deliveryBoySettings.monthlySalarySlabs)
+      }
+
+      const response = await adminAPI.updateDeliveryBoySettings(payload)
+      if (response.data.success) {
+        toast.success('Settings saved successfully')
+        // Refresh with sanitized data
+        fetchDeliveryBoySettings()
+      }
+    } catch (error) {
+      debugError('Error saving settings:', error)
+      toast.error('Failed to save settings')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const addSalarySlab = (type) => {
+    const key = type === 'weekly' ? 'weeklySalarySlabs' : 'monthlySalarySlabs'
+    setDeliveryBoySettings(prev => ({
+      ...prev,
+      [key]: [...prev[key], { orderCount: '', salaryAmount: '' }]
+    }))
+  }
+
+  const updateSalarySlab = (type, index, field, value) => {
+    const key = type === 'weekly' ? 'weeklySalarySlabs' : 'monthlySalarySlabs'
+    const newSlabs = [...deliveryBoySettings[key]]
+    newSlabs[index][field] = value
+    setDeliveryBoySettings(prev => ({ ...prev, [key]: newSlabs }))
+  }
+
+  const removeSalarySlab = (type, index) => {
+    const key = type === 'weekly' ? 'weeklySalarySlabs' : 'monthlySalarySlabs'
+    const newSlabs = [...deliveryBoySettings[key]]
+    newSlabs.splice(index, 1)
+    setDeliveryBoySettings(prev => ({ ...prev, [key]: newSlabs }))
+  }
 
   const fetchCommissionRules = async () => {
     try {
@@ -405,10 +498,126 @@ export default function DeliveryBoyCommission() {
 
           <div className="flex items-center gap-2">
               <button
-                onClick={handleAdd}
-                className="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={saveDeliveryBoySettings}
+                disabled={savingSettings}
+                className="px-4 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-all shadow-sm disabled:opacity-50 flex items-center gap-2"
               >
-                Add Rule
+                {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save All Settings
+              </button>
+            </div>
+          </div>
+
+          {/* Delivery Boy Settings Section */}
+          <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6 border-b border-slate-200 pb-8">
+            {/* Admin Commission */}
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 mb-2">Admin Commission (Per Order)</h2>
+              <p className="text-sm text-slate-600 mb-4">
+                Deducted from the total delivery earning for partners on the <strong>per_order</strong> model.
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-[200px]">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={deliveryBoySettings.adminCommissionPercentage}
+                    onChange={(e) => setDeliveryBoySettings({...deliveryBoySettings, adminCommissionPercentage: e.target.value})}
+                    className="w-full pl-4 pr-8 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold">%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Multi-Restaurant Order Settings */}
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 mb-2">Multi-Restaurant Settings</h2>
+              <div className="flex items-center justify-between mb-4">
+                 <span className="text-sm text-slate-600">Enable Multi-Restaurant Orders</span>
+                 <button
+                    onClick={() => setDeliveryBoySettings({...deliveryBoySettings, multiOrderEnabled: !deliveryBoySettings.multiOrderEnabled})}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      deliveryBoySettings.multiOrderEnabled ? "bg-blue-600" : "bg-slate-300"
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      deliveryBoySettings.multiOrderEnabled ? "translate-x-6" : "translate-x-1"
+                    }`} />
+                 </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Max Distance (KM)</label>
+                   <input
+                    type="number"
+                    value={deliveryBoySettings.multiOrderMaxDistance}
+                    onChange={(e) => setDeliveryBoySettings({...deliveryBoySettings, multiOrderMaxDistance: e.target.value})}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="3"
+                  />
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Extra Charge (₹)</label>
+                   <input
+                    type="number"
+                    value={deliveryBoySettings.multiOrderAdditionalCharge}
+                    onChange={(e) => setDeliveryBoySettings({...deliveryBoySettings, multiOrderAdditionalCharge: e.target.value})}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Salary Slabs */}
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg font-bold text-slate-900">Salary Slabs</h2>
+                <div className="flex bg-white rounded-lg p-1 border border-slate-200">
+                  <button onClick={() => setActiveTab('weekly')} className={`px-3 py-1 text-sm font-medium rounded-md ${activeTab === 'weekly' ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>Weekly</button>
+                  <button onClick={() => setActiveTab('monthly')} className={`px-3 py-1 text-sm font-medium rounded-md ${activeTab === 'monthly' ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}>Monthly</button>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 mb-4">
+                Fixed salary configuration for partners on the <strong>salary</strong> model based on order count.
+              </p>
+
+              <div className="space-y-3 mb-4 max-h-[200px] overflow-y-auto pr-2">
+                {(activeTab === 'weekly' ? deliveryBoySettings.weeklySalarySlabs : deliveryBoySettings.monthlySalarySlabs).map((slab, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <input type="number" placeholder="Orders" value={slab.orderCount} onChange={e => updateSalarySlab(activeTab, i, 'orderCount', e.target.value)} className="w-full px-3 py-2 text-sm border rounded outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <span className="text-slate-500 text-sm font-medium">orders = </span>
+                    <div className="flex-1 relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">₹</span>
+                      <input type="number" placeholder="Salary" value={slab.salaryAmount} onChange={e => updateSalarySlab(activeTab, i, 'salaryAmount', e.target.value)} className="w-full pl-6 pr-3 py-2 text-sm border rounded outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <button onClick={() => removeSalarySlab(activeTab, i)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                  </div>
+                ))}
+                {(activeTab === 'weekly' ? deliveryBoySettings.weeklySalarySlabs : deliveryBoySettings.monthlySalarySlabs).length === 0 && (
+                  <p className="text-sm text-slate-400 text-center py-4">No {activeTab} salary slabs configured</p>
+                )}
+              </div>
+              <button onClick={() => addSalarySlab(activeTab)} className="w-full py-2 border-2 border-dashed border-blue-200 text-blue-600 font-medium text-sm rounded-lg hover:bg-blue-50 flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4"/> Add Slab
+              </button>
+            </div>
+          </div>
+
+          {/* Distance Rule Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h2 className="text-xl font-bold text-slate-900">Delivery Boy Distance Commission Rules</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAdd}
+                className="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm"
+              >
+                Add Distance Rule
               </button>
               <button 
                 onClick={() => setIsSettingsOpen(true)}
@@ -426,11 +635,11 @@ export default function DeliveryBoyCommission() {
               <div className="text-sm text-slate-700">
                 <p className="font-semibold text-blue-900 mb-1">Fixed + Extra Distance Commission</p>
                 <p className="text-slate-600">
-                  Commission is calculated as: <strong>Base payout for 0-{formulaMinDistance} km + Extra per km after {formulaMinDistance} km</strong>.
-                  Example: if base is ₹25 and extra is ₹5/km, then 6 km earns ₹25 + (2 x ₹5) = ₹35.
+                  Commission is calculated as: <strong>Base payout + Extra per km after minimum distance</strong>.
+                  Example: if base is ₹45 and extra is ₹7/km after 3 km, then 10 km earns ₹45 + (7 x ₹7) = ₹94.
                 </p>
                 <p className="text-slate-600 mt-1">
-                  Only the slab with <strong>min distance = 0</strong> can have a base payout. All other slabs should keep base payout set to 0 and use only amount per km.
+                  You can now set a <strong>Base Payout</strong> for any distance slab to ensure smooth earnings transitions.
                 </p>
               </div>
             </div>
@@ -802,5 +1011,6 @@ export default function DeliveryBoyCommission() {
     </div>
   )
 }
+
 
 

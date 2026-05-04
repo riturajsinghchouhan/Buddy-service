@@ -15,6 +15,7 @@ import { FoodEarningAddonHistory } from '../models/earningAddonHistory.model.js'
 import { FoodRestaurantCommission } from '../models/restaurantCommission.model.js';
 import { FoodDeliveryCommissionRule } from '../models/deliveryCommissionRule.model.js';
 import { FoodFeeSettings } from '../models/feeSettings.model.js';
+import { FoodDeliveryBoySettings } from '../models/deliveryBoySettings.model.js';
 import { FeedbackExperience } from '../models/feedbackExperience.model.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { FoodRefreshToken } from '../../../../core/refreshTokens/refreshToken.model.js';
@@ -1672,36 +1673,50 @@ export async function getDeliveryCommissionRules() {
 }
 
 function validateCommissionRuleSet(rules) {
+    // 1. Filter active rules
     const active = (rules || []).filter((r) => r && r.status !== false);
-    if (!active.length) {
-        throw new ValidationError('A base slab with minDistance = 0 is required');
-    }
+    
+    // 2. Base slab check (minDistance = 0)
     const baseRules = active.filter((r) => Number(r.minDistance || 0) === 0);
-    if (baseRules.length !== 1) {
+    if (baseRules.length === 0) {
         throw new ValidationError('A base slab with minDistance = 0 is required');
     }
+    if (baseRules.length > 1) {
+        throw new ValidationError('Only one base slab (minDistance = 0) is allowed. Please update the existing one instead.');
+    }
+
+    // 3. Sort rules by distance
     const sorted = [...active].sort((a, b) => Number(a.minDistance || 0) - Number(b.minDistance || 0));
+
+    // 4. Overlap & Sequence check
     for (let i = 0; i < sorted.length; i += 1) {
         const current = sorted[i];
         const min = Number(current.minDistance || 0);
         const max = current.maxDistance == null ? null : Number(current.maxDistance);
+
         if (max != null && max <= min) {
-            throw new ValidationError('maxDistance must be greater than minDistance');
+            throw new ValidationError(`Rule ${current.name || i+1}: maxDistance (${max}) must be greater than minDistance (${min})`);
         }
+
         if (i > 0) {
             const prev = sorted[i - 1];
             const prevMin = Number(prev.minDistance || 0);
             const prevMax = prev.maxDistance == null ? null : Number(prev.maxDistance);
             const effectivePrevMax = prevMax == null ? Infinity : prevMax;
-            if (min < effectivePrevMax) {
-                throw new ValidationError('Distance slabs must not overlap');
-            }
+
+            // Check if this min matches previous min
             if (min === prevMin) {
-                throw new ValidationError('Distance slabs must not share the same minDistance');
+                throw new ValidationError(`Duplicate rule found for distance ${min} km. Please edit the existing rule instead.`);
+            }
+
+            // Check for overlap
+            if (min < effectivePrevMax) {
+                throw new ValidationError(`Rule overlap detected: The slab starting at ${min} km starts before the previous slab ends (at ${effectivePrevMax} km).`);
             }
         }
     }
 }
+
 
 export async function createDeliveryCommissionRule(body) {
     const existing = await FoodDeliveryCommissionRule.find({}).lean();
@@ -3138,10 +3153,6 @@ export async function createFood(body) {
         name,
         description: typeof body.description === 'string' ? body.description.trim() : '',
         price,
-        priceOnOtherPlatforms: body.priceOnOtherPlatforms ? Number(body.priceOnOtherPlatforms) : null,
-        otherPlatformGst: body.otherPlatformGst !== undefined && body.otherPlatformGst !== null
-            ? Number(body.otherPlatformGst)
-            : null,
         variants,
         image: typeof body.image === 'string' ? body.image.trim() : '',
         foodType,
@@ -3172,12 +3183,6 @@ export async function updateFood(id, body) {
     const pricingUpdate = getAdminFoodUpdatedPricing(doc.toObject(), body);
     if (pricingUpdate.price !== undefined) doc.price = pricingUpdate.price;
     if (pricingUpdate.variants !== undefined) doc.variants = pricingUpdate.variants;
-    if (body.priceOnOtherPlatforms !== undefined) doc.priceOnOtherPlatforms = body.priceOnOtherPlatforms ? Number(body.priceOnOtherPlatforms) : null;
-    if (body.otherPlatformGst !== undefined) {
-        doc.otherPlatformGst = body.otherPlatformGst !== null && body.otherPlatformGst !== ''
-            ? Number(body.otherPlatformGst)
-            : null;
-    }
     if (body.image !== undefined) doc.image = String(body.image || '').trim();
     if (body.foodType !== undefined) doc.foodType = targetFoodType;
     if (body.isAvailable !== undefined) doc.isAvailable = body.isAvailable !== false;
@@ -4388,6 +4393,15 @@ export async function getDeliveryPartnerById(id) {
     };
 }
 
+export async function updateDeliveryPartner(id, payload) {
+    const partner = await FoodDeliveryPartner.findByIdAndUpdate(
+        id,
+        { $set: payload },
+        { new: true, runValidators: true }
+    ).lean();
+    return partner;
+}
+
 export async function getDeliverymanReviews(query = {}) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -5031,3 +5045,44 @@ export async function getSidebarBadges() {
     }
 }
 
+export async function getDeliveryBoySettings() {
+    let settings = await FoodDeliveryBoySettings.findOne({ isActive: true })
+        .sort({ createdAt: -1 })
+        .lean();
+    if (!settings) {
+        settings = await FoodDeliveryBoySettings.findOne()
+            .sort({ createdAt: -1 })
+            .lean();
+    }
+    if (!settings) {
+        return {
+            adminCommissionPercentage: 0,
+            weeklySalarySlabs: [],
+            monthlySalarySlabs: [],
+            multiOrderEnabled: false,
+            multiOrderMaxDistance: 3,
+            multiOrderAdditionalCharge: 0
+        };
+    }
+    return settings;
+}
+
+export async function upsertDeliveryBoySettings(data) {
+    const updatePayload = {};
+    if (data.adminCommissionPercentage !== undefined) updatePayload.adminCommissionPercentage = Number(data.adminCommissionPercentage) || 0;
+    if (data.weeklySalarySlabs !== undefined) updatePayload.weeklySalarySlabs = data.weeklySalarySlabs;
+    if (data.monthlySalarySlabs !== undefined) updatePayload.monthlySalarySlabs = data.monthlySalarySlabs;
+    if (data.multiOrderEnabled !== undefined) updatePayload.multiOrderEnabled = Boolean(data.multiOrderEnabled);
+    if (data.multiOrderMaxDistance !== undefined) updatePayload.multiOrderMaxDistance = Number(data.multiOrderMaxDistance) || 0;
+    if (data.multiOrderAdditionalCharge !== undefined) updatePayload.multiOrderAdditionalCharge = Number(data.multiOrderAdditionalCharge) || 0;
+    if (data.isActive !== undefined) updatePayload.isActive = Boolean(data.isActive);
+    if (updatePayload.isActive === undefined) updatePayload.isActive = true;
+
+    const settings = await FoodDeliveryBoySettings.findOneAndUpdate(
+        {},
+        { $set: updatePayload },
+        { new: true, upsert: true }
+    ).lean();
+
+    return settings;
+}

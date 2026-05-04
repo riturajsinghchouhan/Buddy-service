@@ -23,3 +23,4 @@ export default function AnimatedGradient({ children, className = "" }) {
     </div>
   )
 }
+

@@ -22,3 +22,4 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
 
   return <>{children}</>
 }
+

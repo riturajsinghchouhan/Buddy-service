@@ -1854,3 +1854,4 @@ export default function LandingPageSettings({ type = "admin" }) {
   );
 }
 
+

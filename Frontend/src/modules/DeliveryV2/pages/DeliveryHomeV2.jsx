@@ -14,6 +14,7 @@ import { NewOrderModal } from '@/modules/DeliveryV2/components/modals/NewOrderMo
 import { PickupActionModal } from '@/modules/DeliveryV2/components/modals/PickupActionModal';
 import { DeliveryVerificationModal } from '@/modules/DeliveryV2/components/modals/DeliveryVerificationModal';
 import { OrderSummaryModal } from '@/modules/DeliveryV2/components/modals/OrderSummaryModal';
+import { RejectedOrderModal } from '@/modules/DeliveryV2/components/modals/RejectedOrderModal';
 import ActionSlider from '@/modules/DeliveryV2/components/ui/ActionSlider';
 
 // Sub Pages
@@ -662,6 +663,16 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       if (orderStatusUpdate.status === 'cancelled') {
         toast.error('Order cancelled');
         resetTrip();
+      } else if (orderStatusUpdate.orderStatus === 'rejected_by_restaurant' || orderStatusUpdate.status === 'rejected_by_restaurant') {
+        // Update active order to reflect the rejection (and count)
+        if (activeOrder && (activeOrder._id === orderStatusUpdate.orderId || activeOrder.orderId === orderStatusUpdate.orderId)) {
+            setActiveOrder({
+                ...activeOrder,
+                orderStatus: 'rejected_by_restaurant',
+                restaurantRejectionCount: orderStatusUpdate.restaurantRejectionCount || (activeOrder.restaurantRejectionCount || 0) + 1
+            });
+            toast.warning('Restaurant rejected the order. You can try resending.');
+        }
       }
       clearOrderStatusUpdate();
     }
@@ -1068,6 +1079,17 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   />
                 )}
                 {tripStatus === 'COMPLETED' && <OrderSummaryModal order={activeOrder} onDone={resetTrip} />}
+                {activeOrder?.orderStatus === 'rejected_by_restaurant' && (
+                  <RejectedOrderModal 
+                    order={activeOrder} 
+                    onResent={(updated) => {
+                      setActiveOrder(updated);
+                      // After resending, we set it back to PICKING_UP so it shows the map/pickup UI
+                      updateTripStatus('PICKING_UP');
+                    }}
+                    onMinimize={() => setIsModalMinimized(true)}
+                  />
+                )}
               </div>
             </motion.div>
           )}
@@ -1219,3 +1241,4 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     </div>
   );
 }
+

@@ -80,6 +80,7 @@ const DeliveryTrackingMap = ({
   orderTrackingIds = [],
   restaurantCoords,
   customerCoords,
+  pickups = [],
   order = null,
   onEtaUpdate = null
 }) => {
@@ -273,7 +274,7 @@ const DeliveryTrackingMap = ({
   // 5. Smart camera: fit bounds
   const lastCameraUpdateRef = useRef({ time: 0, status: null });
   useEffect(() => {
-    if (!map || !restaurantCoords || !customerCoords || !isLoaded) return;
+    if (!map || !customerCoords || !isLoaded) return;
 
     const now = Date.now();
     const statusChanged = lastCameraUpdateRef.current.status !== isOrderPickedUp;
@@ -283,13 +284,23 @@ const DeliveryTrackingMap = ({
     lastCameraUpdateRef.current = { time: now, status: isOrderPickedUp };
 
     const bounds = new window.google.maps.LatLngBounds();
-    bounds.extend(restaurantCoords);
+    
+    if (pickups && pickups.length > 0) {
+      pickups.forEach(p => {
+        const coords = p.location?.coordinates;
+        if (Array.isArray(coords) && coords.length >= 2) {
+          bounds.extend({ lat: Number(coords[1]), lng: Number(coords[0]) });
+        }
+      });
+    } else if (restaurantCoords) {
+      bounds.extend(restaurantCoords);
+    }
+    
     bounds.extend(customerCoords);
     if (riderLocation) bounds.extend(riderLocation);
 
     map.fitBounds(bounds, { top: 100, bottom: 120, left: 60, right: 60 });
-    debugLog(`[Camera] Focusing on ${isOrderPickedUp ? 'Delivery' : 'Pickup'} leg`);
-  }, [map, riderLocation, restaurantCoords, customerCoords, isOrderPickedUp, isLoaded]);
+  }, [map, riderLocation, restaurantCoords, customerCoords, isOrderPickedUp, isLoaded, pickups]);
 
   // 6. Baseline Directions callback — stores the overview_path as fullRoutePath
   const baselineDirectionsCallback = useCallback((result, status) => {
@@ -298,7 +309,6 @@ const DeliveryTrackingMap = ({
       const plain = rawPath.map(normPt).filter(Boolean);
       if (plain.length > 1) {
         setFullRoutePath(plain);
-        debugLog(`✅ Baseline route stored: ${plain.length} points`);
       }
       // Also extract ETA from baseline if no real-time ETA yet
       const durationText = result?.routes?.[0]?.legs?.[0]?.duration?.text;
@@ -312,44 +322,56 @@ const DeliveryTrackingMap = ({
   }, [currentEta, onEtaUpdate]);
 
   const baselineDirectionsOptions = useMemo(() => {
-    if (!restaurantCoords || !customerCoords || cloudPolyline) return null;
+    if (!customerCoords || cloudPolyline) return null;
+    
+    let origin = restaurantCoords;
+    let waypoints = [];
+    
+    if (pickups && pickups.length > 0) {
+      const firstPickup = pickups[0]?.location?.coordinates;
+      if (Array.isArray(firstPickup) && firstPickup.length >= 2) {
+        origin = { lat: Number(firstPickup[1]), lng: Number(firstPickup[0]) };
+      }
+      
+      if (pickups.length > 1) {
+        waypoints = pickups.slice(1).map(p => {
+          const c = p.location?.coordinates;
+          if (Array.isArray(c) && c.length >= 2) {
+            return { location: { lat: Number(c[1]), lng: Number(c[0]) }, stopover: true };
+          }
+          return null;
+        }).filter(Boolean);
+      }
+    }
+
+    if (!origin) return null;
+
     return {
-      origin: restaurantCoords,
+      origin,
       destination: customerCoords,
+      waypoints,
       travelMode: 'DRIVING'
     };
-  }, [restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng, cloudPolyline]);
+  }, [restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng, cloudPolyline, pickups]);
 
-  /**
-   * SPLIT POLYLINE LOGIC:
-   * Given the full route path and the rider's current position, split into:
-   *   - traveledPath: restaurant → nearest point to rider (dashed grey)
-   *   - remainingPath: nearest point → destination (solid colored)
-   */
-  const { traveledPath, remainingPath } = useMemo(() => {
-    if (!fullRoutePath || fullRoutePath.length < 2) {
-      return { traveledPath: [], remainingPath: [] };
-    }
-    if (!displayRiderLocation || !isLoaded || !window.google?.maps?.geometry) {
-      // No rider yet: show everything as remaining
-      return { traveledPath: [], remainingPath: fullRoutePath };
-    }
-
+  const traveledPath = useMemo(() => {
+    if (!fullRoutePath || fullRoutePath.length < 2) return [];
+    if (!displayRiderLocation || !isLoaded || !window.google?.maps?.geometry) return [];
     const splitIdx = findClosestPointIndex(fullRoutePath, displayRiderLocation);
-
-    // traveledPath: start → splitIdx (inclusive) + rider's exact position
-    const traveled = [
+    return [
       ...fullRoutePath.slice(0, splitIdx + 1),
       { lat: displayRiderLocation.lat, lng: displayRiderLocation.lng }
     ];
+  }, [fullRoutePath, displayRiderLocation, isLoaded]);
 
-    // remainingPath: rider's exact position → end
-    const remaining = [
+  const remainingPath = useMemo(() => {
+    if (!fullRoutePath || fullRoutePath.length < 2) return [];
+    if (!displayRiderLocation || !isLoaded || !window.google?.maps?.geometry) return fullRoutePath;
+    const splitIdx = findClosestPointIndex(fullRoutePath, displayRiderLocation);
+    return [
       { lat: displayRiderLocation.lat, lng: displayRiderLocation.lng },
       ...fullRoutePath.slice(splitIdx + 1)
     ];
-
-    return { traveledPath: traveled, remainingPath: remaining };
   }, [fullRoutePath, displayRiderLocation, isLoaded]);
 
   // Route color by phase
@@ -357,8 +379,12 @@ const DeliveryTrackingMap = ({
 
   const center = useMemo(() => {
     if (isOrderPickedUp) return customerCoords || { lat: 0, lng: 0 };
+    if (pickups && pickups.length > 0) {
+       const first = pickups[0]?.location?.coordinates;
+       if (Array.isArray(first) && first.length >= 2) return { lat: Number(first[1]), lng: Number(first[0]) };
+    }
     return restaurantCoords || { lat: 0, lng: 0 };
-  }, [isOrderPickedUp, restaurantCoords, customerCoords]);
+  }, [isOrderPickedUp, restaurantCoords, customerCoords, pickups]);
 
   if (!isLoaded) return <div className="w-full h-full bg-gray-100 animate-pulse" />;
 
@@ -395,19 +421,19 @@ const DeliveryTrackingMap = ({
           />
         )}
 
-        {/* ── TRAVELED PATH: dashed grey (already covered by driver) ── */}
+        {/* ── TRAVELED PATH ── */}
         {traveledPath.length > 1 && (
           <Polyline
             path={traveledPath}
             options={{
               strokeColor: '#9ca3af',
-              strokeOpacity: 0,           // hide solid stroke
+              strokeOpacity: 0,
               strokeWeight: 6,
               zIndex: 6,
               icons: [
                 {
                   icon: {
-                    path: 'M 0,-1 0,1',  // vertical line = dash segment
+                    path: 'M 0,-1 0,1',
                     strokeOpacity: 0.85,
                     strokeWeight: 5,
                     scale: 4,
@@ -420,7 +446,7 @@ const DeliveryTrackingMap = ({
           />
         )}
 
-        {/* ── REMAINING PATH: solid colored (driver's upcoming route) ── */}
+        {/* ── REMAINING PATH ── */}
         {remainingPath.length > 1 && (
           <Polyline
             path={remainingPath}
@@ -433,29 +459,37 @@ const DeliveryTrackingMap = ({
           />
         )}
 
-        {/* ── RESTAURANT PIN ── */}
-        <OverlayView position={restaurantCoords} mapPaneName={OverlayView.MARKER_LAYER}>
-          <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
-            {!isOrderPickedUp && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                <motion.div
-                  animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="w-16 h-16 rounded-full border-4 border-[#7e3866]/50"
-                />
+        {/* ── RESTAURANT PINS (Multiple Support) ── */}
+        {(pickups && pickups.length > 0 ? pickups : (restaurantCoords ? [{ location: { coordinates: [restaurantCoords.lng, restaurantCoords.lat] }, restaurantId: order?.restaurantId }] : [])).map((pickup, idx) => {
+          const coords = pickup.location?.coordinates;
+          if (!Array.isArray(coords) || coords.length < 2) return null;
+          const pos = { lat: Number(coords[1]), lng: Number(coords[0]) };
+          
+          return (
+            <OverlayView key={`res-pin-${idx}`} position={pos} mapPaneName={OverlayView.MARKER_LAYER}>
+              <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
+                {!isOrderPickedUp && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <motion.div
+                      animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="w-16 h-16 rounded-full border-4 border-[#23361A]/50"
+                    />
+                  </div>
+                )}
+                <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-[#23361A] overflow-hidden group-hover:scale-110 transition-transform">
+                  <img
+                    src={pickup.restaurantLogo || order?.restaurantLogo || order?.restaurantId?.logo || order?.restaurantId?.profileImage || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`}
+                    alt="Restaurant"
+                    className="w-full h-full object-contain rounded-full bg-gray-50"
+                    onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`; }}
+                  />
+                </div>
+                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#23361A] -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
               </div>
-            )}
-            <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-[#7e3866] overflow-hidden group-hover:scale-110 transition-transform">
-              <img
-                src={order?.restaurantLogo || order?.restaurantId?.logo || order?.restaurantId?.profileImage || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`}
-                alt="Restaurant"
-                className="w-full h-full object-contain rounded-full bg-gray-50"
-                onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`; }}
-              />
-            </div>
-            <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#7e3866] -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
-          </div>
-        </OverlayView>
+            </OverlayView>
+          );
+        })}
 
         {/* ── CUSTOMER PIN ── */}
         <OverlayView position={customerCoords} mapPaneName={OverlayView.MARKER_LAYER}>
@@ -514,7 +548,7 @@ const DeliveryTrackingMap = ({
             animate={{ x: 0, opacity: 1 }}
             className="absolute top-4 left-4 z-[150] pointer-events-none"
           >
-            <div className="bg-[#7e3866]/95 backdrop-blur-xl rounded-2xl p-3 shadow-[0_10px_30px_rgba(249,115,22,0.4)] border border-orange-400/50 flex flex-col min-w-[90px] group overflow-hidden relative">
+            <div className="bg-[#23361A]/95 backdrop-blur-xl rounded-2xl p-3 shadow-[0_10px_30px_rgba(249,115,22,0.4)] border border-orange-400/50 flex flex-col min-w-[90px] group overflow-hidden relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
               <div className="flex flex-col z-10">
                 <span className="text-[9px] text-white/80 font-black uppercase tracking-[0.2em] mb-0.5">Arrival</span>
@@ -537,3 +571,4 @@ const DeliveryTrackingMap = ({
 };
 
 export default DeliveryTrackingMap;
+

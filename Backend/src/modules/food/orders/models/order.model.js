@@ -11,6 +11,7 @@ const orderItemSchema = new mongoose.Schema(
         quantity: { type: Number, required: true, min: 1 },
         isVeg: { type: Boolean, default: true },
         image: { type: String, default: '' },
+        restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodRestaurant' },
         notes: { type: String, default: '' }
     },
     { _id: false }
@@ -45,7 +46,8 @@ const pricingSchema = new mongoose.Schema(
         restaurantCommission: { type: Number, default: 0, min: 0 },
         discount: { type: Number, default: 0, min: 0 },
         total: { type: Number, required: true, min: 0 },
-        currency: { type: String, default: 'INR' }
+        currency: { type: String, default: 'INR' },
+        deliveryFeeBreakdown: { type: mongoose.Schema.Types.Mixed }
     },
     { _id: false }
 );
@@ -190,6 +192,24 @@ const deliveryVerificationSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const pickupSchema = new mongoose.Schema(
+    {
+        restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodRestaurant', required: true },
+        restaurantName: { type: String, default: '' },
+        status: { 
+            type: String, 
+            enum: ['pending', 'accepted', 'preparing', 'ready', 'picked_up', 'cancelled'], 
+            default: 'pending' 
+        },
+        location: {
+            type: { type: String, enum: ['Point'], default: 'Point' },
+            coordinates: { type: [Number] }
+        },
+        items: [String] // Array of item names or IDs belonging to this pickup
+    },
+    { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
     {
         order_id: {
@@ -214,6 +234,11 @@ const orderSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodRestaurant',
             required: true
+        },
+        isMultiRestaurant: { type: Boolean, default: false },
+        pickups: {
+            type: [pickupSchema],
+            default: []
         },
         zoneId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -260,6 +285,7 @@ const orderSchema = new mongoose.Schema(
                 'reached_drop',
                 'delivered',
                 'cancelled_by_user',
+                'rejected_by_restaurant',
                 'cancelled_by_restaurant',
                 'cancelled_by_admin'
             ],
@@ -298,8 +324,11 @@ const orderSchema = new mongoose.Schema(
         lastRiderLocation: {
             type: { type: String, enum: ['Point'] },
             coordinates: { type: [Number] }
-        }
+        },
+        /** Track how many times the restaurant has rejected this order while a rider is assigned */
+        restaurantRejectionCount: { type: Number, default: 0 }
     },
+
     {
         collection: 'food_orders',
         timestamps: true

@@ -122,3 +122,4 @@ function isSameRange(a, b) {
     a.end.toDateString() === b.end.toDateString()
   );
 }
+

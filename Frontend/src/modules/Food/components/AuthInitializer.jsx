@@ -50,3 +50,4 @@ export default function AuthInitializer({ children }) {
 
   return children;
 }
+

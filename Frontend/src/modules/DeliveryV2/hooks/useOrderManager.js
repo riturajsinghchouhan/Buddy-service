@@ -140,8 +140,28 @@ export const useOrderManager = () => {
       );
       
       if (response?.data?.success) {
-        updateTripStatus('PICKED_UP');
-        // toast.success('Order Collected! Heading to Drop-off');
+        const updatedOrder = response.data.data?.order;
+        if (updatedOrder) {
+          // Sync local order state (includes updated pickups array)
+          setActiveOrder({
+            ...activeOrder,
+            ...updatedOrder
+          });
+
+          // If order is still not fully 'picked_up', it means there are more pickups
+          const isFullyPicked = updatedOrder.orderStatus === 'picked_up' || updatedOrder.status === 'picked_up';
+          
+          if (isFullyPicked) {
+            updateTripStatus('PICKED_UP');
+            toast.success('All items collected! Heading to Drop-off');
+          } else {
+            // Revert to PICKING_UP to target the NEXT restaurant in the pickups array
+            updateTripStatus('PICKING_UP');
+            toast.info('Pickup confirmed. Moving to next restaurant.');
+          }
+        } else {
+          updateTripStatus('PICKED_UP');
+        }
       } else {
         throw new Error('Confirm order ID failed');
       }

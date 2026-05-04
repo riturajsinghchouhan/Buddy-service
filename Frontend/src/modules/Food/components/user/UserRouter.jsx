@@ -3,6 +3,7 @@ import UserLayout from "./UserLayout"
 import { Suspense, lazy } from "react"
 import Loader from "@food/components/Loader"
 import ProtectedRoute from "@food/components/ProtectedRoute"
+import Cart from "@food/pages/user/cart/Cart"
 
 // Lazy Loading Pages
 
@@ -30,7 +31,6 @@ const SearchResults = lazy(() => import("@food/pages/user/search/ProfessionalSea
 const ProductDetail = lazy(() => import("@food/pages/user/ProductDetail"))
 
 // Cart
-const Cart = lazy(() => import("@food/pages/user/cart/Cart"))
 const Checkout = lazy(() => import("@food/pages/user/cart/Checkout"))
 const SelectAddress = lazy(() => import("@food/pages/user/cart/SelectAddress"))
 const AddressSelectorPage = lazy(() => import("@food/pages/user/cart/AddressSelectorPage"))
@@ -346,3 +346,4 @@ export default function UserRouter() {
     </Suspense>
   )
 }
+

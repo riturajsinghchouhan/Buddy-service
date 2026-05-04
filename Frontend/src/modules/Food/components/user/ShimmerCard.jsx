@@ -39,3 +39,4 @@ export default function ShimmerCard({ children, className = "", delay = 0 }) {
     </div>
   )
 }
+

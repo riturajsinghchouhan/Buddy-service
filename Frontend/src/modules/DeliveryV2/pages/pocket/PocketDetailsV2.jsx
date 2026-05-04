@@ -219,3 +219,4 @@ export const PocketDetailsV2 = () => {
 };
 
 export default PocketDetailsV2;
+

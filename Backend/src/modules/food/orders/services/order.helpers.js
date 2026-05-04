@@ -147,6 +147,41 @@ export function normalizeOrderForClient(orderDoc) {
   };
 }
 
+export function buildRestaurantScopedOrder(orderDoc, restaurantId) {
+  const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
+  const rid = String(restaurantId || '').trim();
+  if (!rid) return order;
+
+  const filteredItems = Array.isArray(order.items)
+    ? order.items.filter((item) => {
+        const itemRid = String(item?.restaurantId || '').trim();
+        if (itemRid) return itemRid === rid;
+        // If item has no restaurantId, and it's NOT a multi-restaurant order,
+        // we assume it belongs to the order's main restaurantId.
+        if (!order.isMultiRestaurant) {
+          return String(order.restaurantId || '') === rid;
+        }
+        return false;
+      })
+    : [];
+  const filteredPickups = Array.isArray(order.pickups)
+    ? order.pickups.filter((pickup) => String(pickup?.restaurantId || '') === rid)
+    : [];
+
+  const scoped = {
+    ...order,
+    items: filteredItems,
+    pickups: filteredPickups,
+    restaurantId: rid,
+  };
+
+  if (filteredPickups.length === 1 && filteredPickups[0]?.restaurantName) {
+    scoped.restaurantName = filteredPickups[0].restaurantName;
+  }
+
+  return scoped;
+}
+
 export async function applyAggregateRating(model, entityId, newRating) {
   if (!entityId) return;
   const doc = await model.findById(entityId).select("rating totalRatings");
@@ -224,6 +259,7 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     deliveryFee: order?.pricing?.deliveryFee || 0,
     deliveryFleet: order?.deliveryFleet,
     dispatch: order?.dispatch,
+    pickups: order?.pickups || [],
     createdAt: order?.createdAt,
     updatedAt: order?.updatedAt,
   };
@@ -236,25 +272,30 @@ export function canExposeOrderToRestaurant(orderLike) {
   return ["paid", "authorized", "captured", "settled"].includes(status);
 }
 
-export async function notifyRestaurantNewOrder(orderDoc) {
+export async function notifyRestaurantNewOrder(orderDoc, restaurantIdOverride = null) {
   try {
     if (!orderDoc || !canExposeOrderToRestaurant(orderDoc)) return;
 
+    const targetRestaurantId =
+      restaurantIdOverride || orderDoc?.restaurantId?._id || orderDoc?.restaurantId;
+    if (!targetRestaurantId) return;
+
+    const scopedOrder = buildRestaurantScopedOrder(orderDoc, targetRestaurantId);
     const io = getIO();
     if (io) {
       const payload = {
-        ...orderDoc.toObject(),
+        ...scopedOrder,
         orderMongoId: orderDoc._id?.toString?.() || undefined,
         orderId: orderDoc.order_id || orderDoc._id?.toString?.(),
       };
       logger.info(
-        `[RestaurantOrders] Emitting new_order to ${rooms.restaurant(orderDoc.restaurantId)} for order ${orderDoc._id?.toString?.() || ''}`,
+        `[RestaurantOrders] Emitting new_order to ${rooms.restaurant(targetRestaurantId)} for order ${orderDoc._id?.toString?.() || ''}`,
       );
-      io.to(rooms.restaurant(orderDoc.restaurantId)).emit("new_order", payload);
+      io.to(rooms.restaurant(targetRestaurantId)).emit("new_order", payload);
     }
 
     await notifyOwnersSafely(
-      [{ ownerType: "RESTAURANT", ownerId: orderDoc.restaurantId }],
+      [{ ownerType: "RESTAURANT", ownerId: targetRestaurantId }],
       {
         title: "New order received",
         body: `Order #${orderDoc.order_id || orderDoc._id} is waiting for review.`,
@@ -280,6 +321,7 @@ export const STATUS_PRIORITY = {
   picked_up: 60,
   reached_drop: 70,
   delivered: 80,
+  rejected_by_restaurant: 90,
   cancelled_by_user: 100,
   cancelled_by_restaurant: 100,
   cancelled_by_admin: 100,
@@ -299,6 +341,11 @@ export function isStatusAdvance(current, next) {
   // Terminal states (100) cannot transition to anything else
   if (currentPrio >= 100) return false;
   
+  // Specific bypass for Resend Flow: allowed to go from rejected_by_restaurant back to created/confirmed
+  if (current === 'rejected_by_restaurant' && (next === 'created' || next === 'confirmed')) return true;
+  // Specific bypass for Rejection Flow: allowed to go from confirmed/preparing to rejected_by_restaurant
+  if ((current === 'confirmed' || current === 'preparing' || current === 'created') && next === 'rejected_by_restaurant') return true;
+
   // Delivered (80) cannot transition to anything (except maybe cancellation if allowed, but here we say no)
   if (currentPrio === 80) return false;
 

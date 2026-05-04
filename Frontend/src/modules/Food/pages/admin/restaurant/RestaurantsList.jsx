@@ -2553,3 +2553,4 @@ export default function RestaurantsList() {
 }
 
 
+
