@@ -44,15 +44,15 @@ const CUISINES_STORAGE_KEY = "restaurant_cuisines"
 const ActionButton = ({ icon: Icon, label, onClick }) => (
   <button 
     onClick={onClick}
-    className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#23361A]/30 hover:bg-[#23361A]/5 transition-all active:scale-[0.98] shadow-sm"
+    className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-[#ACDD93]/20 hover:border-[#ACDD93] hover:bg-[#ACDD93]/5 transition-all active:scale-[0.98] shadow-sm"
   >
     <div className="flex items-center gap-4">
-      <div className="bg-[#23361A]/5 p-2.5 rounded-xl">
-        <Icon className="w-5 h-5 text-[#23361A]" />
+      <div className="bg-[#054204]/5 p-2.5 rounded-xl">
+        <Icon className="w-5 h-5 text-[#054204]" />
       </div>
-      <span className="text-[15px] font-bold text-gray-800 tracking-tight">{label}</span>
+      <span className="text-[15px] font-black text-[#054204] tracking-tight">{label}</span>
     </div>
-    <ChevronRight className="w-5 h-5 text-gray-300" />
+    <ChevronRight className="w-5 h-5 text-[#054204]/20" />
   </button>
 )
 
@@ -241,57 +241,40 @@ export default function OutletInfo() {
 
     try {
       setUploadingImage(true)
-      setImageType('menu')
+      setImageType('menu') // Keeping this for UI loading state consistency
       setUploadingCount(fileArray.length)
 
-      // Get current images
-      const currentResponse = await restaurantAPI.getCurrentRestaurant()
-      const currentData = currentResponse?.data?.data?.restaurant || currentResponse?.data?.restaurant
-      const existingImages = currentData?.menuImages && Array.isArray(currentData.menuImages)
-        ? currentData.menuImages.map(img => ({
-            url: img.url,
-            publicId: img.publicId
-          }))
-        : []
+      // Use the bulk upload API for cover images
+      const uploadResponse = await restaurantAPI.uploadCoverImages(fileArray)
+      const newCoverImages = uploadResponse?.data?.data?.coverImages || []
 
-      const uploadedImageData = []
-      const failedUploads = []
-      
-      for (let i = 0; i < fileArray.length; i++) {
-        try {
-          const uploadResponse = await restaurantAPI.uploadMenuImage(fileArray[i])
-          const uploadedImage = uploadResponse?.data?.data?.menuImage
-          if (uploadedImage?.url) {
-            uploadedImageData.push({
-              url: uploadedImage.url,
-              publicId: uploadedImage.publicId || null
-            })
+      if (newCoverImages.length > 0) {
+        // Refresh restaurant data to get the final merged state from backend
+        const response = await restaurantAPI.getCurrentRestaurant()
+        const data = response?.data?.data?.restaurant || response?.data?.restaurant
+        
+        if (data) {
+          setRestaurantData(data)
+          
+          if (data.coverImages && Array.isArray(data.coverImages)) {
+            const formattedCoverImages = data.coverImages.map(img => ({
+              url: img.url || img,
+              publicId: img.publicId || null
+            }))
+            setCoverImages(formattedCoverImages)
+            
+            // Set the latest uploaded image as main if we have any
+            if (formattedCoverImages.length > 0) {
+              setMainImage(formattedCoverImages[formattedCoverImages.length - 1].url)
+            }
           }
-        } catch (error) {
-          failedUploads.push({ fileName: fileArray[i]?.name || "image", error: error.message })
         }
-      }
-
-      if (uploadedImageData.length > 0) {
-        const allImages = [...existingImages]
-        uploadedImageData.forEach(uploaded => {
-          if (!allImages.find(img => img.url === uploaded.url)) {
-            allImages.push(uploaded)
-          }
-        })
-
-        try {
-          await restaurantAPI.updateProfile({ menuImages: allImages })
-          toast.success(`Successfully uploaded ${uploadedImageData.length} image(s)`)
-        } catch (updateError) {
-          toast.error("Images uploaded but failed to save.")
-        }
-
-        setCoverImages(allImages)
-        if (allImages.length > 0) setMainImage(allImages[0].url)
+        
+        toast.success(`Successfully added ${newCoverImages.length} photo(s)`)
       }
     } catch (error) {
-      toast.error("Failed to upload images.")
+      debugError("Error uploading cover images:", error)
+      toast.error("Failed to upload images. Please try again.")
     } finally {
       setUploadingImage(false)
       setImageType(null)
@@ -316,12 +299,12 @@ export default function OutletInfo() {
       setImageType('menu')
 
       const updatedImages = coverImages.filter((_, index) => index !== indexToDelete)
-      const menuImagesForBackend = updatedImages.map(img => ({
+      const coverImagesForBackend = updatedImages.map(img => ({
         url: img.url,
         publicId: img.publicId || null
       }))
 
-      await restaurantAPI.updateProfile({ menuImages: menuImagesForBackend })
+      await restaurantAPI.updateProfile({ coverImages: coverImagesForBackend })
       setCoverImages(updatedImages)
       if (indexToDelete === 0 && updatedImages.length > 0) {
         setMainImage(updatedImages[0].url)
@@ -361,19 +344,19 @@ export default function OutletInfo() {
       <div className="min-h-screen bg-white overflow-x-hidden">
         {/* Header */}
         {/* Header */}
-        <div className="bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 sticky top-0 z-50 shadow-sm">
+        <div className="bg-white/80 backdrop-blur-md border-b border-[#ACDD93]/10 px-4 py-3 sticky top-0 z-50 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-1">
               <button 
                 onClick={goBack} 
-                className="p-2 hover:bg-[#23361A]/5 rounded-xl transition-all active:scale-95"
+                className="p-2 hover:bg-[#054204]/5 rounded-xl transition-all active:scale-95"
               >
-                <ArrowLeft className="w-5 h-5 text-[#23361A]" />
+                <ArrowLeft className="w-5 h-5 text-[#054204]" />
               </button>
-              <h1 className="text-[17px] font-bold text-gray-900 tracking-tight">Outlet Information</h1>
+              <h1 className="text-[17px] font-bold text-[#054204] tracking-tight">Outlet Information</h1>
             </div>
-            <div className="bg-[#23361A]/5 px-3 py-1.5 rounded-full border border-[#23361A]/10">
-              <p className="text-[11px] font-bold text-[#23361A] uppercase tracking-wider">
+            <div className="bg-[#054204]/5 px-3 py-1.5 rounded-full border border-[#054204]/10">
+              <p className="text-[11px] font-bold text-[#054204] uppercase tracking-wider">
                 ID: {loading ? "..." : (restaurantMongoId && restaurantMongoId.length >= 5 ? restaurantMongoId.slice(-5) : (restaurantId || "N/A"))}
               </p>
             </div>
@@ -412,7 +395,7 @@ export default function OutletInfo() {
                 <button
                   onClick={() => handleImageClick('profile', profileImageInputRef, "Update Profile Photo")}
                   disabled={uploadingImage}
-                  className="absolute -bottom-1 -right-1 bg-[#23361A] p-2 rounded-xl text-white shadow-lg shadow-[#23361A]/30 hover:scale-105 transition-all border-2 border-white active:scale-90"
+                  className="absolute -bottom-1 -right-1 bg-[#054204] p-2 rounded-xl text-white shadow-lg shadow-[#054204]/30 hover:scale-105 transition-all border-2 border-white active:scale-90"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -442,30 +425,30 @@ export default function OutletInfo() {
         </div>
 
         {/* Info Content Section */}
-        <div className="px-5 pt-8 pb-12 space-y-6">
+        <div className="px-5 pt-8 pb-12 space-y-8 bg-[#FFFDF5]">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest px-1">Vital Information</h3>
-              <div className="h-[1px] flex-1 bg-gray-100 ml-4"></div>
+              <h3 className="text-sm font-black text-[#054204]/40 uppercase tracking-widest px-1">Vital Information</h3>
+              <div className="h-[1px] flex-1 bg-[#054204]/5 ml-4"></div>
             </div>
 
             {/* Restaurant Name Card */}
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="group bg-gradient-to-br from-blue-50/40 to-blue-50/80 rounded-[1.5rem] p-5 border border-blue-100/50 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer overflow-hidden relative"
+              className="group bg-white rounded-[2rem] p-5 border border-[#ACDD93]/30 shadow-sm hover:shadow-md hover:border-[#ACDD93] transition-all cursor-pointer overflow-hidden relative"
               onClick={handleOpenEditDialog}
             >
-              <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-100 transition-opacity">
-                <div className="bg-[#23361A] p-1.5 rounded-lg">
-                  <Edit className="w-3 h-3 text-white" />
+              <div className="absolute top-0 right-0 p-3">
+                <div className="bg-[#054204] p-1.5 rounded-xl">
+                  <Edit className="w-3.5 h-3.5 text-white" />
                 </div>
               </div>
-              <p className="text-[10px] text-[#23361A] font-black uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 bg-[#23361A] rounded-full"></span>
+              <p className="text-[10px] text-[#054204]/60 font-black uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#ACDD93] rounded-full"></span>
                 Official Name
               </p>
-              <p className="text-lg font-black text-gray-900 group-hover:text-[#23361A] transition-colors">
+              <p className="text-lg font-black text-[#054204] transition-colors">
                 {loading ? "Loading..." : (restaurantName || "N/A")}
               </p>
             </motion.div>
@@ -475,19 +458,19 @@ export default function OutletInfo() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="group bg-gradient-to-br from-indigo-50/40 to-indigo-50/80 rounded-[1.5rem] p-5 border border-indigo-100/50 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
+              className="group bg-white rounded-[2rem] p-5 border border-[#ACDD93]/30 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
               onClick={() => navigate("/food/restaurant/edit-cuisines")}
             >
-              <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-100 transition-opacity">
-                <div className="bg-[#23361A] p-1.5 rounded-lg">
-                  <Edit className="w-3 h-3 text-white" />
+              <div className="absolute top-0 right-0 p-3">
+                <div className="bg-[#054204] p-1.5 rounded-xl">
+                  <Edit className="w-3.5 h-3.5 text-white" />
                 </div>
               </div>
-              <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
+              <p className="text-[10px] text-[#054204]/60 font-black uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#ACDD93] rounded-full"></span>
                 Cuisines Served
               </p>
-              <p className="text-base font-black text-gray-900 leading-tight">
+              <p className="text-base font-black text-[#054204] leading-tight">
                 {loading ? "Loading..." : (cuisineTags || "Not specified")}
               </p>
             </motion.div>
@@ -497,32 +480,88 @@ export default function OutletInfo() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="group bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-[1.5rem] p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
+              className="group bg-white rounded-[2rem] p-5 border border-[#ACDD93]/30 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
               onClick={() => navigate("/food/restaurant/edit-address")}
             >
-              <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-100 transition-opacity">
-                <div className="bg-[#23361A] p-1.5 rounded-lg">
-                  <MapPin className="w-3 h-3 text-white" />
+              <div className="absolute top-0 right-0 p-3">
+                <div className="bg-[#054204] p-1.5 rounded-xl">
+                  <MapPin className="w-3.5 h-3.5 text-white" />
                 </div>
               </div>
-              <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full"></span>
+              <p className="text-[10px] text-[#054204]/60 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#ACDD93] rounded-full"></span>
                 Location Address
               </p>
-              <div className="flex items-start gap-3">
-                <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 shrink-0">
-                  <MapPin className="w-5 h-5 text-[#23361A]" />
+              <div className="flex items-start gap-4">
+                <div className="bg-[#FFFDF5] p-2.5 rounded-2xl border border-[#ACDD93]/20 shrink-0">
+                  <MapPin className="w-5 h-5 text-[#054204]" />
                 </div>
-                <p className="text-[15px] font-bold text-gray-700 leading-snug">
+                <p className="text-[15px] font-bold text-[#054204] leading-snug">
                   {loading ? "Loading..." : (address || "No address found")}
                 </p>
               </div>
             </motion.div>
           </div>
 
+          {/* Outlet Photos Gallery Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-[#054204]/40 uppercase tracking-widest px-1">Outlet Photos</h3>
+              <div className="h-[1px] flex-1 bg-[#054204]/5 ml-4"></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {coverImages.map((image, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="relative aspect-square rounded-[1.5rem] overflow-hidden group shadow-sm border border-[#ACDD93]/20"
+                >
+                  <img 
+                    src={image.url} 
+                    alt={`Outlet ${index + 1}`} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCoverImageDelete(index);
+                    }}
+                    className="absolute top-2 right-2 bg-white/90 backdrop-blur-md p-2 rounded-xl text-red-500 shadow-xl opacity-0 group-hover:opacity-100 transition-all active:scale-90"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  {index === 0 && (
+                    <div className="absolute bottom-2 left-2 bg-[#054204] text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg">
+                      Main Banner
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+
+              <button
+                onClick={() => handleImageClick('cover', menuImageInputRef, "Add Photos", true)}
+                className="aspect-square rounded-[1.5rem] border-2 border-dashed border-[#ACDD93] flex flex-col items-center justify-center gap-2 hover:bg-[#ACDD93]/10 transition-all active:scale-95 text-[#054204]/40 hover:text-[#054204]"
+              >
+                <div className="bg-[#ACDD93]/20 p-3 rounded-full">
+                  <Plus className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest">Add Photo</span>
+              </button>
+            </div>
+          </div>
+
           {/* Quick Actions Grid */}
           <div className="space-y-4">
-             <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest px-1">Outlet Settings</h3>
+             <div className="flex items-center justify-between">
+               <h3 className="text-sm font-black text-[#054204]/40 uppercase tracking-widest px-1">Outlet Settings</h3>
+               <div className="h-[1px] flex-1 bg-[#054204]/5 ml-4"></div>
+             </div>
              <div className="grid grid-cols-1 gap-3">
                 <ActionButton 
                   icon={Clock} 
@@ -549,10 +588,10 @@ export default function OutletInfo() {
 
       {/* Helper Component for Buttons */}
       <Dialog open={showEditNameDialog} onOpenChange={setShowEditNameDialog}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-[2.5rem] w-[92%] border-none shadow-2xl">
-          <DialogHeader className="p-6 bg-gradient-to-br from-white to-gray-50 border-b border-gray-100">
-            <DialogTitle className="text-xl font-black text-gray-900 tracking-tight">Rename Outlet</DialogTitle>
-            <DialogDescription className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Update official restaurant name</DialogDescription>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-[2.5rem] w-[92%] border-none shadow-2xl bg-white">
+          <DialogHeader className="p-6 bg-gradient-to-br from-[#FFFDF5] to-white border-b border-[#ACDD93]/10">
+            <DialogTitle className="text-xl font-black text-[#054204] tracking-tight">Rename Outlet</DialogTitle>
+            <DialogDescription className="text-[10px] font-black text-[#054204]/40 uppercase tracking-widest mt-1">Update official restaurant name</DialogDescription>
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div className="relative group">
@@ -560,15 +599,15 @@ export default function OutletInfo() {
                 value={editNameValue} 
                 onChange={(e) => setEditNameValue(e.target.value)} 
                 placeholder="Ex: Foodelo Express" 
-                className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 focus:border-[#23361A] focus:ring-0 transition-all font-bold text-lg bg-gray-50 group-hover:bg-white" 
+                className="w-full h-14 px-5 rounded-2xl border-2 border-[#ACDD93]/20 focus:border-[#054204] focus:ring-0 transition-all font-bold text-lg bg-[#FFFDF5] group-hover:bg-white text-[#054204]" 
               />
-              <Pencil className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 group-hover:text-[#23361A] transition-colors" />
+              <Pencil className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#ACDD93] group-hover:text-[#054204] transition-colors" />
             </div>
-            <p className="text-[10px] font-bold text-gray-400 px-1 italic">* This will be visible to all customers on the app.</p>
+            <p className="text-[10px] font-bold text-[#054204]/60 px-1 italic">* This will be visible to all customers on the app.</p>
           </div>
-          <DialogFooter className="p-6 bg-gray-50/50 flex flex-row gap-3">
-            <Button variant="ghost" onClick={() => setShowEditNameDialog(false)} className="flex-1 h-12 rounded-2xl font-bold text-gray-500">Discard</Button>
-            <Button onClick={handleSaveName} disabled={!editNameValue.trim()} className="flex-[2] h-12 bg-[#23361A] text-white hover:bg-[#1a2614] rounded-2xl font-bold shadow-lg shadow-[#23361A]/20 transition-all active:scale-95 disabled:opacity-50">Save Changes</Button>
+          <DialogFooter className="p-6 bg-[#FFFDF5] flex flex-row gap-3">
+            <Button variant="ghost" onClick={() => setShowEditNameDialog(false)} className="flex-1 h-12 rounded-2xl font-bold text-[#054204]/40 hover:bg-[#ACDD93]/10">Discard</Button>
+            <Button onClick={handleSaveName} disabled={!editNameValue.trim()} className="flex-[2] h-12 bg-[#054204] text-white hover:bg-[#054204]/90 rounded-2xl font-bold shadow-lg shadow-[#054204]/20 transition-all active:scale-95 disabled:opacity-50">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

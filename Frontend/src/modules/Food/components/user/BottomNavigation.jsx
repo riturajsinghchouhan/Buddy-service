@@ -33,9 +33,11 @@ export default function BottomNavigation() {
     !isDining &&
     !isUnder250 &&
     !isProfile &&
-    (pathname === "/food" ||
+    (pathname === "/" ||
+      pathname === "/food" ||
       pathname === "/food/" ||
       pathname === "/food/user" ||
+      pathname === "/food/user/" ||
       (pathname.startsWith("/food/user") &&
         !pathname.includes("/dining") &&
         !pathname.includes("/under-250") &&
@@ -43,84 +45,63 @@ export default function BottomNavigation() {
 
   return (
     <div
-      className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-gray-800 z-50 shadow-lg"
+      className="md:hidden fixed bottom-6 left-4 right-4 bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-xl rounded-full shadow-[0_15px_45px_rgba(26,37,23,0.15)] border border-gray-200/50 dark:border-gray-800 z-50 p-1.5"
     >
-      <div className="flex items-center justify-around h-auto px-2 sm:px-4">
+      <div className="flex items-center justify-between h-auto">
         {/* Delivery Tab */}
         <Link
           to="/"
-          className={`flex flex-1 flex-col items-center gap-1.5 px-2 sm:px-3 py-2 transition-all duration-200 relative ${isDelivery
-              ? "text-[#23361A]"
-              : "text-gray-600 dark:text-gray-400"
+          className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isDelivery
+              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          < Truck className={`h-5 w-5 ${isDelivery ? "text-[#23361A] fill-[#23361A]/10" : "text-gray-600 dark:text-gray-400"}`} strokeWidth={2} />
-          <span className={`text-xs sm:text-sm font-medium ${isDelivery ? "text-[#23361A] font-bold" : "text-gray-600 dark:text-gray-400"}`}>
+          <Truck className={`h-4.5 w-4.5 ${isDelivery ? "text-[#1a2517] fill-[#1a2517]/10" : "text-gray-500"}`} strokeWidth={isDelivery ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDelivery ? "text-[#1a2517]" : "text-gray-500"}`}>
             Delivery
           </span>
-          {isDelivery && (
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#23361A] rounded-b-full" />
-          )}
         </Link>
-
-        {/* Divider */}
-        <div className="h-8 w-px bg-gray-300 dark:bg-gray-700" />
 
         {/* Dining Tab */}
         <Link
           to="/food/user/dining"
-          className={`flex flex-1 flex-col items-center gap-1.5 px-2 sm:px-3 py-2 transition-all duration-200 relative ${isDining
-              ? "text-[#23361A]"
-              : "text-gray-600 dark:text-gray-400"
+          className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isDining
+              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <UtensilsCrossed className={`h-5 w-5 ${isDining ? "text-[#23361A]" : "text-gray-600 dark:text-gray-400"}`} strokeWidth={2} />
-          <span className={`text-xs sm:text-sm font-medium ${isDining ? "text-[#23361A] font-bold" : "text-gray-600 dark:text-gray-400"}`}>
+          <UtensilsCrossed className={`h-4.5 w-4.5 ${isDining ? "text-[#1a2517]" : "text-gray-500"}`} strokeWidth={isDining ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDining ? "text-[#1a2517]" : "text-gray-500"}`}>
             Dining
           </span>
-          {isDining && (
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#23361A] rounded-b-full" />
-          )}
         </Link>
-
-        {/* Divider */}
-        <div className="h-8 w-px bg-gray-300 dark:bg-gray-700" />
 
         {/* Under 250 Tab */}
         <Link
           to="/food/user/under-250"
-          className={`flex flex-1 flex-col items-center gap-1.5 px-2 sm:px-3 py-2 transition-all duration-200 relative ${isUnder250
-              ? "text-[#23361A]"
-              : "text-gray-600 dark:text-gray-400"
+          className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isUnder250
+              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <Tag className={`h-5 w-5 ${isUnder250 ? "text-[#23361A] fill-[#23361A]/10" : "text-gray-600 dark:text-gray-400"}`} strokeWidth={2} />
-          <span className={`text-xs sm:text-sm font-medium ${isUnder250 ? "text-[#23361A] font-bold" : "text-gray-600 dark:text-gray-400"}`}>
-            Under ₹{under250PriceLimit}
+          <Tag className={`h-4.5 w-4.5 ${isUnder250 ? "text-[#1a2517] fill-[#1a2517]/10" : "text-gray-500"}`} strokeWidth={isUnder250 ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isUnder250 ? "text-[#1a2517]" : "text-gray-500"}`}>
+            ₹{under250PriceLimit}
           </span>
-          {isUnder250 && (
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#23361A] rounded-b-full" />
-          )}
         </Link>
-
-        {/* Divider */}
-        <div className="h-8 w-px bg-gray-300 dark:bg-gray-700" />
 
         {/* Profile Tab */}
         <Link
           to="/food/user/profile"
-          className={`flex flex-1 flex-col items-center gap-1.5 px-2 sm:px-3 py-2 transition-all duration-200 relative ${isProfile
-              ? "text-[#23361A]"
-              : "text-gray-600 dark:text-gray-400"
+          className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isProfile
+              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <User className={`h-5 w-5 ${isProfile ? "text-[#23361A] fill-[#23361A]/10" : "text-gray-600 dark:text-gray-400"}`} />
-          <span className={`text-xs sm:text-sm font-medium ${isProfile ? "text-[#23361A] font-bold" : "text-gray-600 dark:text-gray-400"}`}>
+          <User className={`h-4.5 w-4.5 ${isProfile ? "text-[#1a2517] fill-[#1a2517]/10" : "text-gray-500"}`} strokeWidth={isProfile ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isProfile ? "text-[#1a2517]" : "text-gray-500"}`}>
             Profile
           </span>
-          {isProfile && (
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#23361A] rounded-b-full" />
-          )}
         </Link>
       </div>
     </div>

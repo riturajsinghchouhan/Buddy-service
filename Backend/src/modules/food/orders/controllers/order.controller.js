@@ -386,3 +386,25 @@ export async function resendOrderToRestaurantController(req, res, next) {
         next(err);
     }
 }
+
+export async function shareOrderDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.shareOrderDelivery(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Order marked as shared', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function acceptSharedOrderDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.acceptSharedOrderDelivery(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Shared order accepted', { order });
+    } catch (err) {
+        next(err);
+    }
+}

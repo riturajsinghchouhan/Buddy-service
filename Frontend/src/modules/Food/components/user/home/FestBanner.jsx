@@ -1,180 +1,191 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRightCircle, Leaf, Flame, Sparkles } from 'lucide-react';
-import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, Gift, Sparkles } from "lucide-react";
 
-// Images for different modes - Extended pool for rotation
-const images = {
-  nonVeg: [
-    "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=500&h=500&fit=crop", // Taco
-    "https://images.unsplash.com/photo-1544025162-d76694265947?w=500&h=500&fit=crop", // Platter
-    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&h=500&fit=crop", // Burger
-    "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=500&h=500&fit=crop", // Grilled Chicken
-    "https://images.unsplash.com/photo-1529006557810-274b9b2fc783?w=500&h=500&fit=crop", // Kebabs
-  ],
-  veg: [
-    "https://images.unsplash.com/photo-1585238341267-1cfec2046a55?w=500&h=500&fit=crop", // Veg Taco
-    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&h=500&fit=crop", // Salad/Platter
-    "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=500&h=500&fit=crop", // Paneer/Veg
-    "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&h=500&fit=crop", // Healthy Bowl
-    "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&h=500&fit=crop", // Veg Pizza
-  ]
-};
+export const FEST_SLIDES = [
+  {
+    id: "blue",
+    heading: "Flat ₹150 OFF",
+    sub: "on Premium Dining restaurants",
+    cta: "Explore now",
+    section: "bg-gradient-to-b from-[#dce7ff] to-[#d3ddff]",
+    theme: {
+      card: "from-[#dbe6ff] via-[#d5e1ff] to-[#cddaff]",
+      text: "text-[#1c2c5a]",
+      button: "bg-[#1e3a8a] text-white",
+      badge: "bg-white text-[#1e3a8a]",
+      accent: "text-[#5167bf]",
+      icon: "text-[#90a4ff]",
+      iconBorder: "border-[#b9c6ff]",
+      dotActive: "bg-[#2b3f83]",
+      dotInactive: "bg-[#2b3f83]/25",
+    },
+    right: "sparkle",
+  },
+  {
+    id: "pink",
+    heading: "Get",
+    sub: "on your first order under 7 km",
+    cta: "Know more",
+    section: "bg-gradient-to-b from-[#ff2f7a] to-[#ff4a8d]",
+    theme: {
+      card: "from-[#ff2f7a] via-[#ff3b84] to-[#ff5d96]",
+      text: "text-white",
+      button: "bg-white text-[#ff3b84]",
+      badge: "bg-white text-[#ff3b84]",
+      accent: "text-white/70",
+      icon: "text-white/70",
+      iconBorder: "border-white/60",
+      dotActive: "bg-white",
+      dotInactive: "bg-white/50",
+    },
+    right: "burger",
+    image:
+      "https://images.unsplash.com/photo-1550547660-d9450f859349?w=240&h=240&fit=crop&q=80",
+  },
+  {
+    id: "green",
+    heading: "Free Delivery",
+    sub: "on all fast food orders above ₹199",
+    cta: "Order now",
+    section: "bg-gradient-to-b from-[#d9f6e6] to-[#c8f0dd]",
+    theme: {
+      card: "from-[#d9f6e6] via-[#d2f2e2] to-[#c8f0dd]",
+      text: "text-[#0f5d4b]",
+      button: "bg-[#0f6b53] text-white",
+      badge: "bg-white text-[#0f6b53]",
+      accent: "text-[#0f5d4b]/70",
+      icon: "text-[#78c8a7]",
+      iconBorder: "border-[#9bd8bf]",
+      dotActive: "bg-[#0f6b53]",
+      dotInactive: "bg-[#0f6b53]/25",
+    },
+    right: "gift",
+  },
+];
 
-export default function FestBanner({ isVegMode, videoUrl = "", hideFoodImages = false }) {
-  const [imgIndex, setImgIndex] = useState(0);
-  const currentPool = isVegMode ? images.veg : images.nonVeg;
-  const hasVideo = typeof videoUrl === "string" && videoUrl.trim().length > 0;
-  
-  // Dynamic rotation
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setImgIndex(prev => (prev + 1) % currentPool.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [currentPool.length]);
+const renderRightVisual = (slide) => {
+  if (slide.right === "burger") {
+    return (
+      <div className="w-20 h-20 rounded-2xl bg-white shadow-[0_10px_22px_rgba(0,0,0,0.12)] flex items-center justify-center">
+        <img
+          src={slide.image}
+          alt="burger"
+          className="w-14 h-14 rounded-xl object-cover"
+        />
+      </div>
+    );
+  }
 
-  // Reset index when mode changes
-  useEffect(() => {
-    setImgIndex(0);
-  }, [isVegMode]);
-
-  // Get 3 images starting from current index
-  const displayImages = [
-    currentPool[(imgIndex) % currentPool.length],
-    currentPool[(imgIndex + 1) % currentPool.length],
-    currentPool[(imgIndex + 2) % currentPool.length]
-  ];
+  if (slide.right === "gift") {
+    return (
+      <div className={`relative w-16 h-16 rounded-2xl border-2 ${slide.theme.iconBorder} ${slide.theme.icon} flex items-center justify-center`}>
+        <Gift className="w-7 h-7" />
+      </div>
+    );
+  }
 
   return (
-      <motion.div 
-      initial={false}
-      className={`relative px-4 pt-2 pb-4 overflow-hidden min-h-[140px] sm:min-h-[180px] transition-all duration-700 ${hasVideo ? 'bg-transparent' : 'bg-transparent'} rounded-b-[2rem]`}
-    >
-      {hasVideo && (
-        <div className="absolute inset-0 z-0">
-          <video
-            src={videoUrl}
-            className="w-full h-full object-cover"
-            autoPlay
-            muted
-            loop
-            playsInline
-          />
-          <div className="absolute inset-0 bg-black/35" />
-        </div>
-      )}
+    <div className={`relative w-16 h-16 rounded-[20px] border-2 ${slide.theme.iconBorder} ${slide.theme.icon} flex items-center justify-center`}>
+      <Sparkles className="w-6 h-6" />
+      <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-current" />
+      <div className="absolute right-4 bottom-2 h-2 w-2 rounded-full border border-current" />
+    </div>
+  );
+};
 
-      <div className="relative z-10 flex flex-col items-center text-center space-y-4">
-        {/* Mission Text at Top */}
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 shadow-sm font-bold"
-        >
-          <Sparkles className="h-2.5 w-2.5 text-[#fff200] animate-pulse" />
-          <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Buddy Service</span>
-          <Sparkles className="h-2.5 w-2.5 text-[#fff200] animate-pulse" />
-        </motion.div>
+export default function FestBanner({ activeIndex, onChange, embedded = false }) {
+  const [localIndex, setLocalIndex] = useState(0);
+  const resolvedIndex = Number.isFinite(activeIndex) ? activeIndex : localIndex;
+  const setIndex = onChange || setLocalIndex;
 
-        <motion.div
-          key={isVegMode ? 'veg-title' : 'nonveg-title'}
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", damping: 10, stiffness: 100 }}
-        >
-          <h2 
-            className="text-2xl sm:text-3xl font-black text-[#fff200] italic tracking-tighter drop-shadow-md uppercase leading-none"
-            style={{ WebkitTextStroke: '0.5px rgba(255,255,255,0.3)' }}
-          >
-            {isVegMode ? 'BUDDY VEGGIE FEAST' : 'BUDDY FOOD FIESTA'}
-          </h2>
-        </motion.div>
-        
-        <motion.div 
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="flex items-center gap-2 px-4 py-1.5 bg-black/40 backdrop-blur-lg rounded-full border border-white/20 shadow-xl group cursor-pointer active:scale-95 transition-all text-white"
-        >
-          {isVegMode ? <Leaf className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400" /> : <Flame className="h-3.5 w-3.5 text-[#fff200] fill-[#fff200] animate-bounce" />}
-          <span className="text-sm font-black uppercase tracking-[0.1em]">
-            {isVegMode ? 'FRESH VEG SPECIALS' : 'AMAZING FOOD DEALS'}
-          </span>
-          <ArrowRightCircle className="h-5 w-5 text-[#fff200] shadow-sm" />
-        </motion.div>
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % FEST_SLIDES.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [setIndex]);
 
-        {hideFoodImages ? (
-          <div className="h-28 sm:h-36" />
-        ) : (
-          <div className="flex items-end justify-center gap-5 sm:gap-8 pt-10 relative w-full mb-2">
-            <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 w-56 h-12 blur-[45px] rounded-full transition-colors duration-700 ${isVegMode ? 'bg-emerald-500/40' : 'bg-yellow-400/40'}`} />
-            
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div 
-                key={`img-left-${isVegMode}-${imgIndex}`}
-                className="w-16 h-16 sm:w-20 sm:h-20 z-10"
-                initial={{ x: -100, opacity: 0, rotate: -45, scale: 0.5 }}
-                animate={{ 
-                  x: 0, 
-                  opacity: 1, 
-                  rotate: -15,
-                  scale: 1,
-                  y: [0, -12, 0]
-                }}
-                exit={{ x: -100, opacity: 0, rotate: -45, scale: 0.5 }}
-                transition={{ 
-                  y: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
-                  default: { duration: 0.8, type: "spring", damping: 15 }
-                }}
+  const shellClassName = embedded
+    ? "relative pt-1 pb-2 overflow-hidden min-h-[150px] sm:min-h-[180px] w-full"
+    : "relative pt-2 pb-4 overflow-hidden min-h-[160px] sm:min-h-[190px] w-full -mx-4 px-4";
+
+  return (
+    <motion.div initial={false} className={shellClassName}>
+      <div className="relative z-10">
+        <AnimatePresence mode="wait" initial={false}>
+          {FEST_SLIDES.map((slide, index) =>
+            index === resolvedIndex ? (
+              <motion.div
+                key={slide.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.4 }}
+                className={`relative w-full px-5 sm:px-6 py-5 sm:py-6 overflow-hidden ${
+                  embedded
+                    ? "rounded-none bg-transparent shadow-none"
+                    : `rounded-[24px] shadow-[0_10px_22px_rgba(0,0,0,0.08)] bg-gradient-to-br ${slide.theme.card}`
+                }`}
               >
-                <img src={displayImages[0]} alt="food" className="w-full h-full object-cover rounded-2xl border-[3px] border-white shadow-2xl rotate-12" />
-              </motion.div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-80">
+                  {renderRightVisual(slide)}
+                </div>
 
-              <motion.div 
-                key={`img-center-${isVegMode}-${imgIndex}`}
-                className="w-24 h-24 sm:w-32 sm:h-32 z-30 -mb-2"
-                initial={{ y: 100, opacity: 0, scale: 0.5 }}
-                animate={{ 
-                  y: 0, 
-                  opacity: 1,
-                  scale: 1,
-                  rotate: [0, 5, -5, 0]
-                }}
-                exit={{ y: 50, opacity: 0, scale: 0.5 }}
-                transition={{ 
-                  rotate: { duration: 6, repeat: Infinity, ease: "easeInOut" },
-                  default: { duration: 0.8, type: "spring", damping: 12, stiffness: 100 }
-                }}
-              >
-                <div className="relative h-full w-full">
-                  <div className={`absolute -inset-2.5 blur-3xl rounded-full animate-pulse transition-colors duration-700 ${isVegMode ? 'bg-white/40' : 'bg-yellow-400/40'}`} />
-                  <img src={displayImages[1]} alt="food" className="relative w-full h-full object-cover rounded-[2.5rem] border-[4px] border-white shadow-[0_22px_55px_rgba(0,0,0,0.4)]" />
+                <div className={`space-y-2 ${slide.theme.text}`}>
+                  {slide.id === "pink" ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg sm:text-xl font-black tracking-tight">{slide.heading}</span>
+                        <span className={`text-[12px] font-black rounded-full px-2 py-0.5 ${slide.theme.badge}`}>
+                          50% OFF
+                        </span>
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black leading-tight">FREE delivery</div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg sm:text-xl font-black tracking-tight">
+                        {slide.heading}
+                      </span>
+                      {slide.id === "blue" && (
+                        <span className="text-[12px] font-bold rounded-full px-2 py-0.5 bg-white/90 text-[#1d2d5c]">
+                          Premium
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <p className={`text-sm sm:text-base font-semibold ${slide.theme.accent}`}>
+                    {slide.id === "pink" ? `& FREE delivery ${slide.sub}` : slide.sub}
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-2 text-xs sm:text-sm font-black px-4 py-2 rounded-full shadow-sm ${slide.theme.button}`}
+                  >
+                    {slide.cta}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
               </motion.div>
+            ) : null,
+          )}
+        </AnimatePresence>
 
-              <motion.div 
-                key={`img-right-${isVegMode}-${imgIndex}`}
-                className="w-16 h-16 sm:w-20 sm:h-20 z-10"
-                initial={{ x: 100, opacity: 0, rotate: 45, scale: 0.5 }}
-                animate={{ 
-                  x: 0, 
-                  opacity: 1, 
-                  rotate: 15,
-                  scale: 1,
-                  y: [0, -12, 0]
-                }}
-                exit={{ x: 100, opacity: 0, rotate: 45, scale: 0.5 }}
-                transition={{ 
-                  y: { duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.4 },
-                  default: { duration: 0.8, type: "spring", damping: 15 }
-                }}
-              >
-                <img src={displayImages[2]} alt="food" className="w-full h-full object-cover rounded-2xl border-[3px] border-white shadow-2xl -rotate-12 bg-white" />
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        )}
+        <div className="mt-3 flex items-center justify-center gap-2">
+          {FEST_SLIDES.map((slide, index) => (
+            <button
+              key={slide.id}
+              type="button"
+              onClick={() => setIndex(index)}
+              className={`h-1.5 rounded-full transition-all ${index === resolvedIndex ? `w-6 ${FEST_SLIDES[resolvedIndex].theme.dotActive}` : `w-2.5 ${FEST_SLIDES[resolvedIndex].theme.dotInactive}`}`}
+              aria-label={`Show banner ${index + 1}`}
+            />
+          ))}
+        </div>
       </div>
     </motion.div>
   );

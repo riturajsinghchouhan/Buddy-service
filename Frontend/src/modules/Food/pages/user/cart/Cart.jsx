@@ -1143,7 +1143,9 @@ function Cart() {
         : "Cash on Delivery"
 
   // Restaurant name from data or cart
-  const restaurantName = restaurantData?.name || cart[0]?.restaurant || "Restaurant"
+  const restaurantName = isMultiRestaurantOrder 
+    ? "Multi-Restaurant Order" 
+    : (restaurantData?.name || cart[0]?.restaurant || "Restaurant")
 
   const handleShare = async () => {
     const restaurantNameStr = restaurantName || companyName || "this restaurant"
@@ -1366,7 +1368,7 @@ function Cart() {
           image: item.image,
           description: item.description,
           isVeg: item.isVeg !== false,
-          restaurantId: item.restaurantId
+          restaurantId: item.restaurantId || item.restaurant?._id || item.restaurant
         }))
 
         const response = await orderAPI.calculateOrder({
@@ -1428,7 +1430,7 @@ function Cart() {
         image: item.image,
         description: item.description,
         isVeg: item.isVeg !== false,
-        restaurantId: item.restaurantId
+        restaurantId: item.restaurantId || item.restaurant?._id || item.restaurant
       }))
 
       const response = await orderAPI.calculateOrder({
@@ -1488,7 +1490,7 @@ function Cart() {
           image: item.image,
           description: item.description,
           isVeg: item.isVeg === true || item.foodType === 'Veg',
-          restaurantId: item.restaurantId
+          restaurantId: item.restaurantId || item.restaurant?._id || item.restaurant
         }))
 
         const response = await orderAPI.calculateOrder({
@@ -1573,7 +1575,7 @@ function Cart() {
         description: item.description || "",
         isVeg: item.isVeg === true || item.foodType === 'Veg',
         preparationTime: item.preparationTime,
-        restaurantId: item.restaurantId
+        restaurantId: item.restaurantId || item.restaurant?._id || item.restaurant
       }))
 
       debugLog("?? Order items to send:", orderItems)
@@ -1683,6 +1685,7 @@ function Cart() {
         customerPhone: recipientPhone || defaultAddress?.phone || "",
         restaurantId: finalRestaurantId,
         restaurantName: finalRestaurantName || undefined,
+        isMultiRestaurant: isMultiRestaurantOrder,
         pricing: orderPricing,
         note: "",
         restaurantNote: restaurantNote || "",

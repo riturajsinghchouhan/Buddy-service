@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChefHat, MapPin, Phone, 
   ChevronDown, ChevronUp, Package, 
-  Navigation, CheckCircle2, Camera, Loader2, Image as ImageIcon
+  Navigation, CheckCircle2, Camera, Loader2, Image as ImageIcon,
+  Clock
 } from 'lucide-react';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
-import { uploadAPI } from '@food/api';
+import { uploadAPI, deliveryAPI, adminAPI } from '@food/api';
 import { toast } from 'sonner';
 import { openCamera } from "@food/utils/imageUploadUtils";
+import { Share2, Users } from 'lucide-react';
 
 /**
  * PickupActionModal - Unified White/Green Theme with Slider Actions.
@@ -28,7 +30,42 @@ export const PickupActionModal = ({
   const [isUploadingBill, setIsUploadingBill] = useState(false);
   const [billImageUploaded, setBillImageUploaded] = useState(false);
   const [billImageUrl, setBillImageUrl] = useState(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [splitThreshold, setSplitThreshold] = useState(20);
+  const [showDelayPicker, setShowDelayPicker] = useState(false);
   const cameraInputRef = useRef(null);
+
+  const delayReasons = [
+    { label: "Heavy Traffic", icon: "🚦", value: "Heavy Traffic 🚦" },
+    { label: "Busy Kitchen", icon: "👨‍🍳", value: "Busy Kitchen 👨‍🍳" },
+    { label: "Vehicle Issue", icon: "🛵", value: "Vehicle Issue 🛵" },
+    { label: "Rain/Weather", icon: "🌧️", value: "Rain/Weather 🌧️" }
+  ];
+
+  const handleReportDelay = async (reason) => {
+    try {
+      await deliveryAPI.reportDelay(order._id || order.orderId, reason);
+      toast.success("Delay reported to customer");
+      setShowDelayPicker(false);
+    } catch (err) {
+      toast.error("Failed to report delay");
+    }
+  };
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await adminAPI.getDeliveryBoySettings();
+        const settings = response?.data?.data || response?.data || {};
+        if (settings.splitOrderThreshold) {
+          setSplitThreshold(settings.splitOrderThreshold);
+        }
+      } catch (error) {
+        // Silently fail
+      }
+    };
+    fetchSettings();
+  }, []);
 
   if (!order) return null;
 
@@ -70,7 +107,38 @@ export const PickupActionModal = ({
     cameraInputRef.current?.click()
   }
 
+  const handleShareOrder = async () => {
+    try {
+      setIsSharing(true);
+      const res = await deliveryAPI.shareOrder(order._id || order.orderId);
+      if (res?.data?.success) {
+        toast.success("Order shared! Waiting for another partner to join.");
+        // We might want to refresh order data or let parent handle it via socket
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to share order");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const isAtPickup = status === 'REACHED_PICKUP';
+  // Order is pending restaurant acceptance if status is still 'created'
+  const isPending = order.orderStatus === 'created';
+  
+  const totalQuantity = React.useMemo(() => {
+    let count = 0;
+    if (Array.isArray(order.items)) {
+      count = order.items.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0);
+    } else if (Array.isArray(order.pickups)) {
+      order.pickups.forEach(p => {
+        if (Array.isArray(p.items)) count += p.items.length;
+        else if (p.quantity) count += Number(p.quantity);
+      });
+    }
+    return count;
+  }, [order.items, order.pickups]);
+
   const restaurantName = order.restaurantName || order.restaurant_name || 'Restaurant';
   const restaurantAddress = order.restaurantAddress || order.restaurant_address || order.restaurantLocation?.address || 'Address not available';
   const restaurantPhone = order.restaurantPhone || order.restaurant_phone || order.restaurantId?.phone || '';
@@ -120,6 +188,13 @@ export const PickupActionModal = ({
             </div>
 
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowDelayPicker(true)}
+                className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100"
+                title="Report Delay"
+              >
+                <Clock className="w-5 h-5" />
+              </button>
               {restaurantPhone && (
                 <button
                   onClick={() => window.location.href = `tel:${restaurantPhone}`}
@@ -140,9 +215,18 @@ export const PickupActionModal = ({
           <div className="space-y-4 mb-6">
             <div className="flex items-center justify-between">
                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Multi-Pickup Route</p>
-               <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">
-                  {order.pickups?.filter(p => ['picked_up', 'ready_for_handover'].includes(p.status)).length} / {order.pickups?.length} Picked
-               </p>
+               <div className="flex items-center gap-2">
+                 <button
+                   onClick={() => setShowDelayPicker(true)}
+                   className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100"
+                   title="Report Delay"
+                 >
+                   <Clock className="w-4 h-4" />
+                 </button>
+                 <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">
+                    {order.pickups?.filter(p => ['picked_up', 'ready_for_handover'].includes(p.status)).length} / {order.pickups?.length} Picked
+                 </p>
+               </div>
             </div>
             {order.pickups?.map((p, idx) => {
                const isDone = ['picked_up', 'ready_for_handover'].includes(p.status);
@@ -155,10 +239,19 @@ export const PickupActionModal = ({
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${isCurrent ? 'bg-orange-500 text-white' : 'bg-white text-gray-400'}`}>
                              <ChefHat className="w-5 h-5" />
                           </div>
-                          <div>
-                             <h4 className="text-sm font-bold text-gray-950">{p.restaurantName}</h4>
-                             <p className="text-[10px] text-gray-500 line-clamp-1">{p.location?.address || 'Pickup location'}</p>
-                          </div>
+                           <div>
+                              <h4 className="text-sm font-bold text-gray-950">{p.restaurantName}</h4>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-[10px] text-gray-500 line-clamp-1">{p.location?.address || 'Pickup location'}</p>
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
+                                  p.status === 'pending' ? 'bg-gray-100 text-gray-500' : 
+                                  p.status === 'accepted' || p.status === 'preparing' ? 'bg-blue-100 text-blue-600' :
+                                  'bg-green-100 text-green-600'
+                                }`}>
+                                  {p.status === 'pending' ? 'Waiting' : p.status}
+                                </span>
+                              </div>
+                           </div>
                        </div>
                        <div className="flex gap-2">
                           {p.phone && (
@@ -195,20 +288,24 @@ export const PickupActionModal = ({
 
         {/* Action Sliders */}
           <div className="space-y-4 sm:space-y-6">
-          {!isAtPickup ? (
+           {!isAtPickup ? (
             <div>
               <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 transition-colors ${
-                isWithinRange ? 'text-green-600' : 'text-orange-500 animate-pulse'
+                isPending ? 'text-red-500' : isWithinRange ? 'text-green-600' : 'text-orange-500 animate-pulse'
               }`}>
-                {isWithinRange ? 'Ready - Swipe to confirm arrival' : 'Get closer to restaurant'}
+                {isPending 
+                  ? 'Wait for Restaurant to Accept Order...' 
+                  : isWithinRange 
+                    ? 'Ready - Swipe to confirm arrival' 
+                    : 'Heading to restaurant'}
               </p>
               <ActionSlider 
                 key="action-reach"
-                label="Slide to Reach" 
+                label={isPending ? "Waiting for Restaurant..." : "Slide to Reach"} 
                 successLabel="Reached!"
-                disabled={!isWithinRange}
+                disabled={!isWithinRange || isPending}
                 onConfirm={onReachedPickup}
-                color="bg-green-600"
+                color={isPending ? "bg-gray-400" : "bg-green-600"}
               />
             </div>
           ) : (
@@ -255,6 +352,45 @@ export const PickupActionModal = ({
                    className="hidden"
                  />
               </div>
+
+              {/* Share Order Option for Large Orders */}
+              {totalQuantity >= splitThreshold && !order.dispatch?.isShared && (
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex flex-col gap-3 mt-2">
+                  <div className="flex gap-3 items-start">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1">Large Order detected</p>
+                      <p className="text-xs font-medium text-blue-900 leading-tight">
+                        This order has {totalQuantity} items. You can share this with another delivery partner to split the load and earnings.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleShareOrder}
+                    disabled={isSharing}
+                    className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                    <span>Share with Partner</span>
+                  </button>
+                </div>
+              )}
+
+              {order.dispatch?.isShared && (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-3 items-center mt-2">
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-1">Shared Order Status</p>
+                    <p className="text-xs font-bold text-indigo-900">
+                      {order.dispatch?.sharedPartnerId ? "Partner has joined! Earnings will be split." : "Waiting for another partner to join..."}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 ${billImageUploaded ? 'text-green-600' : 'text-gray-400'}`}>
@@ -307,6 +443,51 @@ export const PickupActionModal = ({
           )}
         </div>
       </motion.div>
+
+      {/* Delay Selection Modal */}
+      <AnimatePresence>
+        {showDelayPicker && (
+          <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDelayPicker(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              className="relative w-full max-w-md bg-white rounded-t-[2.5rem] p-6 pb-12 shadow-2xl"
+            >
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+              <h3 className="text-xl font-black text-gray-900 mb-2">Report Delay</h3>
+              <p className="text-sm text-gray-500 mb-6 font-medium">Why is it taking longer? Select a reason to inform the customer.</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {delayReasons.map((r, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleReportDelay(r.value)}
+                    className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-gray-50 border border-gray-100 hover:bg-orange-50 hover:border-orange-200 hover:scale-[1.02] active:scale-95 transition-all"
+                  >
+                    <span className="text-3xl">{r.icon}</span>
+                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{r.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => setShowDelayPicker(false)}
+                className="w-full mt-6 py-4 rounded-2xl text-gray-400 font-bold text-xs uppercase tracking-widest hover:text-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -551,6 +551,8 @@ export const adminAPI = {
       { isActive: isActive !== false },
       { contextModule: "admin" },
     ),
+  bulkToggleCod: (userIds, status) =>
+    apiClient.put("/food/admin/customers/bulk-cod", { userIds, status }, { contextModule: "admin" }),
   /** Orders (admin) – list, get by id, assign delivery partner */
   getOrders: (params = {}) =>
     apiClient.get("/food/admin/orders", {
@@ -2032,6 +2034,18 @@ export const deliveryAPI = {
   /** DELETE /food/delivery/account - permanently delete delivery partner account */
   deleteAccount: () =>
     apiClient.delete("/food/delivery/account", { contextModule: "delivery" }),
+  shareOrder: (orderId) =>
+    apiClient.post(`/food/delivery/orders/${String(orderId)}/share`, {}, {
+      contextModule: "delivery",
+    }),
+  acceptSharedOrder: (orderId) =>
+    apiClient.post(`/food/delivery/orders/${String(orderId)}/accept-share`, {}, {
+      contextModule: "delivery",
+    }),
+  reportDelay: (orderId, reason) =>
+    apiClient.post(`/food/delivery/orders/${String(orderId)}/delay`, { reason }, {
+      contextModule: "delivery",
+    }),
 };
 
 export const userAPI = {

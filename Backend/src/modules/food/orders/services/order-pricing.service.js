@@ -136,13 +136,28 @@ export async function calculateOrderPricing(userId, dto) {
   // Always add multi-order charge if applicable, even if base delivery is free
   deliveryFee += multiOrderCharge;
 
+  // Split order logic: double delivery fee for large orders
+  let isSplitOrder = false;
+  let splitThreshold = 20;
+  const isSplitEnabled = deliveryBoySettings?.splitOrderEnabled !== false;
+  if (isSplitEnabled) {
+    splitThreshold = Number(deliveryBoySettings.splitOrderThreshold) || 20;
+    const itemCount = items.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
+    if (itemCount >= splitThreshold) {
+      deliveryFee = deliveryFee * 2;
+      isSplitOrder = true;
+    }
+  }
+
   deliveryFeeBreakdown = {
     source: "distance",
     distanceKm,
     isMultiRestaurant: restaurants.length > 1,
     additionalCharge: multiOrderCharge,
     baseFee: deliveryFee - multiOrderCharge,
-    fee: deliveryFee
+    fee: deliveryFee,
+    isSplitOrder,
+    splitThreshold
   };
 
   const gstRate = feeSettings.gstRate != null ? Number(feeSettings.gstRate) : 0;

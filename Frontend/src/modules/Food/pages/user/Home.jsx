@@ -32,9 +32,11 @@ import {
   UtensilsCrossed,
   Leaf,
   AlertCircle,
+  ArrowRight,
   Loader2,
   Plus,
   Check,
+  Sparkles,
   Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -95,13 +97,7 @@ import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailabil
 import HomeHeader from "@food/components/user/home/HomeHeader";
 import QuickSection from "@food/components/user/home/QuickSection";
 import PromoRow from "@food/components/user/home/PromoRow";
-import FestBanner from "@food/components/user/home/FestBanner";
 
-// Explore More Icons
-import exploreOffers from "@food/assets/explore more icons/offers.png";
-import exploreGourmet from "@food/assets/explore more icons/gourmet.png";
-import exploreTop10 from "@food/assets/explore more icons/top 10.png";
-import exploreCollection from "@food/assets/explore more icons/collection.png";
 
 // Banner images for hero carousel - will be fetched from API
 
@@ -115,6 +111,63 @@ const placeholders = [
   'Search "thali"',
   'Search "momos"',
   'Search "dosa"',
+];
+
+const HERO_TEXT_SLIDES = [
+  {
+    id: "premium",
+    heading: "Flat ₹150 OFF",
+    sub: "on Premium Dining restaurants",
+    cta: "Explore now",
+    badge: "Premium",
+    section: "bg-[#acc8a2]",
+    theme: {
+      text: "text-[#1a2517]",
+      sub: "text-[#1a2517]/80",
+      button: "bg-[#1a2517] text-white",
+      badge: "bg-white/80 text-[#1a2517]",
+      dotActive: "bg-[#1a2517]",
+      dotInactive: "bg-[#1a2517]/30",
+      icon: "text-[#1a2517]",
+      iconBorder: "border-[#1a2517]/30",
+    },
+  },
+  {
+    id: "store",
+    heading: "50% Cashback",
+    sub: "Fresh essentials delivered fast",
+    cta: "Order Store",
+    badge: "Limited",
+    section: "bg-[#acc8a2]/80",
+    theme: {
+      text: "text-[#1a2517]",
+      sub: "text-[#1a2517]/80",
+      button: "bg-[#1a2517] text-white",
+      badge: "bg-white/80 text-[#1a2517]",
+      dotActive: "bg-[#1a2517]",
+      dotInactive: "bg-[#1a2517]/30",
+      icon: "text-[#1a2517]",
+      iconBorder: "border-[#1a2517]/30",
+    },
+  },
+  {
+    id: "delivery",
+    heading: "Free Delivery",
+    sub: "No delivery fee on all orders",
+    cta: "Claim now",
+    badge: "Special",
+    section: "bg-[#acc8a2]/60",
+    theme: {
+      text: "text-[#1a2517]",
+      sub: "text-[#1a2517]/80",
+      button: "bg-[#1a2517] text-white",
+      badge: "bg-white/80 text-[#1a2517]",
+      dotActive: "bg-[#1a2517]",
+      dotInactive: "bg-[#1a2517]/30",
+      icon: "text-[#1a2517]",
+      iconBorder: "border-[#1a2517]/30",
+    },
+  },
 ];
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -410,7 +463,9 @@ export default function Home() {
   const vegModeToggleRef = useRef(null);
   const [isStickyHeaderVisible, setIsStickyHeaderVisible] = useState(false);
   const [showStickySearch, setShowStickySearch] = useState(false);
+  const [showStickyCategories, setShowStickyCategories] = useState(false);
   const lastScrollY = useRef(0);
+  const scrollUpAmount = useRef(0);
 
   useEffect(() => {
     const handleScrollHeader = () => {
@@ -420,22 +475,19 @@ export default function Home() {
       if (!categoriesSection) return;
 
       const rect = categoriesSection.getBoundingClientRect();
-      const sectionBottom = rect.bottom + currentScrollY;
-
-      // When to show/hide the sticky header
-      if (currentScrollY > sectionBottom) {
-        setIsStickyHeaderVisible(true);
-      } else {
-        setIsStickyHeaderVisible(false);
-      }
-
-      // Track scroll direction for search bar visibility in sticky header
-      if (currentScrollY < lastScrollY.current) {
-        // Scrolling UP
+      
+      // Stage 1: Show Search Bar as soon as we scroll down past the initial header (e.g. 100px)
+      if (currentScrollY > 120) {
         setShowStickySearch(true);
       } else {
-        // Scrolling DOWN
         setShowStickySearch(false);
+      }
+
+      // Stage 2: Show Categories when we scroll past the categories section
+      if (rect.top < 60) {
+        setShowStickyCategories(true);
+      } else {
+        setShowStickyCategories(false);
       }
 
       lastScrollY.current = currentScrollY;
@@ -452,8 +504,8 @@ export default function Home() {
   const [hasScrolledPastBanner, setHasScrolledPastBanner] = useState(false);
   const [landingCategories, setLandingCategories] = useState([]);
   const [landingExploreMore, setLandingExploreMore] = useState([]);
-  const [exploreMoreHeading, setExploreMoreHeading] = useState("Explore More");
   const [festBannerVideoUrl, setFestBannerVideoUrl] = useState("");
+  const [festSlideIndex, setFestSlideIndex] = useState(0);
   const [recommendedRestaurantIds, setRecommendedRestaurantIds] = useState([]);
   const [under250PriceLimit, setUnder250PriceLimit] = useState(250);
   const [
@@ -490,6 +542,8 @@ export default function Home() {
   );
   const festVideoActive =
     typeof festBannerVideoUrl === "string" && festBannerVideoUrl.trim().length > 0;
+  const activeHeroSlide =
+    HERO_TEXT_SLIDES[festSlideIndex % HERO_TEXT_SLIDES.length];
 
   // Stable list of restaurant ids for menu-category union so we don't refetch menus
   // when `restaurantsData` changes for reasons like distance recalculation or outletTimings enrichment.
@@ -706,53 +760,6 @@ export default function Home() {
     };
   }, []);
 
-  // Merge API explore items with fallback to ensure all 4 cards are shown
-  const finalExploreItems = useMemo(() => {
-    const fallback = [
-      {
-        id: "offers",
-        label: "Offers",
-        image: exploreOffers,
-        href: "/food/user/offers",
-      },
-      {
-        id: "gourmet",
-        label: "Gourmet",
-        image: exploreGourmet,
-        href: "/food/user/gourmet",
-      },
-      {
-        id: "collection",
-        label: "Collections",
-        image: exploreCollection,
-        href: "/food/user/profile/favorites",
-      },
-    ];
-
-    if (!landingExploreMore || landingExploreMore.length === 0) return fallback;
-
-    return fallback.map((item) => {
-      const apiItem = landingExploreMore.find(
-        (ai) => ai.label?.toLowerCase() === item.label?.toLowerCase(),
-      );
-      if (apiItem) {
-        const href = apiItem.link
-          ? apiItem.link.startsWith("/")
-            ? apiItem.link
-            : `/${apiItem.link}`
-          : item.href;
-        return {
-          ...item,
-          image:
-            normalizeImageUrl(apiItem.imageUrl || apiItem.image || "") ||
-            item.image,
-          href,
-        };
-      }
-      return item;
-    });
-  }, [landingExploreMore, normalizeImageUrl]);
-
   const normalizedLandingCategories = useMemo(() => {
     return (landingCategories || []).map((category, index) => ({
       id: category.id || category._id || `landing-category-${index}`,
@@ -795,6 +802,14 @@ export default function Home() {
     setShowSwitchOffPopup(false);
     setVegModeOption("all");
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (HERO_TEXT_SLIDES.length <= 1) return;
+    const timer = setInterval(() => {
+      setFestSlideIndex((prev) => (prev + 1) % HERO_TEXT_SLIDES.length);
+    }, 4500);
+    return () => clearInterval(timer);
   }, []);
 
   // Handle vegMode toggle - show popup when turned ON or OFF
@@ -910,33 +925,15 @@ export default function Home() {
     setLoadingRealCategories(false);
   }, []);
 
-  // Fetch explore icons and landing settings from public APIs
+  // Fetch landing settings from public API
   useEffect(() => {
     let cancelled = false;
     setLoadingLandingConfig(true);
-    Promise.all([
-      publicGetOnce("/food/explore-icons/public")
-        .catch(() => ({ data: { data: {} } })),
-      publicGetOnce("/food/landing/settings/public")
-        .catch(() => ({ data: { data: {} } })),
-    ])
-      .then(([exploreRes, settingsRes]) => {
+    publicGetOnce("/food/landing/settings/public")
+      .catch(() => ({ data: { data: {} } }))
+      .then((settingsRes) => {
         if (cancelled) return;
-        const exploreData = exploreRes?.data?.data;
-        const items = Array.isArray(exploreData?.items)
-          ? exploreData.items
-          : Array.isArray(exploreData)
-            ? exploreData
-            : [];
-        setLandingExploreMore(
-          items.map((it) => ({
-            ...it,
-            imageUrl: it.imageUrl || it.iconUrl,
-            label: it.label || it.name,
-          })),
-        );
         const settings = settingsRes?.data?.data || {};
-        setExploreMoreHeading(settings.exploreMoreHeading || "Explore More");
         setRecommendedRestaurantIds(settings.recommendedRestaurantIds || []);
         setUnder250PriceLimit(Number(settings.under250PriceLimit) || 250);
         setRecommendedRestaurantsFromSettings(
@@ -946,8 +943,6 @@ export default function Home() {
       })
       .catch(() => {
         if (!cancelled) {
-          setLandingExploreMore([]);
-          setExploreMoreHeading("Explore More");
           setRecommendedRestaurantsFromSettings([]);
           setFestBannerVideoUrl("");
         }
@@ -2422,11 +2417,11 @@ export default function Home() {
             className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer transition-transform hover:scale-105 active:scale-95"
             onClick={() => navigate("/user/under-250")}
           >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#23361A] rounded-b-full rounded-t-sm shadow-md border-t-4 border-orange-200 flex flex-col items-center justify-center p-1">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#1a2517] rounded-b-full rounded-t-sm shadow-md border-t-4 border-orange-200 flex flex-col items-center justify-center p-1">
               <span className="text-[10px] sm:text-xs font-bold text-white text-center leading-tight">UNDER</span>
               <span className="text-sm sm:text-base font-extrabold text-white">₹200</span>
               <div className="w-10 h-3.5 bg-white rounded-full mt-1 flex items-center justify-center">
-                <span className="text-[8px] font-bold text-[#23361A]">Explore</span>
+                <span className="text-[8px] font-bold text-[#1a2517]">Explore</span>
               </div>
             </div>
             <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Offers</span>
@@ -2442,7 +2437,7 @@ export default function Home() {
                 className="flex-shrink-0 flex flex-col items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
                 style={{ animation: `fade-in-up 0.5s ease-out forwards ${index * 0.05}s`, opacity: 0 }}
               >
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 group-hover:border-[#23361A] transition-colors">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 group-hover:border-[#1a2517] transition-colors">
                   <OptimizedImage
                     src={category.image}
                     alt={category.name}
@@ -2462,8 +2457,8 @@ export default function Home() {
               className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
               onClick={() => navigate("/food/user/categories")}
             >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-orange-50 dark:bg-orange-950 flex items-center justify-center border border-orange-100 group-hover:border-[#23361A] transition-all">
-                <Plus className="w-6 h-6 text-[#23361A]" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-orange-50 dark:bg-orange-950 flex items-center justify-center border border-orange-100 group-hover:border-[#1a2517] transition-all">
+                <Plus className="w-6 h-6 text-[#1a2517]" />
               </div>
               <span className="text-xs font-medium text-gray-700">See All</span>
             </div>
@@ -2589,6 +2584,14 @@ export default function Home() {
               background-position: 100% 50%;
             }
           }
+          @keyframes bannerPan {
+            0% {
+              background-position: 100% 50%;
+            }
+            100% {
+              background-position: 0% 50%;
+            }
+          }
           @keyframes slideUp {
             0% {
               opacity: 0;
@@ -2599,6 +2602,10 @@ export default function Home() {
               transform: translateY(0);
             }
           }
+          .hero-banner-pan {
+            background-size: 200% 200%;
+            animation: bannerPan 16s linear infinite;
+          }
           .red-header-bg {
             background-color: #ef4f5f;
             background-image: linear-gradient(180deg, #ef4f5f 0%, #e03546 100%);
@@ -2608,42 +2615,180 @@ export default function Home() {
 
         <div className="md:hidden relative overflow-x-clip bg-white dark:bg-[#0a0a0a]">
           {/* Brand Top Section (Dark) */}
-          <div className="relative overflow-hidden bg-gradient-to-b from-[#3a142c] to-[#1a0a14] rounded-b-[2rem] shadow-lg mb-2">
-            {festVideoActive && (
-              <div className="absolute inset-0 z-0">
-                <video
-                  src={festBannerVideoUrl}
-                  className="w-full h-full object-cover"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                />
-                <div className="absolute inset-0 bg-black/40" />
-              </div>
-            )}
-            <div className="relative z-10">
-              <HomeHeader
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                location={effectiveLocation}
-                handleLocationClick={handleLocationClick}
-                handleSearchFocus={handleSearchFocus}
-                placeholderIndex={placeholderIndex}
-                placeholders={placeholders}
-                vegMode={vegMode}
-                handleVegModeChange={handleVegModeChange}
-              />
+          {/* Two-Stage Sticky Header Container */}
+          <div className="relative">
+            {/* Primary Header Background */}
+            <div className={`relative overflow-hidden min-h-[310px] ${activeHeroSlide.section} hero-banner-pan rounded-b-[2rem] shadow-sm transition-colors duration-500`}>
+              <div className="relative z-10">
+                <HomeHeader
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  location={effectiveLocation}
+                  handleLocationClick={handleLocationClick}
+                  handleSearchFocus={handleSearchFocus}
+                  placeholderIndex={placeholderIndex}
+                  placeholders={placeholders}
+                  vegMode={vegMode}
+                  handleVegModeChange={handleVegModeChange}
+                  tone="light"
+                  embedded
+                  theme={activeHeroSlide.theme}
+                  hideSearch={false} // Restore search in initial header
+                >
+                  {activeTab === "food" && (
+                    <div className="relative min-h-[140px] pt-2">
+                      <AnimatePresence mode="wait" initial={false}>
+                        {HERO_TEXT_SLIDES.map((slide, index) =>
+                          index === festSlideIndex % HERO_TEXT_SLIDES.length ? (
+                            <motion.div
+                              key={slide.id}
+                              initial={{ opacity: 0, y: 16 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -16 }}
+                              transition={{ duration: 0.35 }}
+                              className="relative"
+                            >
+                              <div className="max-w-[75%]">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-2xl font-black tracking-tight ${slide.theme.text}`}>
+                                    {slide.heading}
+                                  </span>
+                                  <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${slide.theme.badge}`}>
+                                    {slide.badge}
+                                  </span>
+                                </div>
+                                <p className={`mt-1 text-sm font-semibold ${slide.theme.sub}`}>
+                                  {slide.sub}
+                                </p>
+                                <button
+                                  type="button"
+                                  className={`mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black shadow-sm ${slide.theme.button}`}
+                                >
+                                  {slide.cta}
+                                  <ArrowRight className="h-4 w-4" />
+                                </button>
+                              </div>
 
-              {activeTab === "food" && (
-                <FestBanner
-                  isVegMode={vegMode}
-                  videoUrl={festVideoActive ? "" : festBannerVideoUrl}
-                  hideFoodImages={festVideoActive}
-                />
-              )}
+                              <div className={`absolute right-1 top-1/2 -translate-y-1/2 h-16 w-16 rounded-[20px] border-2 ${slide.theme.iconBorder} ${slide.theme.icon} flex items-center justify-center`}>
+                                <Sparkles className="h-7 w-7" />
+                                <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-current" />
+                                <div className="absolute right-4 bottom-2 h-2 w-2 rounded-full border border-current" />
+                              </div>
+                            </motion.div>
+                          ) : null,
+                        )}
+                      </AnimatePresence>
+
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        {HERO_TEXT_SLIDES.map((slide, index) => (
+                          <button
+                            key={slide.id}
+                            type="button"
+                            onClick={() => setFestSlideIndex(index)}
+                            className={`h-1.5 rounded-full transition-all ${index === festSlideIndex % HERO_TEXT_SLIDES.length
+                                ? `w-6 ${activeHeroSlide.theme.dotActive}`
+                                : `w-2.5 ${activeHeroSlide.theme.dotInactive}`
+                              }`}
+                            aria-label={`Show banner ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </HomeHeader>
+              </div>
             </div>
+
+            {/* Two-Stage Scroll-Up Sticky Header */}
+            <AnimatePresence>
+              {showStickySearch && (
+                <motion.div 
+                  initial={{ y: -200 }}
+                  animate={{ y: 0 }}
+                  exit={{ y: -200 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="fixed top-0 inset-x-0 z-[100] bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] border-b border-white/40"
+                >
+                  {/* Stage 1: Search Bar & Veg Toggle */}
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div
+                      className="flex-1 relative rounded-2xl flex items-center px-4 py-3 cursor-pointer bg-white/60 border border-white/50 shadow-sm active:scale-[0.98] transition-all"
+                      onClick={handleSearchFocus}
+                    >
+                      <Search className="h-4.5 w-4.5 text-gray-900 mr-2 shrink-0" strokeWidth={3} />
+                      <div className="flex-1 overflow-hidden relative h-5">
+                        <span className="text-sm font-bold text-gray-400">Search "thali", "pizza"...</span>
+                      </div>
+                      <Mic className="h-4.5 w-4.5 text-gray-900 ml-2" />
+                    </div>
+
+                    <div 
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm active:scale-95 ${vegMode ? "border-[#1a2517] bg-[#1a2517]/10" : "border-white/50 bg-white/60"}`}
+                      onClick={() => handleVegModeChange(!vegMode)}
+                    >
+                      <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${vegMode ? "border-[#1a2517] bg-white" : "border-gray-300 bg-white"}`}>
+                        {vegMode && <div className="w-2 h-2 rounded-full bg-[#00b09b]" />}
+                      </div>
+                      <span className={`text-[11px] font-black uppercase tracking-tight ${vegMode ? "text-[#1a2517]" : "text-gray-500"}`}>Veg</span>
+                    </div>
+                  </div>
+
+                  {/* Stage 2: "What's on your mind" Categories */}
+                  <AnimatePresence>
+                    {showStickyCategories && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden bg-white/30 border-t border-white/20"
+                      >
+                        <div className="flex overflow-x-auto gap-4 py-3 pb-4 scrollbar-hide px-4 mask-edge-fade">
+                          {displayCategories.map((category, index) => (
+                            <Link
+                              key={`sticky-cat-${category.id || index}`}
+                              to={`/food/user/category/${category.slug}`}
+                              className="flex-shrink-0 flex flex-col items-center gap-1.5 group w-[64px]"
+                            >
+                              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/60 shadow-sm bg-white/80 backdrop-blur-sm transition-transform group-active:scale-95">
+                                <OptimizedImage
+                                  src={category.image}
+                                  alt={category.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <span className="text-[9px] font-black text-gray-500 text-center truncate w-full uppercase tracking-tight">
+                                {category.name}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
+
+          {activeTab !== "food" && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="px-4 pb-6"
+            >
+              <div className="rounded-[28px] bg-gradient-to-br from-[#efe7ff] via-[#ffe0ef] to-[#dff6e7] px-6 py-10 text-center shadow-[0_12px_26px_rgba(0,0,0,0.08)]">
+                <div className="text-sm font-black uppercase tracking-[0.3em] text-[#6b5bb5]">Coming Soon</div>
+                <div className="mt-3 text-2xl font-black text-[#2b2b3f]">
+                  {activeTab === "taxi" ? "Taxi" : "Quick Commerce"}
+                </div>
+                <p className="mt-2 text-sm font-semibold text-[#2b2b3f]/70">
+                  We are preparing the next experience for you.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           <AnimatePresence mode="wait">
             {activeTab === "food" ? (
@@ -2655,37 +2800,6 @@ export default function Home() {
                 transition={{ duration: 0.3 }}
                 className="bg-transparent dark:bg-transparent"
               >
-                {/* NEW Quick Offer Section - Cleaner & Professional (On white bg now) */}
-                <div className="px-4 pt-2.5 pb-1">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Link
-                      to="/food/user/offers"
-                      className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20 border border-rose-100 dark:border-rose-900/30 group active:scale-[0.98] transition-all"
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-rose-400 tracking-widest uppercase mb-0.5">Min.</span>
-                        <span className="text-sm font-black text-rose-600 dark:text-rose-400">40% Off</span>
-                      </div>
-                      <div className="w-10 h-10 p-1.5 rounded-xl bg-white dark:bg-[#1a1a1a] shadow-sm group-hover:scale-110 transition-transform">
-                        <Tag className="w-full h-full text-rose-500" />
-                      </div>
-                    </Link>
-
-                    <Link
-                      to="/food/user/under-250"
-                      className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-100 dark:border-amber-900/30 group active:scale-[0.98] transition-all"
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-amber-500 tracking-widest uppercase mb-0.5">Budget</span>
-                        <span className="text-sm font-black text-amber-600 dark:text-amber-400">Under ₹{under250PriceLimit}</span>
-                      </div>
-                      <div className="w-10 h-10 p-1.5 rounded-xl bg-white dark:bg-[#1a1a1a] shadow-sm group-hover:scale-110 transition-transform">
-                        <IndianRupee className="w-full h-full text-amber-500" />
-                      </div>
-                    </Link>
-                  </div>
-                </div>
-
                 {/* "What's on your mind today?" Section - Now with Sticky Logic */}
                 <div
                   id="categories-section"
@@ -2738,124 +2852,31 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Dynamic Sticky Header (Search + Slider + Filters) */}
-                <AnimatePresence>
-                  {isStickyHeaderVisible && (
-                    <motion.div
-                      initial={{ y: -200 }}
-                      animate={{ y: 0 }}
-                      exit={{ y: -200 }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                      className="fixed top-0 left-0 right-0 z-[100] bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md shadow-lg border-b border-gray-100 dark:border-white/5 safe-top"
-                    >
-                      {/* Search Bar Row (appears when scrolling up) */}
-                      <AnimatePresence>
-                        {showStickySearch && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="px-4 pt-3 pb-2"
-                          >
-                            <div
-                              className="bg-white dark:bg-[#1a1a1a] rounded-2xl flex items-center px-4 py-3 cursor-pointer border-2 border-[#23361A]/30 dark:border-[#23361A]/50 shadow-md"
-                              onClick={handleSearchFocus}
-                            >
-                              <Search className="h-5 w-5 text-[#23361A] dark:text-[#a14b84] mr-3" strokeWidth={2.5} />
-                              <div className="flex-1 relative h-5 overflow-hidden">
-                                <span className="absolute inset-0 text-base text-gray-400 font-medium">Search "biryani"</span>
-                              </div>
-                              <div className="h-5 w-[1px] bg-gray-200 dark:bg-white/10 mx-2" />
-                              <Mic className="h-5 w-5 text-[#23361A] dark:text-[#a14b84]" />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Categories Slider (Increased Icon Size) */}
-                      <div className="flex overflow-x-auto gap-5 py-3 pb-2 scrollbar-hide px-4 mask-edge-fade">
-                        {displayCategories.map((category, index) => (
-                          <Link
-                            key={`sticky-${category.id || index}`}
-                            to={`/food/user/category/${category.slug}`}
-                            className="flex-shrink-0 flex flex-col items-center gap-1.5 group w-[74px]"
-                          >
-                            <div className="w-18 h-18 rounded-full overflow-hidden border-2 border-gray-100 dark:border-white/10 shadow-md bg-white dark:bg-white/5 transition-transform group-active:scale-95">
-                              <OptimizedImage
-                                src={category.image}
-                                alt={category.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <span className="text-[9px] font-bold text-gray-700 dark:text-gray-300 text-center truncate w-full uppercase tracking-tighter">
-                              {category.name}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-
-                      {/* Integrated Filters Row */}
-                      <div className="px-4 pb-3">
-                        <div
-                          className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
-                          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setIsFilterOpen(true)}
-                            className="h-8 px-3 rounded-full flex items-center gap-1.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/5 shadow-sm whitespace-nowrap"
-                          >
-                            <SlidersHorizontal className="h-3.5 w-3.5" />
-                            <span className="text-[10px] font-bold uppercase">Filters</span>
-                          </button>
-
-                          {[
-                            { id: "delivery-under-30", label: "Under 30 mins" },
-                            { id: "delivery-under-45", label: "Under 45 mins" },
-                            { id: "distance-under-1km", label: "Under 1km", icon: MapPin },
-                          ].map((filter) => {
-                            const Icon = filter.icon;
-                            const isActive = activeFilters.has(filter.id);
-                            return (
-                              <button
-                                key={filter.id}
-                                type="button"
-                                onClick={() => toggleFilter(filter.id)}
-                                className={`h-8 px-4 rounded-full flex items-center gap-2 whitespace-nowrap transition-all font-bold text-[10px] uppercase ${isActive
-                                  ? "bg-[#23361A] text-white"
-                                  : "bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 text-gray-600 dark:text-gray-400"
-                                  }`}
-                              >
-                                {Icon && <Icon className="h-3 w-3" />}
-                                {filter.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
                 {/* Admin Hero Banners Section - Now below categories */}
                 {HeroBannerSection}
 
-                {/* Filters Sticky Sidebar Header */}
-                <section className="py-2.5 px-4 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-[40] -mx-4 w-[calc(100%+2rem)] border-b border-gray-100 dark:border-white/5 shadow-sm transition-colors duration-300">
-                  <div
-                    className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-4"
-                    style={{
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none",
-                    }}
-                  >
+                  {/* Stage 3: Filters Row (Always show when sticky) */}
+                  <div className="py-2 px-4 border-t border-gray-50 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                    {/* Veg Mode Toggle Integrated */}
+                    <div className="flex items-center bg-gray-50 rounded-full px-3 py-1.5 border border-gray-200 shrink-0">
+                      <span className="text-[10px] font-black mr-2 uppercase text-gray-400">Veg</span>
+                      <Switch
+                        checked={vegMode}
+                        onCheckedChange={handleVegModeChange}
+                        className="scale-75"
+                      />
+                    </div>
+
+                    <div className="h-6 w-[1px] bg-gray-200 mx-1 shrink-0" />
+
                     <button
                       type="button"
                       onClick={() => setIsFilterOpen(true)}
-                      className="h-9 px-4 rounded-full flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 font-bold transition-all bg-white dark:bg-[#1a1a1a] border border-gray-200 shadow-sm active:scale-95"
+                      className="h-9 px-4 rounded-full flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 font-bold transition-all bg-white border border-gray-200 shadow-sm active:scale-95"
                     >
                       <SlidersHorizontal className="h-4 w-4 text-black" />
-                      <span className="text-xs font-bold text-black dark:text-white uppercase tracking-tight">
+                      <span className="text-xs font-bold text-black uppercase tracking-tight">
                         Filters
                       </span>
                     </button>
@@ -2864,7 +2885,6 @@ export default function Home() {
                       { id: "delivery-under-30", label: "Under 30 mins" },
                       { id: "delivery-under-45", label: "Under 45 mins" },
                       { id: "distance-under-1km", label: "Under 1km", icon: MapPin },
-                      { id: "distance-under-2km", label: "Under 2km", icon: MapPin },
                     ].map((filter) => {
                       const Icon = filter.icon;
                       const isActive = activeFilters.has(filter.id);
@@ -2880,33 +2900,21 @@ export default function Home() {
                               nextFilters.add(filter.id);
                             }
                             setActiveFilters(nextFilters);
-                            void applyFiltersAndRefetch(
-                              nextFilters,
-                              sortBy,
-                              selectedCuisine,
-                            );
+                            void applyFiltersAndRefetch(nextFilters, sortBy, selectedCuisine);
                           }}
                           className={`h-9 px-4 rounded-full flex items-center gap-2 whitespace-nowrap flex-shrink-0 transition-all font-bold shadow-sm active:scale-95 ${isActive
-                            ? "bg-[#23361A] text-white border border-[#23361A] hover:bg-orange-700"
-                            : "bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+                            ? "bg-[#1a2517] text-white border border-[#1a2517]"
+                            : "bg-white border border-gray-100 text-gray-700"
                             }`}
                         >
-                          {Icon && (
-                            <Icon
-                              className={`h-3.5 w-3.5 ${isActive ? "fill-white" : ""}`}
-                            />
-                          )}
-                          <span className="text-xs font-bold tracking-tight">
-                            {filter.label}
-                          </span>
+                          {Icon && <Icon className={`h-3.5 w-3.5 ${isActive ? "fill-white" : ""}`} />}
+                          <span className="text-xs font-bold tracking-tight">{filter.label}</span>
                         </button>
                       );
                     })}
                   </div>
-                </section>
-
-              </motion.div>
-            ) : (
+                </motion.div>
+              ) : (
               <motion.div
                 key="quick-content"
                 initial={{ opacity: 0, y: 10 }}
@@ -2959,8 +2967,8 @@ export default function Home() {
                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate tracking-tight">
                           {restaurant.name}
                         </p>
-                        <p className="text-[10px] text-[#23361A] font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
-                          <Flame className="w-3.5 h-3.5 fill-[#23361A]" />
+                        <p className="text-[10px] text-[#1a2517] font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
+                          <Flame className="w-3.5 h-3.5 fill-[#1a2517]" />
                           Near & Fast
                         </p>
                       </div>
@@ -2971,78 +2979,6 @@ export default function Home() {
             </div>
           </motion.section>
         )}
-
-        {/* Explore More Section */}
-        <motion.section
-          className="content-auto pt-2 sm:pt-3 lg:pt-4"
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}>
-          <div className="px-4 mb-4 flex items-center gap-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight">
-              {exploreMoreHeading}
-            </h2>
-            <div className="h-[1px] bg-gray-100 dark:bg-gray-800 flex-1"></div>
-          </div>
-          <div className="pb-3 lg:pb-4">
-            <div className="overflow-x-auto scrollbar-hide">
-              <div className="flex gap-3 sm:gap-4 px-4 pb-2 min-w-min">
-                {showExploreSkeleton ? (
-                  Array(6).fill(0).map((_, i) => (
-                    <div key={i} className="flex-shrink-0">
-                      <ExploreGridSkeleton count={1} />
-                    </div>
-                  ))
-                ) : (
-                  finalExploreItems.map((item, index) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{
-                        duration: 0.4,
-                        delay: index * 0.08,
-                      }}
-                      whileHover={{ y: -4 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="flex-shrink-0">
-                      <Link
-                        to={item.href}
-                        className="block">
-                        <div className="flex flex-col items-center gap-2 w-full group">
-                          <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(0,0,0,0.12)] group-hover:shadow-[0_15px_30px_-8px_rgba(0,0,0,0.18)] transition-all duration-500 overflow-hidden border border-gray-100 dark:border-gray-800 group-hover:border-[#23361A]/40">
-                            {/* Colorful Glow Background */}
-                            <div className={`absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500 bg-gradient-to-br ${index % 3 === 0 ? 'from-[#23361A] to-rose-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-teal-500 to-emerald-500'} z-20 pointer-events-none`} />
-
-                            {/* Shine Effect */}
-                            <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden">
-                              <motion.div
-                                animate={{ x: ['-200%', '200%'] }}
-                                transition={{ duration: 3, repeat: Infinity, repeatDelay: 5 + index * 0.5 }}
-                                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[-25deg] w-[150%]"
-                              />
-                            </div>
-
-                            <OptimizedImage
-                              src={item.image}
-                              alt={item.label}
-                              className="w-full h-full object-cover relative z-10 transition-transform duration-500 group-hover:scale-110"
-                              width={120}
-                              height={120}
-                            />
-                          </div>
-                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-500 dark:text-gray-400 group-hover:text-[#23361A] dark:group-hover:text-white transition-colors text-center tracking-tight leading-tight uppercase px-1 line-clamp-2">
-                            {item.label}
-                          </span>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.section>
 
         {/* Featured Foods - Horizontal Scroll */}
 
@@ -3083,7 +3019,7 @@ export default function Home() {
               )}
             </AnimatePresence>
             <div
-              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-4 lg:gap-5 xl:gap-6 px-4 pt-1 sm:pt-1.5 lg:pt-2 items-stretch ${isLoadingFilterResults || loadingRestaurants ? "opacity-50" : "opacity-100"} transition-opacity duration-300`}>
+              className={`grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-4 lg:gap-5 xl:gap-6 px-4 pt-1 sm:pt-1.5 lg:pt-2 items-stretch ${isLoadingFilterResults || loadingRestaurants ? "opacity-50" : "opacity-100"} transition-opacity duration-300`}>
               {visibleRestaurants.map((restaurant, index) => {
                 const nameStr =
                   typeof restaurant?.name === "string"
@@ -3111,6 +3047,15 @@ export default function Home() {
                   new Date(availabilityTick),
                   { ignoreOperationalStatus: true },
                 );
+                const closingCountdown = availability.closingCountdownLabel
+                  ? availability.closingCountdownLabel.replace(/closes\s+in\s*/i, "")
+                  : "";
+                const hasClosingCountdown =
+                  availability.isOpen &&
+                  closingCountdown &&
+                  availability.openingTime &&
+                  availability.closingTime &&
+                  availability.minutesUntilClose <= 60;
                 // Direct favorite check - isFavorite is already memoized in context
                 const favorite = isFavorite(restaurantSlug);
 
@@ -3161,7 +3106,7 @@ export default function Home() {
                         to={`/user/restaurants/${restaurantSlug}`}
                         className="h-full flex">
                         <Card
-                          className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-[28px] flex flex-col h-full w-full relative shadow-sm hover:shadow-xl ${isOutOfService || !availability.isOpen
+                          className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-[28px] flex flex-col h-full w-full relative shadow-[0_12px_40px_rgba(26,37,23,0.12)] hover:shadow-[0_30px_60px_rgba(26,37,23,0.20)] ${isOutOfService || !availability.isOpen
                             ? "grayscale opacity-75"
                             : ""
                             }`}>
@@ -3171,18 +3116,20 @@ export default function Home() {
                               restaurant={restaurant}
                               priority={index < 3}
                               backendOrigin={BACKEND_ORIGIN}
+                              className="h-32 sm:h-40 md:h-48 lg:h-56"
+                              roundedClass="rounded-t-[28px]"
                             />
 
                             {/* Featured Dish Badge - Top Left */}
-                            <div className="absolute top-4 left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
-                              <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-medium tracking-tight flex items-center shadow-2xl border border-white/20">
+                            <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
+                              <div className="bg-black/70 backdrop-blur-lg text-white px-2.5 sm:px-4 py-1 rounded-full text-[9px] sm:text-[11px] font-medium tracking-tight flex items-center shadow-2xl border border-white/20">
                                 {restaurant.featuredDish} • ₹
                                 {restaurant.featuredPrice}
                               </div>
                             </div>
 
                             {/* Bookmark Icon - Top Right */}
-                            <div className="absolute top-4 right-4 z-10 transform transition-transform duration-300 group-hover:scale-110">
+                            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 transform transition-transform duration-300 group-hover:scale-110">
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -3192,12 +3139,12 @@ export default function Home() {
                                     ? "Remove from favorites"
                                     : "Add to favorites"
                                 }
-                                className={`h-11 w-11 rounded-[20px] shadow-xl flex items-center justify-center transition-all duration-300 ${favorite
+                                className={`h-9 w-9 sm:h-11 sm:w-11 rounded-[16px] sm:rounded-[20px] shadow-xl flex items-center justify-center transition-all duration-300 ${favorite
                                   ? "bg-red-500 text-white"
                                   : "bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white"
                                   }`}>
                                 <Bookmark
-                                  className={`h-5 w-5 transition-all duration-300 ${favorite ? "fill-white" : ""
+                                  className={`h-4 w-4 sm:h-5 sm:w-5 transition-all duration-300 ${favorite ? "fill-white" : ""
                                     }`}
                                 />
                               </Button>
@@ -3206,48 +3153,42 @@ export default function Home() {
 
                           {/* Content Section */}
                           <div className="transform transition-transform duration-300 group-hover:-translate-y-1">
-                            <CardContent className="p-3 sm:p-4 lg:p-5 pt-3 sm:pt-4 lg:pt-5 flex flex-col flex-grow">
+                            <CardContent className="p-2.5 sm:p-4 lg:p-5 pt-2.5 sm:pt-4 lg:pt-5 flex flex-col flex-grow">
                               {/* Restaurant Name & Rating */}
                               <div className="flex items-start justify-between gap-2 mb-2 lg:mb-3">
                                 <div className="flex-1 min-w-0">
-                                  <h3 className="text-lg lg:text-2xl font-bold text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tight transition-colors duration-300 group-hover:text-[#23361A]">
+                                  <h3 className="text-base sm:text-lg lg:text-2xl font-bold text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tight transition-colors duration-300 group-hover:text-[#1a2517]">
                                     {restaurant.name}
                                   </h3>
-                                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                                  <div className="flex flex-wrap items-center gap-2 mt-2 min-h-[24px]">
                                     <span
-                                      className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-[#23361A] text-white" : "bg-gray-400 text-white"}`}>
+                                      className={`inline-flex rounded-full px-2.5 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-[#1a2517] text-white" : "bg-gray-400 text-white"}`}>
                                       {availability.isOpen
                                         ? "Open now"
                                         : "Offline"}
                                     </span>
-                                    {availability.isOpen &&
-                                      availability.closingCountdownLabel &&
-                                      availability.openingTime &&
-                                      availability.closingTime && (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#23361A]/10 text-[#23361A] border border-[#23361A]/20 text-[10px] font-black uppercase tracking-widest">
-                                          <Timer
-                                            className="h-3 w-3 flex-shrink-0"
-                                            strokeWidth={3}
-                                          />
-                                          <span>
-                                            {availability.closingCountdownLabel}
-                                          </span>
-                                        </div>
-                                      )}
+                                    {hasClosingCountdown && (
+                                      <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                        <Timer className="h-3 w-3 flex-shrink-0" strokeWidth={3} />
+                                        <span>
+                                          Closes in {closingCountdown}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                                <div className={`flex-shrink-0 ${Number(restaurant.rating) > 0 ? "bg-[#23361A]" : "bg-gray-400"} text-white px-3 py-1.5 rounded-2xl flex items-center gap-1.5 shadow-md transform transition-transform duration-300 group-hover:scale-110`}>
-                                  <span className="text-sm lg:text-lg font-black tracking-tight">
+                                <div className={`flex-shrink-0 min-w-[52px] justify-center ${Number(restaurant.rating) > 0 ? "bg-[#1a2517]" : "bg-gray-400"} text-white px-2.5 sm:px-3 py-1 rounded-2xl flex items-center gap-1 shadow-md transform transition-transform duration-300 group-hover:scale-110`}>
+                                  <span className="text-xs sm:text-sm lg:text-lg font-black tracking-tight uppercase">
                                     {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                                   </span>
-                                  {Number(restaurant.rating) > 0 && <Star className="h-3.5 w-3.5 lg:h-4.5 lg:w-4.5 fill-white text-white" strokeWidth={0} />}
+                                  {Number(restaurant.rating) > 0 && <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4.5 lg:w-4.5 fill-white text-white" strokeWidth={0} />}
                                 </div>
                               </div>
 
                               {/* Delivery Time & Distance */}
-                              <div className="flex items-center gap-1 text-sm lg:text-base text-gray-500 mb-2 lg:mb-3 transition-opacity duration-300 opacity-70 group-hover:opacity-100">
+                              <div className="flex items-center gap-1 text-xs sm:text-sm lg:text-base text-gray-500 mb-2 lg:mb-3 transition-opacity duration-300 opacity-70 group-hover:opacity-100">
                                 <Clock
-                                  className="h-4 w-4 lg:h-5 lg:w-5 text-gray-500 dark:text-gray-400"
+                                  className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500 dark:text-gray-400"
                                   strokeWidth={1.5}
                                 />
                                 <span className="font-medium dark:text-gray-300 text-gray-700">
@@ -3261,12 +3202,12 @@ export default function Home() {
 
                               {/* Offer Badge */}
                               {restaurant.offer && (
-                                <div className="flex items-center gap-2 text-sm lg:text-base mt-auto transform transition-transform duration-300 group-hover:translate-x-1">
+                                <div className="flex items-center gap-2 text-xs sm:text-sm lg:text-base mt-auto transform transition-transform duration-300 group-hover:translate-x-1">
                                   <BadgePercent
-                                    className="h-4 w-4 lg:h-5 lg:w-5 text-[#23361A]"
+                                    className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-[#1a2517]"
                                     strokeWidth={3}
                                   />
-                                  <span className="text-[#23361A] dark:text-[#a05485] font-black uppercase text-[10px] tracking-wider">
+                                  <span className="text-[#1a2517] dark:text-[#a05485] font-black uppercase text-[9px] sm:text-[10px] tracking-wider">
                                     {restaurant.offer}
                                   </span>
                                 </div>
@@ -3275,7 +3216,7 @@ export default function Home() {
                           </div>
 
                           {/* Border Glow Effect */}
-                          <div className="absolute inset-0 rounded-md pointer-events-none z-0 transition-all duration-300 border border-transparent group-hover:border-[#23361A]/30 group-hover:shadow-[inset_0_0_0_1px_rgba(235,89,14,0.2)]" />
+                          <div className="absolute inset-0 rounded-md pointer-events-none z-0 transition-all duration-300 border border-transparent group-hover:border-[#1a2517]/30 group-hover:shadow-[inset_0_0_0_1px_rgba(235,89,14,0.2)]" />
                         </Card>
                       </Link>
                     </div>
@@ -3339,7 +3280,7 @@ export default function Home() {
                     setSortBy(null);
                     setSelectedCuisine(null);
                   }}
-                  className="text-[#23361A] font-medium text-sm">
+                  className="text-[#1a2517] font-medium text-sm">
                   Clear all
                 </button>
               </div>
@@ -3375,11 +3316,11 @@ export default function Home() {
                           }
                         }}
                         className={`flex flex-col items-center gap-1 py-4 px-2 text-center relative transition-colors ${isActive
-                          ? "bg-white dark:bg-[#1a1a1a] text-[#23361A]"
+                          ? "bg-white dark:bg-[#1a1a1a] text-[#1a2517]"
                           : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                           }`}>
                         {isActive && (
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#23361A] rounded-r" />
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#1a2517] rounded-r" />
                         )}
                         <Icon className="h-5 w-5" strokeWidth={1.5} />
                         <span className="text-xs font-medium leading-tight">
@@ -3414,11 +3355,11 @@ export default function Home() {
                           key={option.id || "relevance"}
                           onClick={() => setSortBy(option.id)}
                           className={`px-4 py-3 rounded-xl border text-left transition-colors ${sortBy === option.id
-                            ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                            : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                            ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                            : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                             }`}>
                           <span
-                            className={`text-sm font-medium ${sortBy === option.id ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                            className={`text-sm font-medium ${sortBy === option.id ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                             {option.label}
                           </span>
                         </button>
@@ -3438,30 +3379,30 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("delivery-under-30")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("delivery-under-30")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <Timer
-                          className={`h-6 w-6 ${activeFilters.has("delivery-under-30") ? "text-[#23361A]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("delivery-under-30") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("delivery-under-30") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("delivery-under-30") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 30 mins
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("delivery-under-45")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("delivery-under-45")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <Timer
-                          className={`h-6 w-6 ${activeFilters.has("delivery-under-45") ? "text-[#23361A]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("delivery-under-45") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("delivery-under-45") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("delivery-under-45") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 45 mins
                         </span>
                       </button>
@@ -3480,42 +3421,42 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("rating-35-plus")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("rating-35-plus")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <Star
-                          className={`h-6 w-6 ${activeFilters.has("rating-35-plus") ? "text-[#23361A] fill-[#23361A]" : "text-gray-400 dark:text-gray-500"}`}
+                          className={`h-6 w-6 ${activeFilters.has("rating-35-plus") ? "text-[#1a2517] fill-[#1a2517]" : "text-gray-400 dark:text-gray-500"}`}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("rating-35-plus") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("rating-35-plus") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Rated 3.5+
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("rating-4-plus")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("rating-4-plus")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <Star
-                          className={`h-6 w-6 ${activeFilters.has("rating-4-plus") ? "text-[#23361A] fill-[#23361A]" : "text-gray-400 dark:text-gray-500"}`}
+                          className={`h-6 w-6 ${activeFilters.has("rating-4-plus") ? "text-[#1a2517] fill-[#1a2517]" : "text-gray-400 dark:text-gray-500"}`}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("rating-4-plus") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("rating-4-plus") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Rated 4.0+
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("rating-45-plus")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("rating-45-plus")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <Star
-                          className={`h-6 w-6 ${activeFilters.has("rating-45-plus") ? "text-[#23361A] fill-[#23361A]" : "text-gray-400 dark:text-gray-500"}`}
+                          className={`h-6 w-6 ${activeFilters.has("rating-45-plus") ? "text-[#1a2517] fill-[#1a2517]" : "text-gray-400 dark:text-gray-500"}`}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("rating-45-plus") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("rating-45-plus") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Rated 4.5+
                         </span>
                       </button>
@@ -3534,30 +3475,30 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("distance-under-1km")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("distance-under-1km")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <MapPin
-                          className={`h-6 w-6 ${activeFilters.has("distance-under-1km") ? "text-[#23361A]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("distance-under-1km") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("distance-under-1km") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("distance-under-1km") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 1 km
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("distance-under-2km")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("distance-under-2km")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <MapPin
-                          className={`h-6 w-6 ${activeFilters.has("distance-under-2km") ? "text-[#23361A]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("distance-under-2km") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("distance-under-2km") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("distance-under-2km") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 2 km
                         </span>
                       </button>
@@ -3576,22 +3517,22 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("price-under-200")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("price-under-200")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under ₹200
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("price-under-500")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("price-under-500")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under ₹500
                         </span>
                       </button>
@@ -3612,22 +3553,22 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("top-rated")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("top-rated")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Top Rated
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("trusted")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("trusted")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Trusted by 1000+ users
                         </span>
                       </button>
@@ -3646,11 +3587,11 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("has-offers")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("has-offers")
-                          ? "border-[#23361A] bg-[#F7FBEA] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#23361A]"
+                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#23361A]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
                           Restaurants with offers
                         </span>
                       </button>
@@ -3676,7 +3617,7 @@ export default function Home() {
                     );
                   }}
                   className={`flex-1 py-3 font-semibold rounded-xl transition-colors ${activeFilters.size > 0 || sortBy || selectedCuisine
-                    ? "bg-[#23361A] text-white hover:bg-[#A2B447]"
+                    ? "bg-[#1a2517] text-white hover:bg-[#A2B447]"
                     : "bg-gray-200 text-gray-500"
                     }`}
                   disabled={isLoadingFilterResults}>
@@ -3814,7 +3755,7 @@ export default function Home() {
                     setIsApplyingVegMode(false);
                   }, 2000);
                 }}
-                className="w-full bg-[#23361A] text-white font-semibold py-2.5 rounded-xl hover:bg-[#A2B447] transition-colors mb-2 text-sm">
+                className="w-full bg-[#1a2517] text-white font-semibold py-2.5 rounded-xl hover:bg-[#A2B447] transition-colors mb-2 text-sm">
                 Apply
               </button>
             </motion.div>

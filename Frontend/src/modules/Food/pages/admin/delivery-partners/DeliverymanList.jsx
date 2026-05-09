@@ -888,9 +888,12 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                       >
                         <option value="per_order">Per Order (Commission)</option>
                         <option value="salary">Salary Base</option>
+                        <option value="seller_base">Seller Base (Fixed)</option>
                       </select>
                       <p className="text-xs text-slate-500 mt-2">
-                        {viewDetails.employmentType === 'salary' ? 'Partner receives a fixed salary based on slab.' : 'Partner earns per delivery based on distance rules.'}
+                        {viewDetails.employmentType === 'salary' ? 'Partner receives a fixed salary based on slab.' : 
+                         viewDetails.employmentType === 'seller_base' ? 'Partner is managed on a fixed base pay model by the seller/platform.' :
+                         'Partner earns per delivery based on distance rules.'}
                       </p>
                     </div>
 

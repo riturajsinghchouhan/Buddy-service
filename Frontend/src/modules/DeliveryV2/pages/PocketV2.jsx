@@ -30,7 +30,8 @@ export const PocketV2 = () => {
     weeklyOrders: 0,
     payoutAmount: 0,
     payoutPeriod: 'Current Week',
-    bankDetailsFilled: false
+    bankDetailsFilled: false,
+    period: 'week'
   });
 
   const [activeOffer, setActiveOffer] = useState({
@@ -52,7 +53,7 @@ export const PocketV2 = () => {
         setLoading(true);
         const [profileRes, earningsRes, walletRes] = await Promise.all([
           deliveryAPI.getProfile(),
-          deliveryAPI.getEarnings({ period: 'week' }),
+          deliveryAPI.getEarnings({ period: walletState.period }),
           deliveryAPI.getWallet()
         ]);
 
@@ -68,7 +69,8 @@ export const PocketV2 = () => {
         const bankDetails = profile?.documents?.bankDetails;
         const isFilled = !!(bankDetails?.accountNumber);
 
-        setWalletState({
+        setWalletState(prev => ({
+          ...prev,
           totalBalance: Number(wallet.pocketBalance) || 0,
           cashInHand: Number(wallet.cashInHand) || 0,
           availableCashLimit: Number(wallet.availableCashLimit) || 0,
@@ -78,7 +80,7 @@ export const PocketV2 = () => {
           payoutAmount: Number(wallet.lastPayout?.amount || wallet.totalWithdrawn || 0),
           payoutPeriod: wallet.lastPayout ? new Date(wallet.lastPayout.date).toLocaleDateString() : 'No recent payout',
           bankDetailsFilled: isFilled
-        });
+        }));
 
         setActiveOffer({
            targetAmount: Number(activeOfferPayload?.targetAmount) || 0,
@@ -96,7 +98,18 @@ export const PocketV2 = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [walletState.period]);
+
+  const updatePeriod = (p) => setWalletState(prev => ({ ...prev, period: p }));
+
+  const getPeriodLabel = () => {
+    switch(walletState.period) {
+      case 'today': return 'Today';
+      case 'month': return 'This Month';
+      case 'all': return 'Lifetime';
+      default: return 'This Week';
+    }
+  };
 
   const handleDeposit = async () => {
     const amt = parseFloat(depositAmount);
@@ -221,12 +234,21 @@ export const PocketV2 = () => {
        <div className="px-4 py-6 bg-gray-100">
           
           {/* 2. WEEKLY EARNINGS CARD */}
-          <div 
-            onClick={() => navigate('/food/delivery/earnings')}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center mb-5 transition-all active:scale-[0.98]"
-          >
-             <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Earnings: {getCurrentWeekRange()}</p>
-             <h2 className="text-4xl font-black text-black tracking-tighter">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center mb-5 transition-all">
+             <div className="flex items-center justify-between mb-4">
+                <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest">Earnings: {walletState.period === 'week' ? getCurrentWeekRange() : getPeriodLabel()}</p>
+                <select 
+                  value={walletState.period} 
+                  onChange={(e) => updatePeriod(e.target.value)}
+                  className="text-[10px] font-bold uppercase tracking-tight bg-gray-50 border-none rounded-lg px-2 py-1 outline-none"
+                >
+                  <option value="today">Today</option>
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                  <option value="all">All</option>
+                </select>
+             </div>
+             <h2 className="text-4xl font-black text-black tracking-tighter" onClick={() => navigate('/food/delivery/earnings')}>
                 ₹{walletState.weeklyEarnings.toFixed(0)}
              </h2>
           </div>

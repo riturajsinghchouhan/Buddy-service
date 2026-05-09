@@ -5,9 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  --font-poppins: 'Poppins', sans-serif;
-  --font-outfit: 'Outfit', sans-serif;
+  font-family: 'Montserrat', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-poppins: 'Montserrat', sans-serif;
+  --font-outfit: 'Montserrat', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -17,32 +17,32 @@
   -moz-osx-font-smoothing: grayscale;
   --radius: 0.625rem;
   
-  --background: #F7FBEA;
-  --foreground: #23361A;
+  --background: #FFFDF5;
+  --foreground: #054204;
   --card: #ffffff;
-  --card-foreground: #23361A;
+  --card-foreground: #054204;
   --popover: #ffffff;
-  --popover-foreground: #23361A;
-  --primary: #23361A;
+  --popover-foreground: #054204;
+  --primary: #054204;
   --primary-foreground: #ffffff;
-  --secondary: #A2B447;
-  --secondary-foreground: #23361A;
+  --secondary: #ACDD93;
+  --secondary-foreground: #054204;
   --muted: #f1f5f9;
-  --muted-foreground: #8B9D4F;
-  --accent: #A2B447;
-  --accent-foreground: #23361A;
+  --muted-foreground: #054204;
+  --accent: #ACDD93;
+  --accent-foreground: #054204;
   --destructive: #ef4444;
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #23361A;
+  --ring: #054204;
   --sidebar: #ffffff;
-  --sidebar-foreground: #23361A;
-  --sidebar-primary: #23361A;
+  --sidebar-foreground: #054204;
+  --sidebar-primary: #054204;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #A2B447;
-  --sidebar-accent-foreground: #23361A;
+  --sidebar-accent: #ACDD93;
+  --sidebar-accent-foreground: #054204;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #23361A;
+  --sidebar-ring: #054204;
 }
 
 @theme inline {
@@ -77,8 +77,8 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   
-  --color-page-bg: #F7FBEA;
-  --color-primary-orange: #23361A;
+  --color-page-bg: #FFFDF5;
+  --color-primary-orange: #054204;
   --font-poppins: var(--font-poppins);
   --font-outfit: var(--font-outfit);
 }

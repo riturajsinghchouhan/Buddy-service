@@ -16,6 +16,7 @@ const SHUTDOWN_TIMEOUT_MS = 10000;
 let server = null;
 let expireOffersInterval = null;
 let fssaiExpiryInterval = null;
+let scheduledAlertInterval = null;
 
 const gracefulShutdown = async (signal) => {
     logger.info(`${signal} received, starting graceful shutdown`);
@@ -30,6 +31,7 @@ const gracefulShutdown = async (signal) => {
             await closeBullMQConnection();
             if (expireOffersInterval) clearInterval(expireOffersInterval);
             if (fssaiExpiryInterval) clearInterval(fssaiExpiryInterval);
+            if (scheduledAlertInterval) clearInterval(scheduledAlertInterval);
             logger.info('Graceful shutdown complete');
             process.exit(0);
         } catch (err) {
@@ -107,6 +109,18 @@ const startServer = async () => {
         runFssaiExpirySync();
         fssaiExpiryInterval = setInterval(runFssaiExpirySync, 60 * 60 * 1000);
 
+        // Scheduled Order Pre-Alerts (Every 1 minute)
+        const runScheduledAlerts = async () => {
+            try {
+                const { processScheduledOrderAlerts } = await import('./src/modules/food/orders/services/order.service.js');
+                await processScheduledOrderAlerts();
+            } catch (err) {
+                logger.error(`Scheduled alert error: ${err.message}`);
+            }
+        };
+        runScheduledAlerts();
+        scheduledAlertInterval = setInterval(runScheduledAlerts, 60 * 1000);
+
         process.on('SIGINT', () => gracefulShutdown('SIGINT'));
         process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
@@ -143,4 +157,3 @@ const startServer = async () => {
 };
 
 startServer();
-

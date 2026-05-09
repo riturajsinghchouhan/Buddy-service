@@ -49,6 +49,16 @@ export async function updateCustomerStatus(req, res, next) {
     }
 }
 
+export async function bulkToggleCod(req, res, next) {
+    try {
+        const { userIds, status } = req.body;
+        const result = await adminService.bulkToggleCod(userIds, status);
+        res.status(200).json({ success: true, message: `COD status updated for ${result.modifiedCount} users`, data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Safety / Emergency Reports -----
 export async function getSafetyEmergencyReports(req, res, next) {
     try {

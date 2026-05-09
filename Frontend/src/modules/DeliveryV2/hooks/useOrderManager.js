@@ -37,37 +37,36 @@ export const useOrderManager = () => {
         const fullOrder = response.data.data?.order || order;
         
         // Robustly determine locations from multiple possible formats (Populated API vs Socket)
+        // Robustly determine locations from multiple possible formats
         const getLoc = (ref, keysLat, keysLng) => {
           if (!ref) return null;
-          // Handle nested populated objects
           if (ref.location) {
-            // Handle GeoJSON format: location: { type: 'Point', coordinates: [lng, lat] }
             if (Array.isArray(ref.location.coordinates) && ref.location.coordinates.length >= 2) {
-              return {
-                lat: ref.location.coordinates[1], // Latitude is second in GeoJSON [lng, lat]
-                lng: ref.location.coordinates[0]  // Longitude is first
-              };
+              return { lat: ref.location.coordinates[1], lng: ref.location.coordinates[0] };
             }
-            // Handle standard object format: location: { latitude: 12.3, longitude: 45.6 }
-            return {
-              lat: ref.location.latitude || ref.location.lat,
-              lng: ref.location.longitude || ref.location.lng
-            };
+            return { lat: ref.location.latitude || ref.location.lat, lng: ref.location.longitude || ref.location.lng };
           }
-          // Handle flat objects or direct lat/lng keys
           for (const k of keysLat) { if (ref[k] != null) return { lat: ref[k], lng: ref[keysLng[keysLat.indexOf(k)]] }; }
           return null;
         };
 
-        console.log('[OrderManager] Raw Full Order Data:', fullOrder);
+        // For multi-restaurant, find the next pending pickup location
+        let resLoc = null;
+        if (fullOrder.isMultiRestaurant && Array.isArray(fullOrder.pickups)) {
+          const nextPickup = fullOrder.pickups.find(p => !['picked_up', 'cancelled'].includes(p.status));
+          if (nextPickup) {
+            resLoc = getLoc(nextPickup, ['latitude', 'lat'], ['longitude', 'lng']);
+          }
+        }
 
-        const resLoc = getLoc(fullOrder.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
-                       getLoc(fullOrder, ['restaurant_lat', 'restaurantLat', 'latitude'], ['restaurant_lng', 'restaurantLng', 'longitude']);
+        // Fallback to main restaurantId or top-level keys
+        if (!resLoc) {
+          resLoc = getLoc(fullOrder.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
+                   getLoc(fullOrder, ['restaurant_lat', 'restaurantLat', 'latitude'], ['restaurant_lng', 'restaurantLng', 'longitude']);
+        }
                        
         const cusLoc = getLoc(fullOrder.deliveryAddress, ['latitude', 'lat'], ['longitude', 'lng']) || 
                        getLoc(fullOrder, ['customer_lat', 'customerLat', 'latitude'], ['customer_lng', 'customerLng', 'longitude']);
-
-        console.log('[OrderManager] Locations Mapped Result:', { resLoc, cusLoc });
 
         setActiveOrder({
           ...fullOrder,

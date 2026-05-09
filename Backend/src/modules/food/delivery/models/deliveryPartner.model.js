@@ -118,7 +118,7 @@ const deliveryPartnerSchema = new mongoose.Schema(
         totalRatings: { type: Number, default: 0, min: 0 },
         employmentType: {
             type: String,
-            enum: ['per_order', 'salary'],
+            enum: ['per_order', 'salary', 'seller_base'],
             default: 'per_order'
         },
         salaryDuration: {

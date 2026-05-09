@@ -274,10 +274,17 @@ export async function tryAutoAssign(orderId, options = {}) {
     
     // RADIUS EXPANSION LOGIC
     // Attempt 1: 15km, Attempt 2: 25km, Attempt 3: 40km, Attempt 4+: 60km
+    // ✅ EDGE CASE: If order is already confirmed/preparing, it's PRIORITY. Skip small radii.
+    const isPriority = ['confirmed', 'preparing', 'ready_for_pickup', 'ready'].includes(order.orderStatus);
+    
     let maxKm = 15;
-    if (attempt === 2) maxKm = 25;
-    if (attempt === 3) maxKm = 40;
-    if (attempt >= 4) maxKm = 60;
+    if (isPriority) {
+      maxKm = 60; // Immediate wide search for food already being cooked (Increased to 60km per client requirement)
+    } else {
+      if (attempt === 2) maxKm = 25;
+      if (attempt === 3) maxKm = 40;
+      if (attempt >= 4) maxKm = 60;
+    }
 
     const searchOptions = {
       maxKm,
@@ -315,7 +322,6 @@ export async function tryAutoAssign(orderId, options = {}) {
     if (eligible.length === 0) {
       logger.info(`tryAutoAssign: No NEW eligible partners in ${maxKm}km for order ${order._id}. Restarting hunt...`);
       
-      // If we ran out of new eligible partners, we might want to re-offer to everyone (Phase 2 style)
       const io = getIO();
       if (io && partners.length > 0) {
         const payload = buildDeliverySocketPayload(order, order.restaurantId);

@@ -122,6 +122,7 @@ export const initSocket = async (server) => {
             if (role === 'DELIVERY_PARTNER') {
                 socket.join(roomNames.delivery(userId));
                 socket.join('all_delivery'); // Global delivery broadcast room
+                logger.info(`[SocketDebug] Delivery Partner ${userId} connected and joined 'all_delivery' room. SocketId: ${socket.id}`);
                 logDeliverySocket('Auto-joined delivery room on connect', {
                     socketId: socket.id,
                     deliveryPartnerId: String(userId),

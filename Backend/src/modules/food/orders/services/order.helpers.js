@@ -153,16 +153,7 @@ export function buildRestaurantScopedOrder(orderDoc, restaurantId) {
   if (!rid) return order;
 
   const filteredItems = Array.isArray(order.items)
-    ? order.items.filter((item) => {
-        const itemRid = String(item?.restaurantId || '').trim();
-        if (itemRid) return itemRid === rid;
-        // If item has no restaurantId, and it's NOT a multi-restaurant order,
-        // we assume it belongs to the order's main restaurantId.
-        if (!order.isMultiRestaurant) {
-          return String(order.restaurantId || '') === rid;
-        }
-        return false;
-      })
+    ? order.items.filter((item) => String(item?.restaurantId || '') === rid)
     : [];
   const filteredPickups = Array.isArray(order.pickups)
     ? order.pickups.filter((pickup) => String(pickup?.restaurantId || '') === rid)

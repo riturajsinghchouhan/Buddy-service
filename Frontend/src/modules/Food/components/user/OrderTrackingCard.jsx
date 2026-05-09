@@ -32,6 +32,45 @@ const CookingAnimation = memo(() => (
   </div>
 ));
 
+const DeliveryAnimation = memo(() => (
+  <div className="relative w-12 h-12 flex items-center justify-center rounded-xl bg-green-50 border border-green-100 overflow-visible shadow-[0_4px_15px_rgba(35,54,26,0.1)] shrink-0">
+    {/* Animated road line */}
+    <div className="absolute bottom-2 left-0 right-0 h-[2px] overflow-hidden">
+      <motion.div 
+        animate={{ x: [-20, 40] }} 
+        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+        className="w-10 h-full bg-green-200/50 rounded-full"
+      />
+    </div>
+    
+    <motion.div 
+      animate={{ y: [0, -2, 0] }} 
+      transition={{ duration: 0.4, repeat: Infinity, ease: "easeInOut" }} 
+      className="relative z-10"
+    >
+      <div className="relative">
+        {/* Scooter Body (Simple SVG) */}
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#23361A]">
+          <path d="M5 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+          <path d="M15 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+          <path d="M5 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h12" />
+          <path d="M16 6h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-1" />
+          <path d="M10 6v12" />
+        </svg>
+        
+        {/* Avatar - Floating above scooter */}
+        <div className="absolute -top-4 -right-1 w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden bg-white">
+          <img 
+            src="/delivery_boy_avatar.png" 
+            alt="Delivery Boy" 
+            className="w-full h-full object-cover"
+          />
+        </div>
+      </div>
+    </motion.div>
+  </div>
+));
+
 import { useOrders } from "@food/context/OrdersContext";
 import { orderAPI } from "@food/api";
 
@@ -89,9 +128,8 @@ const isActiveOrder = (order) => {
   if (TERMINAL_STATUSES.has(status)) return false;
   if (phase === "completed" || phase === "delivered") return false;
 
-  // Don't show live tracker for scheduled orders that haven't started yet
-  // They stay in 'confirmed' status until the restaurant starts preparing them.
-  if (order.scheduledAt && (status === "confirmed" || status === "created" || status === "pending")) {
+  // Don't show live tracker for scheduled orders.
+  if (order.scheduledAt || order.isScheduled) {
     return false;
   }
 
@@ -385,7 +423,13 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
           </button>
 
           <div className="flex items-center gap-4 relative z-10 w-full">
-            <CookingAnimation />
+            {(() => {
+              const s = String(orderStatus);
+              const p = String(orderPhase);
+              const isOnTheWay = s === "picked_up" || s === "out_for_delivery" || s === "en_route_to_delivery" || p === "picked_up" || p === "en_route_to_delivery" || s === "reached_drop" || p === "at_drop";
+              
+              return isOnTheWay ? <DeliveryAnimation /> : <CookingAnimation />;
+            })()}
 
             <div className="flex-1 min-w-0 pr-4">
               <p className="text-gray-900 font-bold text-base md:text-lg truncate tracking-tight">{restaurantName}</p>

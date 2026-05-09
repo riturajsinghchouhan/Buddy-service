@@ -17,6 +17,9 @@ const deliveryBoySettingsSchema = new mongoose.Schema(
         multiOrderEnabled: { type: Boolean, default: false },
         multiOrderMaxDistance: { type: Number, default: 3, min: 0 }, // max km between R1 and R2
         multiOrderAdditionalCharge: { type: Number, default: 0, min: 0 }, // extra fee for 2nd pickup
+        // Order Sharing Settings
+        splitOrderEnabled: { type: Boolean, default: true },
+        splitOrderThreshold: { type: Number, default: 20, min: 1 },
         isActive: { type: Boolean, default: true }
     },
     { collection: 'food_delivery_boy_settings', timestamps: true }

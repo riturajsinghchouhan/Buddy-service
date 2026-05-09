@@ -1222,7 +1222,7 @@ export async function getCustomers(query = {}) {
             .sort(sort)
             .skip(skip)
             .limit(limit)
-            .select('name email phone countryCode isVerified isActive createdAt profileImage')
+            .select('name email phone countryCode isVerified isActive isCodEnabled createdAt profileImage')
             .lean(),
         FoodUser.countDocuments(filter)
     ]);
@@ -1269,6 +1269,7 @@ export async function getCustomers(query = {}) {
         countryCode: u.countryCode || '+91',
         status: u.isActive !== false,
         isActive: u.isActive !== false,
+        isCodEnabled: u.isCodEnabled !== false,
         isVerified: u.isVerified === true,
         totalOrder: stats.totalOrder,
         totalOrderAmount: stats.totalOrderAmount,
@@ -5085,4 +5086,18 @@ export async function upsertDeliveryBoySettings(data) {
     ).lean();
 
     return settings;
+}
+export async function bulkToggleCod(userIds, status) {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+        throw new ValidationError('No users selected');
+    }
+    const validIds = userIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+        throw new ValidationError('No valid user IDs provided');
+    }
+    const result = await FoodUser.updateMany(
+        { _id: { $in: validIds } },
+        { $set: { isCodEnabled: Boolean(status) } }
+    );
+    return result;
 }

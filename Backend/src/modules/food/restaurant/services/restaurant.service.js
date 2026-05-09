@@ -1379,22 +1379,53 @@ export const listApprovedRestaurants = async (query = {}) => {
         FoodRestaurant.countDocuments(filter)
     ]);
 
-    const restaurants = (restaurantsRaw || []).map((r) => ({
-        ...r,
-        // Frontend user app expects `name` and often checks `profileImage.url`
-        restaurantId: r._id,
-        id: r._id,
-        name: r.restaurantName || '',
-        rating: normalizeRatingValue(r.rating),
-        totalRatings: normalizeTotalRatingsValue(r.totalRatings),
-        profileImage: r.profileImage ? { url: r.profileImage } : null,
-        coverImages: Array.isArray(r.coverImages) ? r.coverImages : [],
-        openingTime: r.openingTime || null,
-        closingTime: r.closingTime || null,
-        openDays: Array.isArray(r.openDays) ? r.openDays : [],
-        // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
-        menuImages: Array.isArray(r.menuImages) ? r.menuImages : []
-    }));
+    const restaurantIds = (restaurantsRaw || []).map((r) => r._id);
+    const { FoodItem } = await import('../../admin/models/food.model.js');
+    const featuredItemsRaw = restaurantIds.length
+        ? await FoodItem.find({
+            restaurantId: { $in: restaurantIds },
+            approvalStatus: 'approved',
+            image: { $ne: '' }
+        })
+            .select('name image price restaurantId')
+            .sort({ createdAt: -1 })
+            .lean()
+        : [];
+
+    const featuredItemsMap = new Map();
+    for (const item of featuredItemsRaw) {
+        const rid = String(item.restaurantId);
+        if (!featuredItemsMap.has(rid)) featuredItemsMap.set(rid, []);
+        if (featuredItemsMap.get(rid).length < 5) {
+            featuredItemsMap.get(rid).push({
+                id: item._id,
+                name: item.name,
+                price: item.price,
+                image: item.image
+            });
+        }
+    }
+
+    const restaurants = (restaurantsRaw || []).map((r) => {
+        const rid = String(r._id);
+        return {
+            ...r,
+            // Frontend user app expects `name` and often checks `profileImage.url`
+            restaurantId: r._id,
+            id: r._id,
+            name: r.restaurantName || '',
+            rating: normalizeRatingValue(r.rating),
+            totalRatings: normalizeTotalRatingsValue(r.totalRatings),
+            profileImage: r.profileImage ? { url: r.profileImage } : null,
+            coverImages: Array.isArray(r.coverImages) ? r.coverImages : [],
+            openingTime: r.openingTime || null,
+            closingTime: r.closingTime || null,
+            openDays: Array.isArray(r.openDays) ? r.openDays : [],
+            // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
+            menuImages: Array.isArray(r.menuImages) ? r.menuImages : [],
+            featuredItems: featuredItemsMap.get(rid) || []
+        };
+    });
 
     return { restaurants, total, page, limit };
 };

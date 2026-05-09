@@ -158,8 +158,9 @@ export default function AddDeliveryman() {
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   >
                     <option value="">Delivery man type</option>
-                    <option value="full-time">Full Time</option>
-                    <option value="part-time">Part Time</option>
+                    <option value="per_order">Per Order (Commission)</option>
+                    <option value="salary">Salary Base (Weekly/Monthly)</option>
+                    <option value="seller_base">Seller Base (Fixed)</option>
                   </select>
                 </div>
 

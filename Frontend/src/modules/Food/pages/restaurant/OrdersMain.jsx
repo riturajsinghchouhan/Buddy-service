@@ -1433,7 +1433,7 @@ export default function OrdersMain() {
           `New scheduled order received for ${new Date(scheduledAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`,
         );
         requestOrdersRefresh();
-        return; // Do not show the immediate popup
+        // Show the popup anyway so restaurant is alerted immediately
       }
 
       if (!hasOrderBeenShown(newOrder)) {

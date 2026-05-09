@@ -27,6 +27,8 @@ export default function Customers() {
     sortBy: "",
     chooseFirst: "",
   })
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   const filteredCustomers = useMemo(() => {
     let result = [...customers]
@@ -213,6 +215,46 @@ export default function Customers() {
       setShowUserDetails(false)
     } finally {
       setLoadingDetails(false)
+    }
+  }
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allIds = filteredCustomers.map(c => c._id || c.id)
+      setSelectedIds(allIds)
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleSelectOne = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id)
+        ? prev.filter(i => i !== id)
+        : [...prev, id]
+    )
+  }
+
+  const handleBulkToggleCod = async (status) => {
+    try {
+      setBulkLoading(true)
+      const response = await adminAPI.bulkToggleCod(selectedIds, status)
+      
+      if (response?.data?.success) {
+        toast.success(`User Code visibility ${status ? 'enabled' : 'disabled'} for ${selectedIds.length} users`)
+        // Update local state
+        setCustomers(prev => prev.map(c => 
+          selectedIds.includes(c._id || c.id) 
+            ? { ...c, isCodEnabled: status } 
+            : c
+        ))
+        setSelectedIds([])
+      }
+    } catch (error) {
+      debugError('Bulk update error:', error)
+      toast.error('Failed to update status')
+    } finally {
+      setBulkLoading(false)
     }
   }
 
@@ -424,12 +466,21 @@ export default function Customers() {
             <table className="w-full min-w-[980px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="px-4 py-4 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length > 0 && selectedIds.length === filteredCustomers.length}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Sl</th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Contact Information</th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total Order</th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total Order Amount</th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Joining Date</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">User Code (COD)</th>
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Active/Inactive</th>
                   <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-700 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -449,7 +500,15 @@ export default function Customers() {
                   </tr>
                 ) : (
                   filteredCustomers.map((customer, index) => (
-                    <tr key={customer.id || customer.sl} className="hover:bg-slate-50 transition-colors">
+                    <tr key={customer.id || customer.sl || customer._id} className={`${selectedIds.includes(customer._id || customer.id) ? 'bg-blue-50' : 'hover:bg-slate-50'} transition-colors`}>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(customer._id || customer.id)}
+                          onChange={() => handleSelectOne(customer._id || customer.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-slate-700">{index + 1}</span>
                       </td>
@@ -496,8 +555,13 @@ export default function Customers() {
                         <span className="text-sm text-slate-700">{formatDateTime(customer.joiningDate)}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${customer.isCodEnabled !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {customer.isCodEnabled !== false ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <button
-                          onClick={() => handleToggleStatus(customer.id || customer.sl)}
+                          onClick={() => handleToggleStatus(customer.id || customer.sl || customer._id)}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${customer.status ? "bg-blue-600" : "bg-slate-300"
                             }`}
                         >
@@ -694,6 +758,44 @@ export default function Customers() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Action Toolbar */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-4 transition-all border border-slate-700/50 backdrop-blur-md">
+          <div className="flex items-center gap-3 pr-6 border-r border-slate-700">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold">
+              {selectedIds.length}
+            </div>
+            <span className="text-sm font-semibold tracking-tight">Users Selected</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              disabled={bulkLoading}
+              onClick={() => handleBulkToggleCod(true)}
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              Enable User Code
+            </button>
+            <button
+              disabled={bulkLoading}
+              onClick={() => handleBulkToggleCod(false)}
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              Disable User Code
+            </button>
+          </div>
+
+          <button
+            onClick={() => setSelectedIds([])}
+            className="p-1.5 hover:bg-slate-800 rounded-full transition-colors ml-2"
+          >
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

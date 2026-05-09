@@ -628,6 +628,53 @@ export async function recoverStuckOrders() {
       { $unset: { 'dispatch.dispatchingAt': '' } }
     );
 
+    // 3. Stuck in 'created' (waiting for restaurant) after rider accepted for > 5m
+    const stuckWaitingForStore = await FoodOrder.find({
+      orderStatus: 'created',
+      'dispatch.status': 'accepted',
+      'dispatch.acceptedAt': { $lt: new Date(now - FIVE_MIN) }
+    });
+
+    if (stuckWaitingForStore.length > 0) {
+      logger.warn(`Watchdog: Found ${stuckWaitingForStore.length} orders waiting too long for restaurant acceptance.`);
+      // Optional: Add notification to Store Owners here if they missed the socket event
+    }
+
+    // 4. Auto-Cancel orders with NO RIDER after 15 minutes
+    const FIFTEEN_MIN = 15 * 60 * 1000;
+    const noRiderTimeout = await FoodOrder.find({
+      orderStatus: 'created',
+      'dispatch.status': 'unassigned',
+      createdAt: { $lt: new Date(now - FIFTEEN_MIN) }
+    });
+
+    if (noRiderTimeout.length > 0) {
+      logger.info(`Watchdog: Auto-cancelling ${noRiderTimeout.length} orders due to no rider availability.`);
+      for (const order of noRiderTimeout) {
+        order.orderStatus = 'cancelled_by_admin';
+        order.statusHistory.push({
+          at: new Date(),
+          byRole: 'SYSTEM',
+          from: 'created',
+          to: 'cancelled_by_admin',
+          note: 'Auto-cancelled: No delivery partner found within 15 minutes.'
+        });
+        await order.save();
+        
+        // Notify User
+        try {
+          const io = getIO();
+          if (io) {
+            io.to(rooms.user(order.userId)).emit("order_status_update", {
+              orderId: order._id.toString(),
+              orderStatus: 'cancelled_by_admin',
+              message: "We couldn't find a delivery partner near you. Order cancelled & refund initiated."
+            });
+          }
+        } catch {}
+      }
+    }
+
   } catch (err) {
     logger.error(`Watchdog recovery error: ${err.message}`);
   }
@@ -962,21 +1009,16 @@ export async function listOrdersRestaurant(restaurantId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
   const restaurantObjectId = new mongoose.Types.ObjectId(restaurantId);
   const filter = {
-    $and: [
-      {
-        $or: [
-          { restaurantId: restaurantObjectId },
-          { 'pickups.restaurantId': restaurantObjectId },
-        ]
-      },
-      {
-        $or: [
-          { "payment.method": { $in: ["cash", "wallet"] } },
-          { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-        ]
-      }
+    $or: [
+      { restaurantId: restaurantObjectId },
+      { 'pickups.restaurantId': restaurantObjectId },
     ],
     "dispatch.status": "accepted", // 🔥 ONLY show orders that are accepted by a rider
+    $or: [
+      { "payment.method": { $in: ["cash", "wallet"] } },
+      { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+    ],
+
   };
   const [docs, total] = await Promise.all([
     FoodOrder.find(filter)
@@ -1691,3 +1733,42 @@ export async function resendOrderToRestaurant(orderId, deliveryPartnerId) {
 }
 
 
+
+export async function reportOrderDelay(orderId, userId, role, reason) {
+  const identity = buildOrderIdentityFilter(orderId);
+  const order = await FoodOrder.findOne(identity);
+  if (!order) throw new NotFoundError("Order not found");
+
+  // Validate permission
+  if (role === 'DELIVERY_PARTNER') {
+    if (String(order.dispatch?.deliveryPartnerId) !== String(userId)) {
+      throw new ForbiddenError("Not assigned to you");
+    }
+  } else if (role === 'RESTAURANT') {
+    const isPrimary = String(order.restaurantId) === String(userId);
+    const isPickup = (order.pickups || []).some(p => String(p.restaurantId) === String(userId));
+    if (!isPrimary && !isPickup) throw new ForbiddenError("Not your restaurant");
+  }
+
+  order.delayContext = {
+    reason: String(reason || "").trim(),
+    reportedBy: role,
+    reportedAt: new Date()
+  };
+
+  await order.save();
+
+  // Socket notification to user
+  try {
+    const io = getIO();
+    if (io) {
+      io.to(rooms.user(order.userId)).emit("order_delay_update", {
+        orderId: order._id.toString(),
+        reason: order.delayContext.reason,
+        reportedBy: role
+      });
+    }
+  } catch {}
+
+  return order;
+}

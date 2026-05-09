@@ -338,21 +338,41 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         FoodOrder.aggregate([
             {
                 $match: {
-                    'dispatch.deliveryPartnerId': partnerId,
+                    $or: [
+                        { 'dispatch.deliveryPartnerId': partnerId },
+                        { 'dispatch.sharedPartnerId': partnerId }
+                    ],
                     orderStatus: 'delivered',
                 }
             },
             {
                 $group: {
                     _id: null,
-                    totalEarned: { $sum: { $ifNull: ['$riderEarning', 0] } }
+                    totalEarned: { 
+                        $sum: { 
+                            $cond: [
+                                { $eq: ["$dispatch.deliveryPartnerId", partnerId] },
+                                { 
+                                    $cond: [
+                                        { $gt: [{ $ifNull: ["$riderEarning", 0] }, 0] },
+                                        "$riderEarning",
+                                        { $ifNull: ["$pricing.deliveryFee", 0] }
+                                    ]
+                                },
+                                { $ifNull: ["$sharedRiderEarning", 0] }
+                            ]
+                        } 
+                    }
                 }
             }
         ]),
         FoodOrder.aggregate([
             {
                 $match: {
-                    'dispatch.deliveryPartnerId': partnerId,
+                    $or: [
+                        { 'dispatch.deliveryPartnerId': partnerId },
+                        { 'dispatch.sharedPartnerId': partnerId }
+                    ],
                     orderStatus: 'delivered',
                     'payment.method': 'cash',
                     'payment.status': 'paid'
@@ -393,7 +413,10 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
     // Keep transactions list reasonably small (UI only needs recent data for charts)
     const [paymentTxList, bonusTxList] = await Promise.all([
         FoodOrder.find({
-            'dispatch.deliveryPartnerId': partnerId,
+            $or: [
+                { 'dispatch.deliveryPartnerId': partnerId },
+                { 'dispatch.sharedPartnerId': partnerId }
+            ],
             orderStatus: 'delivered',
         })
             .sort({ 'deliveryState.deliveredAt': -1, createdAt: -1 })
@@ -484,7 +507,10 @@ export const getDeliveryPartnerEarnings = async (deliveryPartnerId, query = {}) 
     }
 
     const match = {
-        'dispatch.deliveryPartnerId': partnerId,
+        $or: [
+            { 'dispatch.deliveryPartnerId': partnerId },
+            { 'dispatch.sharedPartnerId': partnerId }
+        ],
         orderStatus: 'delivered',
     };
     if (range) {
@@ -501,9 +527,15 @@ export const getDeliveryPartnerEarnings = async (deliveryPartnerId, query = {}) 
                     totalEarnings: { 
                         $sum: { 
                             $cond: [
-                                { $gt: [{ $ifNull: ['$riderEarning', 0] }, 0] },
-                                '$riderEarning',
-                                { $ifNull: ['$pricing.deliveryFee', 0] }
+                                { $eq: ["$dispatch.deliveryPartnerId", partnerId] },
+                                { 
+                                    $cond: [
+                                        { $gt: [{ $ifNull: ["$riderEarning", 0] }, 0] },
+                                        "$riderEarning",
+                                        { $ifNull: ["$pricing.deliveryFee", 0] }
+                                    ]
+                                },
+                                { $ifNull: ["$sharedRiderEarning", 0] }
                             ]
                         } 
                     }
@@ -644,7 +676,12 @@ export const getDeliveryPartnerTripHistory = async (deliveryPartnerId, query = {
     const { start, end } = computeRange(period, date);
 
     const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
-    const match = { 'dispatch.deliveryPartnerId': partnerId };
+    const match = {
+        $or: [
+            { 'dispatch.deliveryPartnerId': partnerId },
+            { 'dispatch.sharedPartnerId': partnerId }
+        ]
+    };
 
     const sf = String(statusFilter || '').toLowerCase();
     if (sf === 'completed') {
@@ -690,7 +727,10 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
     const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
 
     const orders = await FoodOrder.find({
-        'dispatch.deliveryPartnerId': partnerId,
+        $or: [
+            { 'dispatch.deliveryPartnerId': partnerId },
+            { 'dispatch.sharedPartnerId': partnerId }
+        ],
         orderStatus: 'delivered',
         $or: [
             { 'deliveryState.deliveredAt': { $gte: start, $lte: end } },
@@ -781,7 +821,10 @@ export const getActiveEarningAddonsForPartner = async (deliveryPartnerId) => {
             const endDate = addon.endDate ? new Date(addon.endDate) : null;
 
             const baseMatch = {
-                'dispatch.deliveryPartnerId': partnerId,
+                $or: [
+                    { 'dispatch.deliveryPartnerId': partnerId },
+                    { 'dispatch.sharedPartnerId': partnerId }
+                ],
                 orderStatus: 'delivered'
             };
 

@@ -70,7 +70,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { isOnline, toggleOnline, riderLocation, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
-  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, adminNotification, clearAdminNotification, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+  const { newOrder, clearNewOrder, sharedOrder, clearSharedOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, adminNotification, clearAdminNotification, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
   const companyName = useCompanyName();
   const { items: broadcastItems, unreadCount: notificationUnreadCount, markAsRead: markBroadcastAsRead, dismissAll: dismissAllBroadcast } = useNotificationInbox("delivery", { limit: 20 });
 
@@ -341,7 +341,12 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             return null;
           };
 
-          const resLoc = getLoc(serverData.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
+          const resLoc = (serverData.isMultiRestaurant && Array.isArray(serverData.pickups))
+            ? getLoc(serverData.pickups.find(p => !['picked_up', 'cancelled'].includes(p.status)), ['latitude', 'lat'], ['longitude', 'lng'])
+            : null;
+                         
+          const finalResLoc = resLoc || 
+                         getLoc(serverData.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
                          getLoc(serverData, ['restaurant_lat', 'restaurantLat', 'latitude'], ['restaurant_lng', 'restaurantLng', 'longitude']);
                          
           const cusLoc = getLoc(serverData.deliveryAddress, ['latitude', 'lat'], ['longitude', 'lng']) || 
@@ -351,7 +356,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             ...serverData,
             _id: serverData._id,
             orderId: serverData.orderId || serverData.order_id || serverData._id,
-            restaurantLocation: resLoc,
+            restaurantLocation: finalResLoc,
             customerLocation: cusLoc
           };
 
@@ -542,6 +547,13 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     clearClaimedOrderId();
   }, [claimedOrderId]);
 
+  // Handle Shared Orders (splitting orders)
+  useEffect(() => {
+    if (sharedOrder && !activeOrder) {
+      setIncomingOrder(sharedOrder);
+    }
+  }, [sharedOrder, activeOrder]);
+
   useEffect(() => {
     if (!isOnline) return;
     if (currentTab !== 'feed') return;
@@ -571,7 +583,12 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             return null;
           };
 
-          const resLoc = getLoc(currentPayload.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
+          const resLoc = (currentPayload.isMultiRestaurant && Array.isArray(currentPayload.pickups))
+            ? getLoc(currentPayload.pickups.find(p => !['picked_up', 'cancelled'].includes(p.status)), ['latitude', 'lat'], ['longitude', 'lng'])
+            : null;
+
+          const finalResLoc = resLoc || 
+                         getLoc(currentPayload.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
                          getLoc(currentPayload, ['restaurant_lat', 'restaurantLat', 'latitude'], ['restaurant_lng', 'restaurantLng', 'longitude']);
           const cusLoc = getLoc(currentPayload.deliveryAddress, ['latitude', 'lat'], ['longitude', 'lng']) || 
                          getLoc(currentPayload, ['customer_lat', 'customerLat', 'latitude'], ['customer_lng', 'customerLng', 'longitude']);
@@ -580,7 +597,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             ...currentPayload,
             _id: currentPayload._id,
             orderId: currentPayload.orderId || currentPayload.order_id || currentPayload._id,
-            restaurantLocation: resLoc,
+            restaurantLocation: finalResLoc,
             customerLocation: cusLoc
           });
 
@@ -660,7 +677,16 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
   useEffect(() => {
     if (orderStatusUpdate) {
-      if (orderStatusUpdate.status === 'cancelled') {
+      // 1. Update active order state for real-time sync (e.g. Partner joined, Status changed)
+      if (activeOrder && (activeOrder._id === orderStatusUpdate.orderId || activeOrder.orderId === orderStatusUpdate.orderId || activeOrder._id === orderStatusUpdate.orderMongoId)) {
+          setActiveOrder({
+              ...activeOrder,
+              ...orderStatusUpdate
+          });
+      }
+
+      // 2. Handle specific terminal or critical statuses
+      if (orderStatusUpdate.status === 'cancelled' || orderStatusUpdate.orderStatus === 'cancelled') {
         toast.error('Order cancelled');
         resetTrip();
       } else if (orderStatusUpdate.orderStatus === 'rejected_by_restaurant' || orderStatusUpdate.status === 'rejected_by_restaurant') {
@@ -676,7 +702,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       }
       clearOrderStatusUpdate();
     }
-  }, [orderStatusUpdate, resetTrip, clearOrderStatusUpdate]);
+  }, [orderStatusUpdate, resetTrip, clearOrderStatusUpdate, activeOrder, setActiveOrder]);
 
   // Handle Real-time Admin Notifications
   useEffect(() => {
@@ -884,6 +910,10 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 </div>
                 <button 
                   onClick={() => {
+                    if (activeOrder?.orderStatus === 'created') {
+                      toast.info('Wait for restaurant to accept order before moving.');
+                      return;
+                    }
                     const nextSimState = !isSimMode;
                     setIsSimMode(nextSimState);
 
@@ -932,7 +962,13 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   </div>
                 </button>
                 <button 
-                   onClick={() => mapRef.current?.setOptions({ gestureHandling: 'greedy' })} 
+                   onClick={() => {
+                     if (activeOrder?.orderStatus === 'created') {
+                       toast.info('Wait for restaurant to accept order before navigating.');
+                       return;
+                     }
+                     mapRef.current?.setOptions({ gestureHandling: 'greedy' });
+                   }} 
                    className="w-14 h-14 bg-white rounded-full shadow-2xl flex items-center justify-center text-blue-600 border border-gray-100 active:scale-90 transition-all"
                 >
                   <div className="w-8 h-8 rounded-full border-2 border-blue-600 flex items-center justify-center"><Navigation2 className="w-4 h-4" /></div>
@@ -972,30 +1008,54 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 {incomingOrder && (
                   <NewOrderModal 
                     order={incomingOrder} 
+                    isSharedAcceptance={Boolean(sharedOrder)}
                     onAccept={async (o) => {
                       try {
-                        await acceptOrder(o);
-                        // Only dismiss the modal on successful accept
-                        setIncomingOrder(null);
-                        clearNewOrder();
+                        if (sharedOrder) {
+                          const res = await deliveryAPI.acceptSharedOrder(o.orderId || o._id);
+                          const updatedOrder = res?.data?.data?.order || res?.data?.order || o;
+                          
+                          // Helper to map locations (same as acceptOrder)
+                          const getLoc = (ref) => {
+                            if (!ref?.location?.coordinates) return null;
+                            return { lat: ref.location.coordinates[1], lng: ref.location.coordinates[0] };
+                          };
+                          
+                          setActiveOrder({
+                            ...updatedOrder,
+                            orderId: updatedOrder._id || updatedOrder.orderId,
+                            restaurantLocation: getLoc(updatedOrder.restaurantId) || updatedOrder.restaurantLocation,
+                            customerLocation: getLoc(updatedOrder.deliveryAddress) || updatedOrder.customerLocation
+                          });
+                          updateTripStatus('PICKING_UP');
+                          
+                          setIncomingOrder(null);
+                          clearNewOrder();
+                          clearSharedOrder();
+                          toast.success('Joined Delivery Slot!');
+                        } else {
+                          await acceptOrder(o);
+                          setIncomingOrder(null);
+                          clearNewOrder();
+                          toast.success('Order Accepted!');
+                        }
                       } catch (err) {
-                        // acceptOrder already shows a toast for the specific error:
-                        // - "Order already accepted by another partner" (403)
-                        // - Network/timeout errors
-                        // Keep the modal visible only if it's not a "taken" error
                         const msg = String(err?.response?.data?.message || err?.message || '');
                         const isTaken = msg.toLowerCase().includes('already accepted') || 
                                         msg.toLowerCase().includes('another partner') ||
                                         (err?.response?.status === 403);
                         if (isTaken) {
-                          // Dismiss modal — the order is no longer available
                           setIncomingOrder(null);
                           clearNewOrder();
+                          clearSharedOrder();
                         }
-                        // For other errors (network, etc.), keep showing the modal so they can retry
                       }
                     }}
-                    onReject={() => { setIncomingOrder(null); clearNewOrder(); }}
+                    onReject={() => { 
+                      setIncomingOrder(null); 
+                      clearNewOrder(); 
+                      clearSharedOrder();
+                    }}
                     onMinimize={() => setIsModalMinimized(true)}
                   />
                 )}

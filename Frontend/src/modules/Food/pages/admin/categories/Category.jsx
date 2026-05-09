@@ -64,6 +64,8 @@ export default function Category() {
   const [selectedImageFile, setSelectedImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [splitThreshold, setSplitThreshold] = useState(20)
+  const [isSavingThreshold, setIsSavingThreshold] = useState(false)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export default function Category() {
       return
     }
     fetchCategories()
+    fetchSplitSettings()
   }, [])
 
   useEffect(() => {
@@ -147,6 +150,34 @@ export default function Category() {
       setCategories([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchSplitSettings = async () => {
+    try {
+      const response = await adminAPI.getDeliveryBoySettings()
+      const settings = response?.data?.data || response?.data || {}
+      if (settings.splitOrderThreshold) {
+        setSplitThreshold(settings.splitOrderThreshold)
+      }
+    } catch (error) {
+      console.error("Failed to fetch split settings", error)
+    }
+  }
+
+  const handleUpdateThreshold = async () => {
+    try {
+      setIsSavingThreshold(true)
+      const response = await adminAPI.updateDeliveryBoySettings({
+        splitOrderThreshold: splitThreshold
+      })
+      if (response?.data?.success || response?.data) {
+        toast.success("Split order threshold updated successfully")
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to update threshold")
+    } finally {
+      setIsSavingThreshold(false)
     }
   }
 
@@ -377,6 +408,28 @@ export default function Category() {
               Restaurant-created categories now move through approval, rejection, and optional globalization before every
               restaurant can use them.
             </p>
+            <div className="mt-4 flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Split Order Threshold</span>
+                <span className="text-[11px] text-blue-600">Items count after which order sharing is allowed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={splitThreshold}
+                  onChange={(e) => setSplitThreshold(parseInt(e.target.value) || 1)}
+                  className="w-20 rounded-lg border border-blue-200 bg-white px-2 py-1 text-sm font-bold outline-none focus:border-blue-500"
+                  min="1"
+                />
+                <button
+                  onClick={handleUpdateThreshold}
+                  disabled={isSavingThreshold}
+                  className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSavingThreshold ? "Saving..." : "Update"}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

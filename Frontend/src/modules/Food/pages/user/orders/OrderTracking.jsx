@@ -425,6 +425,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     ratings: apiOrder?.ratings || previousOrder?.ratings || {},
     restaurantRating: apiOrder?.ratings?.restaurant?.rating || apiOrder?.restaurantRating || previousOrder?.restaurantRating || null,
     deliveryPartnerRating: apiOrder?.ratings?.deliveryPartner?.rating || apiOrder?.deliveryPartnerRating || previousOrder?.deliveryPartnerRating || null,
+    delayContext: apiOrder?.delayContext || previousOrder?.delayContext || null,
   }
 }
 
@@ -478,6 +479,61 @@ function normalizeLookupId(value) {
   if (!raw || raw === "undefined" || raw === "null") return ""
   return raw
 }
+
+const StatusBanner = ({ order }) => {
+  const status = mapOrderToTrackingUiStatus(order);
+  const phase = order?.deliveryState?.currentPhase;
+  const delayReason = order?.delayContext?.reason;
+
+  const getConsolingMessage = () => {
+    if (status === 'delivered') return "Order delivered! Enjoy your meal. 😋";
+    if (status === 'cancelled') return "This order was cancelled.";
+
+    // Logic for delay reasons
+    if (delayReason) {
+      if (delayReason.toLowerCase().includes('traffic')) {
+        return `Our partner is stuck in heavy traffic but is doing their best to reach you. 🚦`;
+      }
+      if (delayReason.toLowerCase().includes('busy') || delayReason.toLowerCase().includes('queue')) {
+        return `The restaurant is a bit busy today. Your food is being prepared with extra care! 👨‍🍳`;
+      }
+      return `Update: ${delayReason}`;
+    }
+
+    // Phase-based consoling
+    switch (phase) {
+      case 'at_pickup':
+        return "Rider has reached the restaurant. Your food is being packed! 🛍️";
+      case 'en_route_to_pickup':
+        return "Our partner is on the way to pick up your order. 🛵";
+      case 'en_route_to_delivery':
+        return "Fresh food is on its way to your doorstep! 🏎️";
+      case 'at_drop':
+        return "Our partner has arrived at your location! Please be ready. 📍";
+      default:
+        if (status === 'preparing') return "The chef is preparing your delicious meal... 🍳";
+        if (status === 'ready') return "Food is ready! Waiting for rider to start delivery. ✨";
+        return "We've received your order and are processing it. 📝";
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-orange-50 dark:bg-orange-950/20 border-b border-orange-100 dark:border-orange-900/50 p-4"
+    >
+      <div className="max-w-screen-xl mx-auto flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0 animate-pulse">
+          <Clock className="w-4 h-4 text-white" />
+        </div>
+        <p className="text-sm font-medium text-orange-900 dark:text-orange-200">
+          {getConsolingMessage()}
+        </p>
+      </div>
+    </motion.div>
+  );
+};
 
 export default function OrderTracking() {
   const companyName = useCompanyName()
@@ -1642,7 +1698,12 @@ export default function OrderTracking() {
       )}
       </motion.div>
 
-      {/* Map Section */}
+      {/* Smart Status Banner */}
+      {order && !['delivered', 'cancelled'].includes(orderStatus) && (
+        <StatusBanner order={order} />
+      )}
+
+      {/* Hero Section / Map */}
       {!isDeliveredOrder && orderStatus !== 'cancelled' && !(isScheduledOrder && ['placed', 'confirmed'].includes(orderStatus)) && (
         <MapErrorBoundary>
           <DeliveryMap

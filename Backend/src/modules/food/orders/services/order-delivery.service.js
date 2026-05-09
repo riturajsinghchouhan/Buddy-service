@@ -305,21 +305,6 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
   if (!order) return null;
   const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
   const out = sanitizeOrderForExternal(order);
-  
-  // Fix for '0 items' issue: Ensure pickups have items by filtering from main items list
-  if (Array.isArray(out.pickups) && Array.isArray(out.items)) {
-    out.pickups = out.pickups.map(p => {
-      if (!p.items || p.items.length === 0) {
-        // Filter items belonging to this restaurant
-        const pItems = out.items
-          .filter(it => String(it.restaurantId || '') === String(p.restaurantId || ''))
-          .map(it => it.name);
-        if (pItems.length > 0) p.items = pItems;
-      }
-      return p;
-    });
-  }
-
   if (tx) {
     out.paymentMethod = tx.payment?.method || tx.paymentMethod || out.paymentMethod;
     out.payment = tx.payment || out.payment;
@@ -597,19 +582,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
           dispatchStatus: order.dispatch?.status,
         };
         io.to(rooms.delivery(deliveryPartnerId)).emit('order_status_update', payload);
-        
-        const pickupRestaurantIds = Array.isArray(order.pickups)
-          ? [...new Set(order.pickups.map((p) => String(p?.restaurantId || '')).filter(Boolean))]
-          : [];
-
-        if (pickupRestaurantIds.length > 0) {
-          pickupRestaurantIds.forEach(rid => {
-            io.to(rooms.restaurant(rid)).emit('order_status_update', payload);
-          });
-        } else {
-          io.to(rooms.restaurant(order.restaurantId)).emit('order_status_update', payload);
-        }
-
+        io.to(rooms.restaurant(order.restaurantId)).emit('order_status_update', payload);
         io.to(rooms.user(order.userId)).emit('order_status_update', payload);
 
         // Broadcast order_claimed to ALL online delivery partners so every popup is dismissed
@@ -765,16 +738,6 @@ export async function confirmReachedPickupDelivery(orderId, deliveryPartnerId) {
   }
 
   const from = currentStatus || currentPhase || order.orderStatus;
-  
-  // Handle Multi-Restaurant Specific Pickup Status
-  if (order.isMultiRestaurant && Array.isArray(order.pickups) && order.pickups.length > 0) {
-    const firstPendingIdx = order.pickups.findIndex(p => !['picked_up', 'ready'].includes(p.status));
-    if (firstPendingIdx !== -1) {
-      order.pickups[firstPendingIdx].status = 'ready';
-      order.markModified('pickups');
-    }
-  }
-
   order.deliveryState = {
     ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
     currentPhase: 'at_pickup',
@@ -847,30 +810,56 @@ export async function confirmPickupDelivery(orderId, deliveryPartnerId, billImag
   const from = order.orderStatus;
   const nextStatus = 'picked_up';
 
-  // BLOCK pickup if restaurant hasn't accepted yet
-  if (order.isMultiRestaurant && Array.isArray(order.pickups)) {
-    const nextPickup = order.pickups.find(p => p.status !== 'picked_up');
-    if (nextPickup && nextPickup.status === 'pending') {
-      throw new ValidationError(`Restaurant "${nextPickup.restaurantName}" has not accepted this order yet. Please wait for the restaurant to confirm.`);
-    }
-  } else if (!order.isMultiRestaurant) {
-    if (from === 'created') {
-      throw new ValidationError('Restaurant has not accepted this order yet. Please wait for confirmation.');
-    }
-  }
-  
-  // Handle Multi-Restaurant Specific Pickup Status
-  let allPickupsDone = true;
+  // Handle Multi-Restaurant Pickup Logic
   if (order.isMultiRestaurant && Array.isArray(order.pickups) && order.pickups.length > 0) {
-    const firstNonPickedIdx = order.pickups.findIndex(p => p.status !== 'picked_up');
-    if (firstNonPickedIdx !== -1) {
-      order.pickups[firstNonPickedIdx].status = 'picked_up';
-      order.markModified('pickups');
+    // 1. Find the current pending pickup (first one that isn't picked_up or cancelled)
+    const currentPickup = order.pickups.find(p => !['picked_up', 'cancelled'].includes(p.status));
+    
+    if (currentPickup) {
+      currentPickup.status = 'picked_up';
+      currentPickup.pickedAt = new Date();
     }
-    allPickupsDone = order.pickups.every(p => p.status === 'picked_up');
-  }
 
-  if (allPickupsDone) {
+    // 2. Check if all relevant pickups are now completed
+    const allPicked = order.pickups.every(p => ['picked_up', 'cancelled'].includes(p.status));
+
+    if (allPicked) {
+      // Final restaurant picked up - advance to delivery phase
+      order.orderStatus = nextStatus;
+      order.deliveryState = {
+        ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+        currentPhase: 'en_route_to_delivery',
+        status: 'picked_up',
+        pickedUpAt: new Date(),
+        billImageUrl,
+      };
+    } else {
+      // More restaurants to visit - stay in pickup phase but move to next restaurant
+      // We don't advance order.orderStatus yet.
+      order.deliveryState = {
+        ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+        currentPhase: 'en_route_to_pickup',
+        status: 'ready_for_pickup', // Reset status so rider can "reach" the next store
+        // We keep the billImageUrl but maybe we should append it? 
+        // For now, we'll just update it or keep it.
+        billImageUrl: billImageUrl || order.deliveryState?.billImageUrl,
+      };
+      
+      // We mark this history entry as a partial pickup
+      pushStatusHistory(order, {
+        byRole: 'DELIVERY_PARTNER',
+        byId: deliveryPartnerId,
+        from,
+        to: 'ready_for_pickup',
+        note: `Picked up items from ${currentPickup?.restaurantName || 'one restaurant'}. Heading to next pickup.`,
+      });
+
+      await order.save();
+      emitOrderUpdate(order, deliveryPartnerId);
+      return order.toObject();
+    }
+  } else {
+    // Single restaurant flow (unchanged)
     if (!isStatusAdvance(from, nextStatus)) {
         throw new ValidationError(`Order is already at status '${from}'. Cannot re-mark as '${nextStatus}'.`);
     }
@@ -879,27 +868,17 @@ export async function confirmPickupDelivery(orderId, deliveryPartnerId, billImag
       ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
       currentPhase: 'en_route_to_delivery',
       status: 'picked_up',
-      pickedUpAt: order.deliveryState?.pickedUpAt || new Date(),
+      pickedUpAt: new Date(),
       billImageUrl,
     };
-  } else {
-    // Reset to en_route for next pickup
-    order.deliveryState = {
-      ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
-      currentPhase: 'en_route_to_pickup',
-      status: 'accepted', // or 'moving_to_next_pickup'
-      billImageUrl, // Keep last bill or append? Usually per pickup? 
-      // For now we just keep it.
-    };
-    // Note: order.orderStatus stays 'preparing' or 'ready_for_pickup'
   }
 
   pushStatusHistory(order, {
     byRole: 'DELIVERY_PARTNER',
     byId: deliveryPartnerId,
     from,
-    to: allPickupsDone ? 'picked_up' : 'pickup_completed_partial',
-    note: allPickupsDone ? 'All items picked up' : 'Partial pickup completed, moving to next restaurant',
+    to: 'picked_up',
+    note: 'Order picked up',
   });
   await order.save();
 
@@ -1096,12 +1075,6 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
 
   const from = order.orderStatus;
   const nextStatus = 'delivered';
-  
-  // CRITICAL: Block delivery if not picked up
-  if (!['picked_up', 'reached_drop'].includes(from)) {
-      throw new ValidationError(`Cannot complete delivery. Current status is '${from}'. Please confirm pickup from restaurant(s) first.`);
-  }
-
   if (!isStatusAdvance(from, nextStatus)) {
       throw new ValidationError(`Order is already at status '${from}'. Cannot re-mark as '${nextStatus}'.`);
   }

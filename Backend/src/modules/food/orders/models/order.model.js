@@ -125,6 +125,8 @@ const dispatchSchema = new mongoose.Schema(
             allowOverLimit: { type: Boolean, default: false },
             requiredCashForOrder: { type: Number, default: 0 }
         }],
+        isShared: { type: Boolean, default: false },
+        sharedPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner', default: null },
         dispatchingAt: { type: Date }
     },
     { _id: false }
@@ -277,6 +279,7 @@ const orderSchema = new mongoose.Schema(
             type: String,
             enum: [
                 'created',
+                'scheduled',
                 'confirmed',
                 'preparing',
                 'ready_for_pickup',
@@ -313,6 +316,7 @@ const orderSchema = new mongoose.Schema(
         deliveryFleet: { type: String, default: 'standard', trim: true },
         scheduledAt: { type: Date, default: null },
         riderEarning: { type: Number, default: 0, min: 0 },
+        sharedRiderEarning: { type: Number, default: 0, min: 0 },
         platformProfit: { type: Number, default: 0, min: 0 },
         /** Plain 4-digit OTP for handover; cleared after successful verify (never expose to partner in API responses). */
         deliveryOtp: { type: String, default: '', select: false },
@@ -326,7 +330,15 @@ const orderSchema = new mongoose.Schema(
             coordinates: { type: [Number] }
         },
         /** Track how many times the restaurant has rejected this order while a rider is assigned */
-        restaurantRejectionCount: { type: Number, default: 0 }
+        restaurantRejectionCount: { type: Number, default: 0 },
+        /** Flag to track if the 30-minute pre-alert has been sent to the restaurant */
+        restaurantNotifiedForSchedule: { type: Boolean, default: false },
+        /** ✅ NEW: Contextual delay information for the end-user */
+        delayContext: {
+            reason: { type: String, default: '' },
+            reportedBy: { type: String, enum: ['RESTAURANT', 'DELIVERY_PARTNER', 'SYSTEM'] },
+            reportedAt: { type: Date }
+        }
     },
 
     {

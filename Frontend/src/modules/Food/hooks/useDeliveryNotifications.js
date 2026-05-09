@@ -184,6 +184,7 @@ export const useDeliveryNotifications = () => {
   
   // Step 2: All state hooks (unconditional)
   const [newOrder, setNewOrder] = useState(null);
+  const [sharedOrder, setSharedOrder] = useState(null);
   const [orderReady, setOrderReady] = useState(null);
   const [orderStatusUpdate, setOrderStatusUpdate] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -872,6 +873,14 @@ export const useDeliveryNotifications = () => {
       setNewOrder(orderData);
       handleIncomingOrderAlert(orderData);
     });
+    
+    socketRef.current.on('shareable_order_available', (orderData) => {
+      console.log('[SocketDebug] Frontend received shareable_order_available:', orderData);
+      debugLog('Shareable order available received via socket', orderData);
+      // We show this as a new type of alert
+      setSharedOrder(orderData);
+      handleIncomingOrderAlert(orderData);
+    });
 
     socketRef.current.on('play_notification_sound', (data) => {
       debugLog('play_notification_sound received', {
@@ -931,6 +940,7 @@ export const useDeliveryNotifications = () => {
 
     // Backend emits 'order_claimed' when another delivery boy accepts an offered order
     socketRef.current.on('order_claimed', (data) => {
+      console.log('[SocketDebug] Frontend received order_claimed:', data);
       debugLog('?? order_claimed received - order taken by another partner:', data);
       stopAlertLoop();
       activeOrderRef.current = null;
@@ -1038,6 +1048,12 @@ export const useDeliveryNotifications = () => {
     setAdminNotification(null);
   };
 
+  const clearSharedOrder = () => {
+    stopAlertLoop();
+    activeOrderRef.current = null;
+    setSharedOrder(null);
+  };
+
   const emitLocation = useCallback((data) => {
     if (socketRef.current && socketRef.current.connected) {
       // debugLog('? Emitting location via socket:', data);
@@ -1058,6 +1074,8 @@ export const useDeliveryNotifications = () => {
     clearAdminNotification,
     claimedOrderId,
     clearClaimedOrderId,
+    sharedOrder,
+    clearSharedOrder,
     isConnected,
     playNotificationSound,
     emitLocation
