@@ -259,7 +259,7 @@ export async function tryAutoAssign(orderId, options = {}) {
       $set: { 'dispatch.dispatchingAt': new Date() }
     },
     { new: true }
-  ).populate(['restaurantId', 'userId']);
+  ).populate(['restaurantId', 'userId', 'zoneId']);
 
   if (!order) {
     logger.info(`tryAutoAssign: Skip for ${orderId} (not dispatchable, already dispatching, accepted, or multi-attempt lock active).`);

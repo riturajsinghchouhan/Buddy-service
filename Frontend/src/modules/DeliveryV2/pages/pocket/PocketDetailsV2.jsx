@@ -98,9 +98,9 @@ export const PocketDetailsV2 = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12 font-poppins">
+    <div className="delivery-v2-theme min-h-screen bg-[#F8FFF9] pb-12 font-sans">
       {/* ─── HEADER ─── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between sticky top-0 z-[100]">
+      <div className="bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between sticky top-0 z-[100] safe-top">
         <div className="flex items-center gap-4">
           <button onClick={goBack} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-900 border border-gray-100 active:scale-90 transition-all">
             <ArrowLeft className="w-5 h-5" />
@@ -110,7 +110,7 @@ export const PocketDetailsV2 = () => {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Trips & Earnings History</p>
           </div>
         </div>
-        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
+        <div className="w-10 h-10 rounded-xl bg-[#16A34A]/10 flex items-center justify-center text-[#16A34A] border border-[#16A34A]/20">
           <Receipt className="w-5 h-5" />
         </div>
       </div>
@@ -134,7 +134,7 @@ export const PocketDetailsV2 = () => {
                     <h2 className="text-4xl font-black text-white tracking-tighter">{formatCurrency(summary.grandTotal)}</h2>
                  </div>
                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/5 backdrop-blur-md">
-                    <TrendingUp className="w-6 h-6 text-[#ff8100]" />
+                    <TrendingUp className="w-6 h-6 text-[#16A34A]" />
                  </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -159,7 +159,7 @@ export const PocketDetailsV2 = () => {
 
           {loading ? (
             <div className="py-20 flex flex-col items-center">
-              <Loader2 className="w-10 h-10 animate-spin text-[#ff8100]" />
+              <Loader2 className="w-10 h-10 animate-spin text-[#16A34A]" />
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-4">Syncing History...</p>
             </div>
           ) : orders.length > 0 ? (
@@ -188,6 +188,17 @@ export const PocketDetailsV2 = () => {
                           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-tight truncate max-w-[140px]">
                             {order.restaurantName || order.restaurantId?.name || "Premium Restaurant"}
                           </p>
+                          {order.splitInfo?.isShared && (
+                            <div className="flex flex-col gap-1 mt-1">
+                               <div className="flex items-center gap-1">
+                                  <div className="w-1 h-1 rounded-full bg-indigo-500" />
+                                  <p className="text-[8px] font-black text-indigo-600 uppercase tracking-tighter">Shared Order</p>
+                               </div>
+                               <p className="text-[7px] font-bold text-gray-400 uppercase">
+                                 With: {order.splitInfo.otherPartner?.name || order.splitInfo.otherPartner?.fullName || 'Partner'}
+                               </p>
+                            </div>
+                          )}
                        </div>
                     </div>
                     <div className="text-right">
@@ -219,4 +230,3 @@ export const PocketDetailsV2 = () => {
 };
 
 export default PocketDetailsV2;
-

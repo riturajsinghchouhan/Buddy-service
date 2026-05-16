@@ -162,7 +162,7 @@ export default function VerificationPending() {
               </Button>
             ) : (
               <Button
-                className="h-14 w-full rounded-2xl bg-[#23361A] text-white font-bold text-base shadow-xl shadow-[#23361A]/20 hover:bg-[#1a2614] transition-all active:scale-[0.98]"
+                className="h-14 w-full rounded-2xl bg-[#16A34A] text-white font-bold text-base shadow-xl shadow-[#16A34A]/20 hover:bg-[#1a2614] transition-all active:scale-[0.98]"
                 onClick={() => {
                   clearRestaurantPendingPhone()
                   navigate("/food/restaurant/login", { replace: true })

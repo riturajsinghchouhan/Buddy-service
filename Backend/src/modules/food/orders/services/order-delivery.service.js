@@ -4,6 +4,8 @@ import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
+import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
+import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransaction.model.js';
 import { FoodDeliveryCashLimit } from '../../admin/models/deliveryCashLimit.model.js';
 import { FoodDeliveryBoySettings } from '../../admin/models/deliveryBoySettings.model.js';
 import {
@@ -60,7 +62,6 @@ async function getPartnerCashCapacity(deliveryPartnerId) {
     .lean();
 
   const totalCashLimit = Number(limitDoc?.deliveryCashLimit || 0);
-  // If limit is not configured, don't block assignments globally.
   if (!Number.isFinite(totalCashLimit) || totalCashLimit <= 0) {
     return {
       totalCashLimit: 0,
@@ -70,63 +71,171 @@ async function getPartnerCashCapacity(deliveryPartnerId) {
     };
   }
 
-  const [cashAgg, depositsAgg] = await Promise.all([
+  const [ordersAgg, cashAgg, bonusAgg, depositsAgg, withdrawalsAgg] = await Promise.all([
+    // 1. Earnings aggregation
     FoodOrder.aggregate([
-      {
-        $match: {
-          'dispatch.deliveryPartnerId': partnerObjectId,
-          orderStatus: 'delivered',
-        },
+      { 
+          $match: { 
+              $and: [
+                  {
+                      $or: [
+                          { 'dispatch.deliveryPartnerId': partnerObjectId }, 
+                          { 'dispatch.sharedPartnerId': partnerObjectId }
+                      ]
+                  },
+                  { orderStatus: 'delivered' }
+              ]
+          } 
       },
-      {
-        $lookup: {
-          from: 'food_transactions',
-          localField: '_id',
-          foreignField: 'orderId',
-          as: 'tx',
-        },
-      },
-      {
-        $match: {
-          $or: [
-            { 'tx.paymentMethod': 'cash' },
-            { 'tx': { $size: 0 }, 'payment.method': 'cash' }
-          ]
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          grossCashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } },
-        },
-      },
+      { 
+          $group: { 
+              _id: null, 
+              totalEarned: { 
+                  $sum: { 
+                      $cond: [
+                          { $eq: ["$dispatch.deliveryPartnerId", partnerObjectId] },
+                          { 
+                              $cond: [
+                                  { $gt: [{ $ifNull: ["$riderEarning", 0] }, 0] },
+                                  "$riderEarning",
+                                  { $ifNull: ["$pricing.deliveryFee", 0] }
+                              ]
+                          },
+                          { $ifNull: ["$sharedRiderEarning", 0] }
+                      ]
+                  } 
+              }
+          } 
+      }
     ]),
+    // 2. Cash aggregation (Active orders included)
+    FoodOrder.aggregate([
+      { 
+          $match: { 
+              $and: [
+                  {
+                      $or: [
+                          { 'dispatch.deliveryPartnerId': partnerObjectId }, 
+                          { 'dispatch.sharedPartnerId': partnerObjectId }
+                      ]
+                  },
+                  {
+                      orderStatus: { 
+                          $in: [
+                              'confirmed', 'preparing', 'ready_for_pickup', 'reached_pickup', 'picked_up', 'reached_drop', 'delivered', 'completed',
+                              'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'REACHED_PICKUP', 'PICKED_UP', 'REACHED_DROP', 'DELIVERED', 'COMPLETED'
+                          ] 
+                      }
+                  },
+                  {
+                      $or: [
+                          { 'payment.method': { $in: ['cash', 'cod', 'CASH', 'COD'] } },
+                          { 'paymentMethod': { $in: ['cash', 'cod', 'CASH', 'COD'] } },
+                          { 
+                              $and: [
+                                  { 'payment.method': { $exists: false } },
+                                  { 'paymentMethod': { $exists: false } }
+                              ]
+                          }
+                      ]
+                  }
+              ]
+          } 
+      },
+      { 
+          $group: { 
+              _id: null, 
+              actualCashCollected: { 
+                  $sum: { 
+                      $cond: [
+                          { $in: ["$orderStatus", ["delivered", "completed", "DELIVERED", "COMPLETED"]] },
+                          { 
+                              $cond: [
+                                  { $gt: [{ $ifNull: ["$amountToCollect", 0] }, 0] }, 
+                                  "$amountToCollect",
+                                  { 
+                                      $cond: [
+                                          { $gt: [{ $ifNull: ["$payment.amountDue", 0] }, 0] },
+                                          "$payment.amountDue",
+                                          { $ifNull: ["$pricing.total", { $ifNull: ["$totalAmount", 0] }] }
+                                      ]
+                                  }
+                              ]
+                          },
+                          0
+                      ]
+                  } 
+              },
+              pendingCashLiability: { 
+                  $sum: { 
+                      $cond: [
+                          { $not: { $in: ["$orderStatus", ["delivered", "completed", "DELIVERED", "COMPLETED"]] } },
+                          { 
+                              $cond: [
+                                  { $gt: [{ $ifNull: ["$amountToCollect", 0] }, 0] }, 
+                                  "$amountToCollect",
+                                  { 
+                                      $cond: [
+                                          { $gt: [{ $ifNull: ["$payment.amountDue", 0] }, 0] },
+                                          "$payment.amountDue",
+                                          { $ifNull: ["$pricing.total", { $ifNull: ["$totalAmount", 0] }] }
+                                      ]
+                                  }
+                              ]
+                          },
+                          0
+                      ]
+                  } 
+              }
+          } 
+      }
+    ]),
+    // 3. Bonuses
+    DeliveryBonusTransaction.aggregate([
+      { $match: { deliveryPartnerId: partnerObjectId, status: 'credited' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]),
+    // 4. Deposits
     FoodDeliveryCashDeposit.aggregate([
-      {
-        $match: {
-          deliveryPartnerId: partnerObjectId,
-          status: 'Completed',
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          depositedCash: { $sum: { $ifNull: ['$amount', 0] } },
-        },
-      },
+      { $match: { deliveryPartnerId: partnerObjectId, status: 'Completed' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]),
+    // 5. Withdrawals
+    FoodDeliveryWithdrawal.aggregate([
+      { $match: { deliveryPartnerId: partnerObjectId, status: { $in: ['pending', 'approved', 'processed'] } } },
+      { $group: { _id: '$status', total: { $sum: '$amount' } } }
     ]),
   ]);
 
-  const grossCashCollected = Number(cashAgg?.[0]?.grossCashCollected || 0);
-  const depositedCash = Number(depositsAgg?.[0]?.depositedCash || 0);
-  const cashInHand = Math.max(0, grossCashCollected - depositedCash);
-  const availableCashLimit = Math.max(0, totalCashLimit - cashInHand);
+  const totalEarned = Number(ordersAgg[0]?.totalEarned || 0);
+  const totalBonus = Number(bonusAgg[0]?.total || 0);
+  const actualCashCollected = Number(cashAgg[0]?.actualCashCollected || 0);
+  const pendingCashLiability = Number(cashAgg[0]?.pendingCashLiability || 0);
+  const depositedCash = Number(depositsAgg[0]?.total || 0);
+
+  const withdrawalsMap = (withdrawalsAgg || []).reduce((acc, curr) => {
+    acc[curr._id] = curr.total;
+    return acc;
+  }, {});
+  const totalWithdrawn = Number(withdrawalsMap['approved'] || 0) + Number(withdrawalsMap['processed'] || 0);
+  const pendingWithdrawals = Number(withdrawalsMap['pending'] || 0);
+
+  const rawEarningsBalance = Math.max(0, totalEarned + totalBonus - (totalWithdrawn + pendingWithdrawals));
+  const actualCashInHand = Math.max(0, actualCashCollected - depositedCash);
+
+  const amountSubstituted = Math.min(rawEarningsBalance, actualCashInHand);
+  const netCashInHand = actualCashInHand - amountSubstituted;
+
+  const totalCurrentLiability = netCashInHand + pendingCashLiability;
+  const availableCashLimit = Math.max(0, totalCashLimit - totalCurrentLiability);
 
   return {
     totalCashLimit,
-    cashInHand,
+    cashInHand: actualCashInHand, // Return Gross for UI transparency
     availableCashLimit,
     hasCapacity: availableCashLimit > 0,
+    pocketBalance: rawEarningsBalance - amountSubstituted,
+    amountSubstituted
   };
 }
 
@@ -288,10 +397,13 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
 
   const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
   const order = await FoodOrder.findOne({
-    'dispatch.deliveryPartnerId': partnerId,
+    $or: [
+      { 'dispatch.deliveryPartnerId': partnerId },
+      { 'dispatch.sharedPartnerId': partnerId }
+    ],
     'dispatch.status': 'accepted',
     orderStatus: {
-      $in: ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up'],
+      $in: ['created', 'accepted', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up'],
     },
   })
     .populate({
@@ -299,6 +411,8 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
       select: 'restaurantName name phone location addressLine1 area city state profileImage',
     })
     .populate({ path: 'userId', select: 'name phone' })
+    .populate({ path: 'dispatch.deliveryPartnerId', select: 'name fullName phone phoneNumber profileImage' })
+    .populate({ path: 'dispatch.sharedPartnerId', select: 'name fullName phone phoneNumber profileImage' })
     .sort({ updatedAt: -1 })
     .lean();
 
@@ -329,7 +443,10 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
   };
 
   const activeOwnOrderFilter = {
-    'dispatch.deliveryPartnerId': new mongoose.Types.ObjectId(deliveryPartnerId),
+    $or: [
+      { 'dispatch.deliveryPartnerId': new mongoose.Types.ObjectId(deliveryPartnerId) },
+      { 'dispatch.sharedPartnerId': new mongoose.Types.ObjectId(deliveryPartnerId) }
+    ],
     orderStatus: {
       $nin: [
         'delivered',
@@ -340,6 +457,13 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
     },
   };
 
+  const shareableFilter = {
+    'dispatch.isShared': true,
+    'dispatch.sharedPartnerId': null,
+    'dispatch.deliveryPartnerId': { $ne: new mongoose.Types.ObjectId(deliveryPartnerId) },
+    orderStatus: { $in: ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'] },
+  };
+
   const filter = partnerCapacity.hasCapacity
     ? {
         $or: [
@@ -347,6 +471,7 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
             'dispatch.status': 'unassigned',
             orderStatus: { $in: ['confirmed', 'preparing', 'ready_for_pickup'] },
           },
+          shareableFilter,
           activeOwnOrderFilter,
         ],
       }
@@ -362,6 +487,7 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
         'restaurantId',
         'restaurantName name address phone ownerPhone location profileImage',
       )
+      .populate('zoneId', 'name zoneName')
       .lean(),
     FoodOrder.countDocuments(filter),
   ]);
@@ -677,7 +803,9 @@ export async function rejectOrderDelivery(orderId, deliveryPartnerId) {
 
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (order.dispatch.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()) {
+  const isPrimary = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
+  const isShared = order.dispatch?.sharedPartnerId?.toString() === deliveryPartnerId.toString();
+  if (!isPrimary && !isShared) {
     throw new ForbiddenError('Not your order');
   }
 
@@ -722,9 +850,9 @@ export async function confirmReachedPickupDelivery(orderId, deliveryPartnerId) {
 
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()
-  ) {
+  const isPrimary = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
+  const isShared = order.dispatch?.sharedPartnerId?.toString() === deliveryPartnerId.toString();
+  if (!isPrimary && !isShared) {
     throw new ForbiddenError('Not your order');
   }
   if (order.orderStatus === 'delivered') {
@@ -801,10 +929,14 @@ export async function confirmPickupDelivery(orderId, deliveryPartnerId, billImag
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()
-  ) {
+  const isPrimary = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
+  const isShared = order.dispatch?.sharedPartnerId?.toString() === deliveryPartnerId.toString();
+  if (!isPrimary && !isShared) {
     throw new ForbiddenError('Not your order');
+  }
+
+  if (isShared && !isPrimary) {
+    throw new ForbiddenError('Only the primary partner can confirm order pickup.');
   }
 
   const from = order.orderStatus;
@@ -898,9 +1030,9 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
 
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()
-  ) {
+  const isPrimary = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
+  const isShared = order.dispatch?.sharedPartnerId?.toString() === deliveryPartnerId.toString();
+  if (!isPrimary && !isShared) {
     throw new ForbiddenError('Not your order');
   }
 
@@ -981,13 +1113,47 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
   return sanitizeOrderForExternal(order);
 }
 
+export async function confirmSplitDelivery(orderId, deliveryPartnerId) {
+  const identity = buildOrderIdentityFilter(orderId);
+  const order = await FoodOrder.findOne(identity);
+  if (!order) throw new NotFoundError('Order not found');
+
+  const pid = order.dispatch?.deliveryPartnerId?.toString();
+  const sid = order.dispatch?.sharedPartnerId?.toString();
+  const currentId = deliveryPartnerId.toString();
+
+  logger.info(`[confirmSplit] Order: ${orderId}, Partner: ${currentId}, Primary: ${pid}, Shared: ${sid}`);
+
+  if (!sid) {
+    throw new ValidationError('This is not a shared order, split not required.');
+  }
+
+  if (pid !== currentId) {
+    throw new ForbiddenError('Only the primary partner can confirm the earnings split.');
+  }
+
+  if (order.deliveryState?.isSplitConfirmed) {
+    return sanitizeOrderForExternal(order);
+  }
+
+  order.deliveryState = {
+    ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+    isSplitConfirmed: true
+  };
+
+  await order.save();
+  emitOrderUpdate(order, deliveryPartnerId);
+  
+  return sanitizeOrderForExternal(order);
+}
+
 export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()
-  ) {
+  const isPrimary = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
+  const isShared = order.dispatch?.sharedPartnerId?.toString() === deliveryPartnerId.toString();
+  if (!isPrimary && !isShared) {
     throw new ForbiddenError('Not your order');
   }
 
@@ -1040,11 +1206,17 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()
-  ) {
+  const pid = order.dispatch?.deliveryPartnerId?.toString();
+  const sid = order.dispatch?.sharedPartnerId?.toString();
+  const currentId = deliveryPartnerId.toString();
+
+  if (pid !== currentId && sid !== currentId) {
+    logger.warn(`Auth failed for completeDelivery. Order: ${orderId}, Partner: ${currentId}, Primary: ${pid}, Shared: ${sid}`);
     throw new ForbiddenError('Not your order');
   }
+
+  const isShared = Boolean(order.dispatch?.sharedPartnerId);
+  const isPrimaryRider = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
 
   const { otp, ratings, paymentMethod: selectedPaymentMethod } = body;
 
@@ -1078,6 +1250,11 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   if (!isStatusAdvance(from, nextStatus)) {
       throw new ValidationError(`Order is already at status '${from}'. Cannot re-mark as '${nextStatus}'.`);
   }
+
+  // Blocking check for split confirmation on shared orders
+  if (isShared && !order.deliveryState?.isSplitConfirmed) {
+    throw new ValidationError('Earnings split must be confirmed by the primary partner before completing the delivery.');
+  }
   
   // 2. Financial Context Resolution
   const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
@@ -1092,7 +1269,12 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
    */
   let finalPayMethod = payMethod;
   if (selectedPaymentMethod === 'qr') finalPayMethod = 'razorpay_qr';
-  else if (selectedPaymentMethod === 'cash') finalPayMethod = 'cash';
+  else if (selectedPaymentMethod === 'cash') {
+    if (isShared && !isPrimaryRider) {
+      throw new ValidationError('Only the primary partner can collect cash payments.');
+    }
+    finalPayMethod = 'cash';
+  }
 
   // 3. QR Payment Verification (Blocking)
   if (finalPayMethod === 'razorpay_qr') {
@@ -1123,7 +1305,7 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
     byId: deliveryPartnerId,
     from,
     to: 'delivered',
-    note: `Delivery completed using ${finalPayMethod}.`,
+    note: `Delivery completed by ${isPrimaryRider ? 'Primary' : 'Shared'} Partner using ${finalPayMethod}.`,
   });
 
   await order.save();
@@ -1140,8 +1322,31 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
     paymentMethod: finalPayMethod,
     recordedByRole: 'DELIVERY_PARTNER',
     recordedById: deliveryPartnerId,
+    primaryRiderShare: order.riderEarning,
+    sharedRiderShare: order.sharedRiderEarning,
     note: `Rider finalized payment as ${finalPayMethod}. Order is now delivered.`,
   });
+
+  // Notify both partners about completion and split
+  try {
+    const io = getIO();
+    if (io) {
+      const splitPayload = {
+        orderId: order._id.toString(),
+        totalEarnings: (order.riderEarning || 0) + (order.sharedRiderEarning || 0),
+        primaryShare: order.riderEarning,
+        sharedShare: order.sharedRiderEarning,
+        deliveryPartnerId: order.dispatch?.deliveryPartnerId,
+        sharedPartnerId: order.dispatch?.sharedPartnerId
+      };
+      if (order.dispatch?.deliveryPartnerId) {
+        io.to(rooms.delivery(order.dispatch.deliveryPartnerId)).emit('order_earnings_split', splitPayload);
+      }
+      if (order.dispatch?.sharedPartnerId) {
+        io.to(rooms.delivery(order.dispatch.sharedPartnerId)).emit('order_earnings_split', splitPayload);
+      }
+    }
+  } catch (err) {}
 
   emitOrderUpdate(order, deliveryPartnerId);
   
@@ -1164,7 +1369,9 @@ export async function updateOrderStatusDelivery(orderId, deliveryPartnerId, orde
 
   const order = await FoodOrder.findOne(identity).select('+deliveryOtp');
   if (!order) throw new NotFoundError('Order not found');
-  if (order.dispatch.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()) {
+  const isPrimary = order.dispatch?.deliveryPartnerId?.toString() === deliveryPartnerId.toString();
+  const isShared = order.dispatch?.sharedPartnerId?.toString() === deliveryPartnerId.toString();
+  if (!isPrimary && !isShared) {
     throw new ForbiddenError('Not your order');
   }
 

@@ -218,7 +218,7 @@ export default function EditRestaurantAddress() {
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-6 h-6 text-[#23361A]" />
+          <ArrowLeft className="w-6 h-6 text-[#16A34A]" />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
@@ -251,7 +251,7 @@ export default function EditRestaurantAddress() {
             <p className="text-[10px] text-gray-300">Orders will be picked up from here</p>
           </div>
           {/* Marker Pin */}
-          <div className="w-6 h-6 bg-[#23361A] rounded-full border-2 border-white shadow-lg mx-auto"></div>
+          <div className="w-6 h-6 bg-[#16A34A] rounded-full border-2 border-white shadow-lg mx-auto"></div>
         </div>
 
         {/* Address Details Section - Overlays map at bottom */}
@@ -274,7 +274,7 @@ export default function EditRestaurantAddress() {
           <div className="pb-4">
             <button
               onClick={handleUpdateClick}
-              className="w-full bg-[#23361A] text-white font-bold py-4 text-base rounded-xl shadow-lg shadow-[#23361A]/20 transition-all active:scale-[0.98]"
+              className="w-full bg-[#16A34A] text-white font-bold py-4 text-base rounded-xl shadow-lg shadow-[#16A34A]/20 transition-all active:scale-[0.98]"
             >
               Update Address
             </button>
@@ -305,7 +305,7 @@ export default function EditRestaurantAddress() {
               <div
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                   selectedOption === "update_address"
-                    ? "border-[#23361A] bg-[#23361A]"
+                    ? "border-[#16A34A] bg-[#16A34A]"
                     : "border-gray-300"
                 }`}
               >
@@ -333,7 +333,7 @@ export default function EditRestaurantAddress() {
               <div
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                   selectedOption === "minor_correction"
-                    ? "border-[#23361A] bg-[#23361A]"
+                    ? "border-[#16A34A] bg-[#16A34A]"
                     : "border-gray-300"
                 }`}
               >
@@ -347,7 +347,7 @@ export default function EditRestaurantAddress() {
           {/* Proceed Button */}
           <button
             onClick={handleProceedUpdate}
-            className="w-full bg-[#23361A] text-white font-bold py-4 rounded-xl mt-6 shadow-lg shadow-[#23361A]/20 transition-all active:scale-[0.98]"
+            className="w-full bg-[#16A34A] text-white font-bold py-4 rounded-xl mt-6 shadow-lg shadow-[#16A34A]/20 transition-all active:scale-[0.98]"
           >
             Proceed to update
           </button>

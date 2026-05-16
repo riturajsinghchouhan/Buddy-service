@@ -14,23 +14,16 @@ const quickCategories = [
   { name: 'Baby Care', image: 'https://images.unsplash.com/photo-1555252333-978fe3f780c4?w=100&h=100&fit=crop' },
 ];
 
-export default function QuickSection() {
-  return (
-    <div className="relative min-h-[400px] bg-white pt-2 pb-10">
-      {/* "Coming Soon" Overlay */}
-      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="bg-[#ef4f5f] text-white px-8 py-3 rounded-2xl shadow-2xl flex flex-col items-center gap-1 border-4 border-white"
-        >
-          <Zap className="h-8 w-8 fill-white" />
-          <span className="text-xl font-black uppercase tracking-tighter italic">Coming Soon</span>
-          <span className="text-xs font-bold opacity-80 uppercase tracking-widest leading-none">Instant Grocery</span>
-        </motion.div>
-      </div>
+import { useNavigate } from 'react-router-dom';
 
-      <div className="px-4 space-y-6 opacity-40 grayscale-[0.5] select-none pointer-events-none">
+export default function QuickSection() {
+  const navigate = useNavigate();
+  return (
+    <div 
+      onClick={() => navigate('/qc')}
+      className="relative min-h-[400px] bg-white pt-2 pb-10 cursor-pointer active:scale-[0.98] transition-transform"
+    >
+      <div className="px-4 space-y-6">
         {/* Banner */}
         <div className="bg-yellow-50 rounded-2xl p-4 flex justify-between items-center border border-yellow-100">
           <div className="space-y-1">
@@ -67,7 +60,7 @@ export default function QuickSection() {
           </div>
           <div className="flex flex-col items-center gap-1">
             <div className="h-8 w-8 rounded-full bg-orange-50 flex items-center justify-center">
-              <Star className="h-4 w-4 text-[#23361A]" />
+              <Star className="h-4 w-4 text-[#16A34A]" />
             </div>
             <span className="text-[8px] font-bold text-gray-400">TOP BRANDS</span>
           </div>

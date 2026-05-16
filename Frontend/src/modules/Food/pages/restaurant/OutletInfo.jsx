@@ -44,15 +44,15 @@ const CUISINES_STORAGE_KEY = "restaurant_cuisines"
 const ActionButton = ({ icon: Icon, label, onClick }) => (
   <button 
     onClick={onClick}
-    className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-[#ACDD93]/20 hover:border-[#ACDD93] hover:bg-[#ACDD93]/5 transition-all active:scale-[0.98] shadow-sm"
+    className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-[#F0FDF4]/20 hover:border-[#F0FDF4] hover:bg-[#F0FDF4]/5 transition-all active:scale-[0.98] shadow-sm"
   >
     <div className="flex items-center gap-4">
-      <div className="bg-[#054204]/5 p-2.5 rounded-xl">
-        <Icon className="w-5 h-5 text-[#054204]" />
+      <div className="bg-[#16A34A]/5 p-2.5 rounded-xl">
+        <Icon className="w-5 h-5 text-[#16A34A]" />
       </div>
-      <span className="text-[15px] font-black text-[#054204] tracking-tight">{label}</span>
+      <span className="text-[15px] font-black text-[#16A34A] tracking-tight">{label}</span>
     </div>
-    <ChevronRight className="w-5 h-5 text-[#054204]/20" />
+    <ChevronRight className="w-5 h-5 text-[#16A34A]/20" />
   </button>
 )
 
@@ -344,19 +344,19 @@ export default function OutletInfo() {
       <div className="min-h-screen bg-white overflow-x-hidden">
         {/* Header */}
         {/* Header */}
-        <div className="bg-white/80 backdrop-blur-md border-b border-[#ACDD93]/10 px-4 py-3 sticky top-0 z-50 shadow-sm">
+        <div className="bg-white/80 backdrop-blur-md border-b border-[#F0FDF4]/10 px-4 py-3 sticky top-0 z-50 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-1">
               <button 
                 onClick={goBack} 
-                className="p-2 hover:bg-[#054204]/5 rounded-xl transition-all active:scale-95"
+                className="p-2 hover:bg-[#16A34A]/5 rounded-xl transition-all active:scale-95"
               >
-                <ArrowLeft className="w-5 h-5 text-[#054204]" />
+                <ArrowLeft className="w-5 h-5 text-[#16A34A]" />
               </button>
-              <h1 className="text-[17px] font-bold text-[#054204] tracking-tight">Outlet Information</h1>
+              <h1 className="text-[17px] font-bold text-[#16A34A] tracking-tight">Outlet Information</h1>
             </div>
-            <div className="bg-[#054204]/5 px-3 py-1.5 rounded-full border border-[#054204]/10">
-              <p className="text-[11px] font-bold text-[#054204] uppercase tracking-wider">
+            <div className="bg-[#16A34A]/5 px-3 py-1.5 rounded-full border border-[#16A34A]/10">
+              <p className="text-[11px] font-bold text-[#16A34A] uppercase tracking-wider">
                 ID: {loading ? "..." : (restaurantMongoId && restaurantMongoId.length >= 5 ? restaurantMongoId.slice(-5) : (restaurantId || "N/A"))}
               </p>
             </div>
@@ -395,7 +395,7 @@ export default function OutletInfo() {
                 <button
                   onClick={() => handleImageClick('profile', profileImageInputRef, "Update Profile Photo")}
                   disabled={uploadingImage}
-                  className="absolute -bottom-1 -right-1 bg-[#054204] p-2 rounded-xl text-white shadow-lg shadow-[#054204]/30 hover:scale-105 transition-all border-2 border-white active:scale-90"
+                  className="absolute -bottom-1 -right-1 bg-[#16A34A] p-2 rounded-xl text-white shadow-lg shadow-[#16A34A]/30 hover:scale-105 transition-all border-2 border-white active:scale-90"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -428,27 +428,27 @@ export default function OutletInfo() {
         <div className="px-5 pt-8 pb-12 space-y-8 bg-[#FFFDF5]">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-[#054204]/40 uppercase tracking-widest px-1">Vital Information</h3>
-              <div className="h-[1px] flex-1 bg-[#054204]/5 ml-4"></div>
+              <h3 className="text-sm font-black text-[#16A34A]/40 uppercase tracking-widest px-1">Vital Information</h3>
+              <div className="h-[1px] flex-1 bg-[#16A34A]/5 ml-4"></div>
             </div>
 
             {/* Restaurant Name Card */}
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="group bg-white rounded-[2rem] p-5 border border-[#ACDD93]/30 shadow-sm hover:shadow-md hover:border-[#ACDD93] transition-all cursor-pointer overflow-hidden relative"
+              className="group bg-white rounded-[2rem] p-5 border border-[#F0FDF4]/30 shadow-sm hover:shadow-md hover:border-[#F0FDF4] transition-all cursor-pointer overflow-hidden relative"
               onClick={handleOpenEditDialog}
             >
               <div className="absolute top-0 right-0 p-3">
-                <div className="bg-[#054204] p-1.5 rounded-xl">
+                <div className="bg-[#16A34A] p-1.5 rounded-xl">
                   <Edit className="w-3.5 h-3.5 text-white" />
                 </div>
               </div>
-              <p className="text-[10px] text-[#054204]/60 font-black uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-[#ACDD93] rounded-full"></span>
+              <p className="text-[10px] text-[#16A34A]/60 font-black uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#F0FDF4] rounded-full"></span>
                 Official Name
               </p>
-              <p className="text-lg font-black text-[#054204] transition-colors">
+              <p className="text-lg font-black text-[#16A34A] transition-colors">
                 {loading ? "Loading..." : (restaurantName || "N/A")}
               </p>
             </motion.div>
@@ -458,19 +458,19 @@ export default function OutletInfo() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="group bg-white rounded-[2rem] p-5 border border-[#ACDD93]/30 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
+              className="group bg-white rounded-[2rem] p-5 border border-[#F0FDF4]/30 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
               onClick={() => navigate("/food/restaurant/edit-cuisines")}
             >
               <div className="absolute top-0 right-0 p-3">
-                <div className="bg-[#054204] p-1.5 rounded-xl">
+                <div className="bg-[#16A34A] p-1.5 rounded-xl">
                   <Edit className="w-3.5 h-3.5 text-white" />
                 </div>
               </div>
-              <p className="text-[10px] text-[#054204]/60 font-black uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-[#ACDD93] rounded-full"></span>
+              <p className="text-[10px] text-[#16A34A]/60 font-black uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#F0FDF4] rounded-full"></span>
                 Cuisines Served
               </p>
-              <p className="text-base font-black text-[#054204] leading-tight">
+              <p className="text-base font-black text-[#16A34A] leading-tight">
                 {loading ? "Loading..." : (cuisineTags || "Not specified")}
               </p>
             </motion.div>
@@ -480,23 +480,23 @@ export default function OutletInfo() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="group bg-white rounded-[2rem] p-5 border border-[#ACDD93]/30 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
+              className="group bg-white rounded-[2rem] p-5 border border-[#F0FDF4]/30 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
               onClick={() => navigate("/food/restaurant/edit-address")}
             >
               <div className="absolute top-0 right-0 p-3">
-                <div className="bg-[#054204] p-1.5 rounded-xl">
+                <div className="bg-[#16A34A] p-1.5 rounded-xl">
                   <MapPin className="w-3.5 h-3.5 text-white" />
                 </div>
               </div>
-              <p className="text-[10px] text-[#054204]/60 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-[#ACDD93] rounded-full"></span>
+              <p className="text-[10px] text-[#16A34A]/60 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#F0FDF4] rounded-full"></span>
                 Location Address
               </p>
               <div className="flex items-start gap-4">
-                <div className="bg-[#FFFDF5] p-2.5 rounded-2xl border border-[#ACDD93]/20 shrink-0">
-                  <MapPin className="w-5 h-5 text-[#054204]" />
+                <div className="bg-[#FFFDF5] p-2.5 rounded-2xl border border-[#F0FDF4]/20 shrink-0">
+                  <MapPin className="w-5 h-5 text-[#16A34A]" />
                 </div>
-                <p className="text-[15px] font-bold text-[#054204] leading-snug">
+                <p className="text-[15px] font-bold text-[#16A34A] leading-snug">
                   {loading ? "Loading..." : (address || "No address found")}
                 </p>
               </div>
@@ -506,8 +506,8 @@ export default function OutletInfo() {
           {/* Outlet Photos Gallery Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-[#054204]/40 uppercase tracking-widest px-1">Outlet Photos</h3>
-              <div className="h-[1px] flex-1 bg-[#054204]/5 ml-4"></div>
+              <h3 className="text-sm font-black text-[#16A34A]/40 uppercase tracking-widest px-1">Outlet Photos</h3>
+              <div className="h-[1px] flex-1 bg-[#16A34A]/5 ml-4"></div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -517,7 +517,7 @@ export default function OutletInfo() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05 }}
-                  className="relative aspect-square rounded-[1.5rem] overflow-hidden group shadow-sm border border-[#ACDD93]/20"
+                  className="relative aspect-square rounded-[1.5rem] overflow-hidden group shadow-sm border border-[#F0FDF4]/20"
                 >
                   <img 
                     src={image.url} 
@@ -537,7 +537,7 @@ export default function OutletInfo() {
                   </button>
 
                   {index === 0 && (
-                    <div className="absolute bottom-2 left-2 bg-[#054204] text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg">
+                    <div className="absolute bottom-2 left-2 bg-[#16A34A] text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg">
                       Main Banner
                     </div>
                   )}
@@ -546,9 +546,9 @@ export default function OutletInfo() {
 
               <button
                 onClick={() => handleImageClick('cover', menuImageInputRef, "Add Photos", true)}
-                className="aspect-square rounded-[1.5rem] border-2 border-dashed border-[#ACDD93] flex flex-col items-center justify-center gap-2 hover:bg-[#ACDD93]/10 transition-all active:scale-95 text-[#054204]/40 hover:text-[#054204]"
+                className="aspect-square rounded-[1.5rem] border-2 border-dashed border-[#F0FDF4] flex flex-col items-center justify-center gap-2 hover:bg-[#F0FDF4]/10 transition-all active:scale-95 text-[#16A34A]/40 hover:text-[#16A34A]"
               >
-                <div className="bg-[#ACDD93]/20 p-3 rounded-full">
+                <div className="bg-[#F0FDF4]/20 p-3 rounded-full">
                   <Plus className="w-6 h-6" />
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-widest">Add Photo</span>
@@ -559,8 +559,8 @@ export default function OutletInfo() {
           {/* Quick Actions Grid */}
           <div className="space-y-4">
              <div className="flex items-center justify-between">
-               <h3 className="text-sm font-black text-[#054204]/40 uppercase tracking-widest px-1">Outlet Settings</h3>
-               <div className="h-[1px] flex-1 bg-[#054204]/5 ml-4"></div>
+               <h3 className="text-sm font-black text-[#16A34A]/40 uppercase tracking-widest px-1">Outlet Settings</h3>
+               <div className="h-[1px] flex-1 bg-[#16A34A]/5 ml-4"></div>
              </div>
              <div className="grid grid-cols-1 gap-3">
                 <ActionButton 
@@ -589,9 +589,9 @@ export default function OutletInfo() {
       {/* Helper Component for Buttons */}
       <Dialog open={showEditNameDialog} onOpenChange={setShowEditNameDialog}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-[2.5rem] w-[92%] border-none shadow-2xl bg-white">
-          <DialogHeader className="p-6 bg-gradient-to-br from-[#FFFDF5] to-white border-b border-[#ACDD93]/10">
-            <DialogTitle className="text-xl font-black text-[#054204] tracking-tight">Rename Outlet</DialogTitle>
-            <DialogDescription className="text-[10px] font-black text-[#054204]/40 uppercase tracking-widest mt-1">Update official restaurant name</DialogDescription>
+          <DialogHeader className="p-6 bg-gradient-to-br from-[#FFFDF5] to-white border-b border-[#F0FDF4]/10">
+            <DialogTitle className="text-xl font-black text-[#16A34A] tracking-tight">Rename Outlet</DialogTitle>
+            <DialogDescription className="text-[10px] font-black text-[#16A34A]/40 uppercase tracking-widest mt-1">Update official restaurant name</DialogDescription>
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div className="relative group">
@@ -599,15 +599,15 @@ export default function OutletInfo() {
                 value={editNameValue} 
                 onChange={(e) => setEditNameValue(e.target.value)} 
                 placeholder="Ex: Foodelo Express" 
-                className="w-full h-14 px-5 rounded-2xl border-2 border-[#ACDD93]/20 focus:border-[#054204] focus:ring-0 transition-all font-bold text-lg bg-[#FFFDF5] group-hover:bg-white text-[#054204]" 
+                className="w-full h-14 px-5 rounded-2xl border-2 border-[#F0FDF4]/20 focus:border-[#16A34A] focus:ring-0 transition-all font-bold text-lg bg-[#FFFDF5] group-hover:bg-white text-[#16A34A]" 
               />
-              <Pencil className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#ACDD93] group-hover:text-[#054204] transition-colors" />
+              <Pencil className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#F0FDF4] group-hover:text-[#16A34A] transition-colors" />
             </div>
-            <p className="text-[10px] font-bold text-[#054204]/60 px-1 italic">* This will be visible to all customers on the app.</p>
+            <p className="text-[10px] font-bold text-[#16A34A]/60 px-1 italic">* This will be visible to all customers on the app.</p>
           </div>
           <DialogFooter className="p-6 bg-[#FFFDF5] flex flex-row gap-3">
-            <Button variant="ghost" onClick={() => setShowEditNameDialog(false)} className="flex-1 h-12 rounded-2xl font-bold text-[#054204]/40 hover:bg-[#ACDD93]/10">Discard</Button>
-            <Button onClick={handleSaveName} disabled={!editNameValue.trim()} className="flex-[2] h-12 bg-[#054204] text-white hover:bg-[#054204]/90 rounded-2xl font-bold shadow-lg shadow-[#054204]/20 transition-all active:scale-95 disabled:opacity-50">Save Changes</Button>
+            <Button variant="ghost" onClick={() => setShowEditNameDialog(false)} className="flex-1 h-12 rounded-2xl font-bold text-[#16A34A]/40 hover:bg-[#F0FDF4]/10">Discard</Button>
+            <Button onClick={handleSaveName} disabled={!editNameValue.trim()} className="flex-[2] h-12 bg-[#16A34A] text-white hover:bg-[#16A34A]/90 rounded-2xl font-bold shadow-lg shadow-[#16A34A]/20 transition-all active:scale-95 disabled:opacity-50">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

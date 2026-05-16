@@ -147,6 +147,7 @@ const deliveryStateSchema = new mongoose.Schema(
             default: 'en_route_to_pickup'
         },
         status: { type: String, default: '' },
+        isSplitConfirmed: { type: Boolean, default: false },
         reachedPickupAt: { type: Date, default: null },
         reachedDropAt: { type: Date, default: null },
         pickedUpAt: { type: Date, default: null },

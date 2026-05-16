@@ -189,11 +189,17 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
     lastBoundsUpdateRef.current = now;
 
     const bounds = new window.google.maps.LatLngBounds();
-    if (restaurantPoint) bounds.extend(restaurantPoint);
-    if (customerPoint) bounds.extend(customerPoint);
-    if (parsedRiderLocation) bounds.extend(parsedRiderLocation);
+    let pointsCount = 0;
+    if (restaurantPoint) { bounds.extend(restaurantPoint); pointsCount++; }
+    if (customerPoint) { bounds.extend(customerPoint); pointsCount++; }
+    if (parsedRiderLocation) { bounds.extend(parsedRiderLocation); pointsCount++; }
 
-    map.fitBounds(bounds, { top: 70, right: 70, bottom: 120, left: 70 });
+    if (pointsCount > 1) {
+      map.fitBounds(bounds, { top: 150, right: 150, bottom: 250, left: 150 });
+    } else if (pointsCount === 1) {
+      map.panTo(bounds.getCenter());
+      if (map.getZoom() < 16) map.setZoom(16);
+    }
 
     if (parsedRiderLocation) {
       lastCenteredPosRef.current = parsedRiderLocation;
@@ -340,7 +346,7 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
         )}
 
         {zones.map((zone) => (
-          <Polygon key={zone._id} paths={zone.paths} options={{ fillColor: "#22c55e", fillOpacity: 0.03, strokeColor: "#22c55e", strokeOpacity: 0.1, strokeWeight: 1, zIndex: 1 }} />
+          <Polygon key={zone._id} paths={zone.paths} options={{ fillColor: "#16A34A", fillOpacity: 0.03, strokeColor: "#16A34A", strokeOpacity: 0.1, strokeWeight: 1, zIndex: 1 }} />
         ))}
       </GoogleMap>
     </div>

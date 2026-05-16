@@ -912,6 +912,18 @@ export const useDeliveryNotifications = () => {
     socketRef.current.on('order_status_update', (statusData) => {
       debugLog('?? Delivery order status update received via socket:', statusData);
       setOrderStatusUpdate(statusData || null);
+      
+      // If the order in status update is the same as sharedOrder, and it's delivered/cancelled, clear it.
+      const status = String(statusData?.status || statusData?.orderStatus || '').toLowerCase();
+      const updatedId = statusData?._id || statusData?.orderId || statusData?.orderMongoId;
+      const sharedId = sharedOrder?.orderId || sharedOrder?._id || sharedOrder?.orderMongoId;
+      
+      if (updatedId && sharedId && String(updatedId) === String(sharedId)) {
+        if (['delivered', 'cancelled', 'deleted'].includes(status)) {
+          setSharedOrder(null);
+          stopAlertLoop();
+        }
+      }
     });
 
     socketRef.current.on('order_cancelled', (statusData) => {
@@ -945,6 +957,7 @@ export const useDeliveryNotifications = () => {
       stopAlertLoop();
       activeOrderRef.current = null;
       setNewOrder(null);
+      setSharedOrder(null); // Clear shared order too!
       const claimedId = data?.orderId || data?.orderMongoId || data?.order_id;
       if (claimedId) setClaimedOrderId(claimedId);
     });
@@ -1077,6 +1090,7 @@ export const useDeliveryNotifications = () => {
     sharedOrder,
     clearSharedOrder,
     isConnected,
+    socket: socketRef.current,
     playNotificationSound,
     emitLocation
   };

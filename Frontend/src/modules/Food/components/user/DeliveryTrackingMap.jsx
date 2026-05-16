@@ -473,11 +473,11 @@ const DeliveryTrackingMap = ({
                     <motion.div
                       animate={{ scale: [1, 2], opacity: [0.5, 0] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className="w-16 h-16 rounded-full border-4 border-[#23361A]/50"
+                      className="w-16 h-16 rounded-full border-4 border-[#16A34A]/50"
                     />
                   </div>
                 )}
-                <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-[#23361A] overflow-hidden group-hover:scale-110 transition-transform">
+                <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-[#16A34A] overflow-hidden group-hover:scale-110 transition-transform">
                   <img
                     src={pickup.restaurantLogo || order?.restaurantLogo || order?.restaurantId?.logo || order?.restaurantId?.profileImage || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`}
                     alt="Restaurant"
@@ -485,7 +485,7 @@ const DeliveryTrackingMap = ({
                     onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`; }}
                   />
                 </div>
-                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#23361A] -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
+                <div className="absolute top-[100%] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#16A34A] -mt-1 shadow-sm" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
               </div>
             </OverlayView>
           );
@@ -548,7 +548,7 @@ const DeliveryTrackingMap = ({
             animate={{ x: 0, opacity: 1 }}
             className="absolute top-4 left-4 z-[150] pointer-events-none"
           >
-            <div className="bg-[#23361A]/95 backdrop-blur-xl rounded-2xl p-3 shadow-[0_10px_30px_rgba(249,115,22,0.4)] border border-orange-400/50 flex flex-col min-w-[90px] group overflow-hidden relative">
+            <div className="bg-[#16A34A]/95 backdrop-blur-xl rounded-2xl p-3 shadow-[0_10px_30px_rgba(249,115,22,0.4)] border border-orange-400/50 flex flex-col min-w-[90px] group overflow-hidden relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
               <div className="flex flex-col z-10">
                 <span className="text-[9px] text-white/80 font-black uppercase tracking-[0.2em] mb-0.5">Arrival</span>

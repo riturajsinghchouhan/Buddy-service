@@ -120,16 +120,16 @@ const HERO_TEXT_SLIDES = [
     sub: "on Premium Dining restaurants",
     cta: "Explore now",
     badge: "Premium",
-    section: "bg-[#acc8a2]",
+    section: "bg-[#F0FDF4]",
     theme: {
-      text: "text-[#1a2517]",
-      sub: "text-[#1a2517]/80",
-      button: "bg-[#1a2517] text-white",
-      badge: "bg-white/80 text-[#1a2517]",
-      dotActive: "bg-[#1a2517]",
-      dotInactive: "bg-[#1a2517]/30",
-      icon: "text-[#1a2517]",
-      iconBorder: "border-[#1a2517]/30",
+      text: "text-[#0F172A]",
+      sub: "text-[#0F172A]/80",
+      button: "bg-[#16A34A] text-white",
+      badge: "bg-white/80 text-[#0F172A]",
+      dotActive: "bg-[#16A34A]",
+      dotInactive: "bg-[#16A34A]/30",
+      icon: "text-[#16A34A]",
+      iconBorder: "border-[#16A34A]/30",
     },
   },
   {
@@ -138,16 +138,16 @@ const HERO_TEXT_SLIDES = [
     sub: "Fresh essentials delivered fast",
     cta: "Order Store",
     badge: "Limited",
-    section: "bg-[#acc8a2]/80",
+    section: "bg-[#F0FDF4]/80",
     theme: {
-      text: "text-[#1a2517]",
-      sub: "text-[#1a2517]/80",
-      button: "bg-[#1a2517] text-white",
-      badge: "bg-white/80 text-[#1a2517]",
-      dotActive: "bg-[#1a2517]",
-      dotInactive: "bg-[#1a2517]/30",
-      icon: "text-[#1a2517]",
-      iconBorder: "border-[#1a2517]/30",
+      text: "text-[#0F172A]",
+      sub: "text-[#0F172A]/80",
+      button: "bg-[#16A34A] text-white",
+      badge: "bg-white/80 text-[#0F172A]",
+      dotActive: "bg-[#16A34A]",
+      dotInactive: "bg-[#16A34A]/30",
+      icon: "text-[#16A34A]",
+      iconBorder: "border-[#16A34A]/30",
     },
   },
   {
@@ -156,16 +156,16 @@ const HERO_TEXT_SLIDES = [
     sub: "No delivery fee on all orders",
     cta: "Claim now",
     badge: "Special",
-    section: "bg-[#acc8a2]/60",
+    section: "bg-[#F0FDF4]/60",
     theme: {
-      text: "text-[#1a2517]",
-      sub: "text-[#1a2517]/80",
-      button: "bg-[#1a2517] text-white",
-      badge: "bg-white/80 text-[#1a2517]",
-      dotActive: "bg-[#1a2517]",
-      dotInactive: "bg-[#1a2517]/30",
-      icon: "text-[#1a2517]",
-      iconBorder: "border-[#1a2517]/30",
+      text: "text-[#0F172A]",
+      sub: "text-[#0F172A]/80",
+      button: "bg-[#16A34A] text-white",
+      badge: "bg-white/80 text-[#0F172A]",
+      dotActive: "bg-[#16A34A]",
+      dotInactive: "bg-[#16A34A]/30",
+      icon: "text-[#16A34A]",
+      iconBorder: "border-[#16A34A]/30",
     },
   },
 ];
@@ -2417,11 +2417,11 @@ export default function Home() {
             className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer transition-transform hover:scale-105 active:scale-95"
             onClick={() => navigate("/user/under-250")}
           >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#1a2517] rounded-b-full rounded-t-sm shadow-md border-t-4 border-orange-200 flex flex-col items-center justify-center p-1">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0F172A] rounded-b-full rounded-t-sm shadow-md border-t-4 border-orange-200 flex flex-col items-center justify-center p-1">
               <span className="text-[10px] sm:text-xs font-bold text-white text-center leading-tight">UNDER</span>
               <span className="text-sm sm:text-base font-extrabold text-white">₹200</span>
               <div className="w-10 h-3.5 bg-white rounded-full mt-1 flex items-center justify-center">
-                <span className="text-[8px] font-bold text-[#1a2517]">Explore</span>
+                <span className="text-[8px] font-bold text-[#0F172A]">Explore</span>
               </div>
             </div>
             <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Offers</span>
@@ -2437,7 +2437,7 @@ export default function Home() {
                 className="flex-shrink-0 flex flex-col items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
                 style={{ animation: `fade-in-up 0.5s ease-out forwards ${index * 0.05}s`, opacity: 0 }}
               >
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 group-hover:border-[#1a2517] transition-colors">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 group-hover:border-[#0F172A] transition-colors">
                   <OptimizedImage
                     src={category.image}
                     alt={category.name}
@@ -2457,8 +2457,8 @@ export default function Home() {
               className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
               onClick={() => navigate("/food/user/categories")}
             >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-orange-50 dark:bg-orange-950 flex items-center justify-center border border-orange-100 group-hover:border-[#1a2517] transition-all">
-                <Plus className="w-6 h-6 text-[#1a2517]" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-orange-50 dark:bg-orange-950 flex items-center justify-center border border-orange-100 group-hover:border-[#0F172A] transition-all">
+                <Plus className="w-6 h-6 text-[#0F172A]" />
               </div>
               <span className="text-xs font-medium text-gray-700">See All</span>
             </div>
@@ -2662,6 +2662,11 @@ export default function Home() {
                                 </p>
                                 <button
                                   type="button"
+                                  onClick={() => {
+                                    if (slide.id === 'store') {
+                                      navigate('/qc');
+                                    }
+                                  }}
                                   className={`mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black shadow-sm ${slide.theme.button}`}
                                 >
                                   {slide.cta}
@@ -2723,13 +2728,13 @@ export default function Home() {
                     </div>
 
                     <div 
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm active:scale-95 ${vegMode ? "border-[#1a2517] bg-[#1a2517]/10" : "border-white/50 bg-white/60"}`}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm active:scale-95 ${vegMode ? "border-[#0F172A] bg-[#0F172A]/10" : "border-white/50 bg-white/60"}`}
                       onClick={() => handleVegModeChange(!vegMode)}
                     >
-                      <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${vegMode ? "border-[#1a2517] bg-white" : "border-gray-300 bg-white"}`}>
+                      <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${vegMode ? "border-[#0F172A] bg-white" : "border-gray-300 bg-white"}`}>
                         {vegMode && <div className="w-2 h-2 rounded-full bg-[#00b09b]" />}
                       </div>
-                      <span className={`text-[11px] font-black uppercase tracking-tight ${vegMode ? "text-[#1a2517]" : "text-gray-500"}`}>Veg</span>
+                      <span className={`text-[11px] font-black uppercase tracking-tight ${vegMode ? "text-[#0F172A]" : "text-gray-500"}`}>Veg</span>
                     </div>
                   </div>
 
@@ -2903,7 +2908,7 @@ export default function Home() {
                             void applyFiltersAndRefetch(nextFilters, sortBy, selectedCuisine);
                           }}
                           className={`h-9 px-4 rounded-full flex items-center gap-2 whitespace-nowrap flex-shrink-0 transition-all font-bold shadow-sm active:scale-95 ${isActive
-                            ? "bg-[#1a2517] text-white border border-[#1a2517]"
+                            ? "bg-[#0F172A] text-white border border-[#0F172A]"
                             : "bg-white border border-gray-100 text-gray-700"
                             }`}
                         >
@@ -2967,8 +2972,8 @@ export default function Home() {
                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate tracking-tight">
                           {restaurant.name}
                         </p>
-                        <p className="text-[10px] text-[#1a2517] font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
-                          <Flame className="w-3.5 h-3.5 fill-[#1a2517]" />
+                        <p className="text-[10px] text-[#0F172A] font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
+                          <Flame className="w-3.5 h-3.5 fill-[#0F172A]" />
                           Near & Fast
                         </p>
                       </div>
@@ -3157,12 +3162,12 @@ export default function Home() {
                               {/* Restaurant Name & Rating */}
                               <div className="flex items-start justify-between gap-2 mb-2 lg:mb-3">
                                 <div className="flex-1 min-w-0">
-                                  <h3 className="text-base sm:text-lg lg:text-2xl font-bold text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tight transition-colors duration-300 group-hover:text-[#1a2517]">
+                                  <h3 className="text-base sm:text-lg lg:text-2xl font-bold text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tight transition-colors duration-300 group-hover:text-[#0F172A]">
                                     {restaurant.name}
                                   </h3>
                                   <div className="flex flex-wrap items-center gap-2 mt-2 min-h-[24px]">
                                     <span
-                                      className={`inline-flex rounded-full px-2.5 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-[#1a2517] text-white" : "bg-gray-400 text-white"}`}>
+                                      className={`inline-flex rounded-full px-2.5 py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-[#0F172A] text-white" : "bg-gray-400 text-white"}`}>
                                       {availability.isOpen
                                         ? "Open now"
                                         : "Offline"}
@@ -3177,7 +3182,7 @@ export default function Home() {
                                     )}
                                   </div>
                                 </div>
-                                <div className={`flex-shrink-0 min-w-[52px] justify-center ${Number(restaurant.rating) > 0 ? "bg-[#1a2517]" : "bg-gray-400"} text-white px-2.5 sm:px-3 py-1 rounded-2xl flex items-center gap-1 shadow-md transform transition-transform duration-300 group-hover:scale-110`}>
+                                <div className={`flex-shrink-0 min-w-[52px] justify-center ${Number(restaurant.rating) > 0 ? "bg-[#0F172A]" : "bg-gray-400"} text-white px-2.5 sm:px-3 py-1 rounded-2xl flex items-center gap-1 shadow-md transform transition-transform duration-300 group-hover:scale-110`}>
                                   <span className="text-xs sm:text-sm lg:text-lg font-black tracking-tight uppercase">
                                     {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                                   </span>
@@ -3204,10 +3209,10 @@ export default function Home() {
                               {restaurant.offer && (
                                 <div className="flex items-center gap-2 text-xs sm:text-sm lg:text-base mt-auto transform transition-transform duration-300 group-hover:translate-x-1">
                                   <BadgePercent
-                                    className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-[#1a2517]"
+                                    className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-[#0F172A]"
                                     strokeWidth={3}
                                   />
-                                  <span className="text-[#1a2517] dark:text-[#a05485] font-black uppercase text-[9px] sm:text-[10px] tracking-wider">
+                                  <span className="text-[#0F172A] dark:text-[#a05485] font-black uppercase text-[9px] sm:text-[10px] tracking-wider">
                                     {restaurant.offer}
                                   </span>
                                 </div>
@@ -3216,7 +3221,7 @@ export default function Home() {
                           </div>
 
                           {/* Border Glow Effect */}
-                          <div className="absolute inset-0 rounded-md pointer-events-none z-0 transition-all duration-300 border border-transparent group-hover:border-[#1a2517]/30 group-hover:shadow-[inset_0_0_0_1px_rgba(235,89,14,0.2)]" />
+                          <div className="absolute inset-0 rounded-md pointer-events-none z-0 transition-all duration-300 border border-transparent group-hover:border-[#0F172A]/30 group-hover:shadow-[inset_0_0_0_1px_rgba(235,89,14,0.2)]" />
                         </Card>
                       </Link>
                     </div>
@@ -3280,7 +3285,7 @@ export default function Home() {
                     setSortBy(null);
                     setSelectedCuisine(null);
                   }}
-                  className="text-[#1a2517] font-medium text-sm">
+                  className="text-[#0F172A] font-medium text-sm">
                   Clear all
                 </button>
               </div>
@@ -3316,11 +3321,11 @@ export default function Home() {
                           }
                         }}
                         className={`flex flex-col items-center gap-1 py-4 px-2 text-center relative transition-colors ${isActive
-                          ? "bg-white dark:bg-[#1a1a1a] text-[#1a2517]"
+                          ? "bg-white dark:bg-[#1a1a1a] text-[#0F172A]"
                           : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                           }`}>
                         {isActive && (
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#1a2517] rounded-r" />
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0F172A] rounded-r" />
                         )}
                         <Icon className="h-5 w-5" strokeWidth={1.5} />
                         <span className="text-xs font-medium leading-tight">
@@ -3355,11 +3360,11 @@ export default function Home() {
                           key={option.id || "relevance"}
                           onClick={() => setSortBy(option.id)}
                           className={`px-4 py-3 rounded-xl border text-left transition-colors ${sortBy === option.id
-                            ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                            : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                            ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                            : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                             }`}>
                           <span
-                            className={`text-sm font-medium ${sortBy === option.id ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                            className={`text-sm font-medium ${sortBy === option.id ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                             {option.label}
                           </span>
                         </button>
@@ -3379,30 +3384,30 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("delivery-under-30")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("delivery-under-30")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <Timer
-                          className={`h-6 w-6 ${activeFilters.has("delivery-under-30") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("delivery-under-30") ? "text-[#0F172A]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("delivery-under-30") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("delivery-under-30") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 30 mins
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("delivery-under-45")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("delivery-under-45")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <Timer
-                          className={`h-6 w-6 ${activeFilters.has("delivery-under-45") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("delivery-under-45") ? "text-[#0F172A]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("delivery-under-45") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("delivery-under-45") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 45 mins
                         </span>
                       </button>
@@ -3421,42 +3426,42 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("rating-35-plus")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("rating-35-plus")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <Star
-                          className={`h-6 w-6 ${activeFilters.has("rating-35-plus") ? "text-[#1a2517] fill-[#1a2517]" : "text-gray-400 dark:text-gray-500"}`}
+                          className={`h-6 w-6 ${activeFilters.has("rating-35-plus") ? "text-[#0F172A] fill-[#0F172A]" : "text-gray-400 dark:text-gray-500"}`}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("rating-35-plus") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("rating-35-plus") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Rated 3.5+
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("rating-4-plus")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("rating-4-plus")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <Star
-                          className={`h-6 w-6 ${activeFilters.has("rating-4-plus") ? "text-[#1a2517] fill-[#1a2517]" : "text-gray-400 dark:text-gray-500"}`}
+                          className={`h-6 w-6 ${activeFilters.has("rating-4-plus") ? "text-[#0F172A] fill-[#0F172A]" : "text-gray-400 dark:text-gray-500"}`}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("rating-4-plus") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("rating-4-plus") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Rated 4.0+
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("rating-45-plus")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("rating-45-plus")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <Star
-                          className={`h-6 w-6 ${activeFilters.has("rating-45-plus") ? "text-[#1a2517] fill-[#1a2517]" : "text-gray-400 dark:text-gray-500"}`}
+                          className={`h-6 w-6 ${activeFilters.has("rating-45-plus") ? "text-[#0F172A] fill-[#0F172A]" : "text-gray-400 dark:text-gray-500"}`}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("rating-45-plus") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("rating-45-plus") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Rated 4.5+
                         </span>
                       </button>
@@ -3475,30 +3480,30 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("distance-under-1km")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("distance-under-1km")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <MapPin
-                          className={`h-6 w-6 ${activeFilters.has("distance-under-1km") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("distance-under-1km") ? "text-[#0F172A]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("distance-under-1km") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("distance-under-1km") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 1 km
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("distance-under-2km")}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${activeFilters.has("distance-under-2km")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <MapPin
-                          className={`h-6 w-6 ${activeFilters.has("distance-under-2km") ? "text-[#1a2517]" : "text-gray-600 dark:text-gray-400"}`}
+                          className={`h-6 w-6 ${activeFilters.has("distance-under-2km") ? "text-[#0F172A]" : "text-gray-600 dark:text-gray-400"}`}
                           strokeWidth={1.5}
                         />
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("distance-under-2km") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("distance-under-2km") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under 2 km
                         </span>
                       </button>
@@ -3517,22 +3522,22 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("price-under-200")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("price-under-200")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under ₹200
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("price-under-500")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("price-under-500")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Under ₹500
                         </span>
                       </button>
@@ -3553,22 +3558,22 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("top-rated")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("top-rated")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Top Rated
                         </span>
                       </button>
                       <button
                         onClick={() => toggleFilter("trusted")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("trusted")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Trusted by 1000+ users
                         </span>
                       </button>
@@ -3587,11 +3592,11 @@ export default function Home() {
                       <button
                         onClick={() => toggleFilter("has-offers")}
                         className={`px-4 py-3 rounded-xl border text-left transition-colors ${activeFilters.has("has-offers")
-                          ? "border-[#1a2517] bg-[#acc8a220] dark:bg-green-900/20"
-                          : "border-gray-200 dark:border-gray-800 hover:border-[#1a2517]"
+                          ? "border-[#0F172A] bg-[#F0FDF420] dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-800 hover:border-[#0F172A]"
                           }`}>
                         <span
-                          className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#1a2517]" : "text-gray-700 dark:text-gray-300"}`}>
+                          className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#0F172A]" : "text-gray-700 dark:text-gray-300"}`}>
                           Restaurants with offers
                         </span>
                       </button>
@@ -3617,7 +3622,7 @@ export default function Home() {
                     );
                   }}
                   className={`flex-1 py-3 font-semibold rounded-xl transition-colors ${activeFilters.size > 0 || sortBy || selectedCuisine
-                    ? "bg-[#1a2517] text-white hover:bg-[#A2B447]"
+                    ? "bg-[#0F172A] text-white hover:bg-[#15803D]"
                     : "bg-gray-200 text-gray-500"
                     }`}
                   disabled={isLoadingFilterResults}>
@@ -3755,7 +3760,7 @@ export default function Home() {
                     setIsApplyingVegMode(false);
                   }, 2000);
                 }}
-                className="w-full bg-[#1a2517] text-white font-semibold py-2.5 rounded-xl hover:bg-[#A2B447] transition-colors mb-2 text-sm">
+                className="w-full bg-[#0F172A] text-white font-semibold py-2.5 rounded-xl hover:bg-[#15803D] transition-colors mb-2 text-sm">
                 Apply
               </button>
             </motion.div>

@@ -9,7 +9,7 @@ import {
 import BottomPopup from "@delivery/components/BottomPopup"
 import { toast } from "sonner"
 import { openCamera, isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
-import { deliveryAPI } from "@food/api"
+import { deliveryAPI, zoneAPI } from "@food/api"
 import { motion, AnimatePresence } from "framer-motion"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 
@@ -58,6 +58,12 @@ export const ProfileDetailsV2 = () => {
   const [activePicker, setActivePicker] = useState(null) // { target: 'profilePhoto' | 'upiQrCode', ref: any, title: string }
   const drivingLicenseInputRef = useRef(null)
   const upiQrCameraInputRef = useRef(null)
+  
+  // Zone selection state
+  const [zones, setZones] = useState([])
+  const [loadingZones, setLoadingZones] = useState(false)
+  const [showZonePopup, setShowZonePopup] = useState(false)
+  const [isUpdatingZone, setIsUpdatingZone] = useState(false)
 
   // Fetch profile data
   useEffect(() => {
@@ -127,7 +133,23 @@ export const ProfileDetailsV2 = () => {
       }
     }
 
+    const fetchZones = async () => {
+      try {
+        setLoadingZones(true)
+        const response = await zoneAPI.getPublicZones()
+        if (response?.data?.success) {
+          const zonesData = response.data.data?.zones || response.data.data
+          setZones(Array.isArray(zonesData) ? zonesData : [])
+        }
+      } catch (error) {
+        debugError("Error fetching zones:", error)
+      } finally {
+        setLoadingZones(false)
+      }
+    }
+
     fetchProfile()
+    fetchZones()
   }, [navigate])
 
   const isAdminApproved = ["approved", "active"].includes(String(profile?.status || "").toLowerCase())
@@ -395,14 +417,35 @@ export const ProfileDetailsV2 = () => {
 
 
 
+  const handleZoneUpdate = async (zoneId) => {
+    try {
+      setIsUpdatingZone(true)
+      const response = await deliveryAPI.updateProfileDetails({ zone: zoneId })
+      if (response?.status === 200) {
+        toast.success("Delivery zone updated")
+        await refreshProfile()
+        setShowZonePopup(false)
+      } else {
+        toast.error("Failed to update zone")
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Update failed")
+    } finally {
+      setIsUpdatingZone(false)
+    }
+  }
+
+  const currentZoneId = profile?.zone?._id || profile?.zone
+  const currentZoneName = profile?.zone?.name || (Array.isArray(zones) && zones.find(z => z._id === currentZoneId)?.name) || "Select Zone"
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center font-poppins">
-         <div className="flex flex-col items-center gap-4">
+       <div className="flex flex-col items-center gap-4">
             <div className="relative">
-               <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin" />
+               <div className="w-16 h-16 border-4 border-green-100 border-t-[#16A34A] rounded-full animate-spin" />
                <div className="absolute inset-0 flex items-center justify-center">
-                  <User className="w-6 h-6 text-orange-500" />
+                  <User className="w-6 h-6 text-[#16A34A]" />
                </div>
             </div>
             <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">Initializing Profile...</p>
@@ -411,10 +454,10 @@ export const ProfileDetailsV2 = () => {
     )
   }
 
-  const InfoCard = ({ icon: Icon, label, value, color = "blue", badge = null, onEdit = null }) => (
+  const InfoCard = ({ icon: Icon, label, value, badge = null, onEdit = null }) => (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/80 flex items-center justify-between group">
       <div className="flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-xl bg-${color}-50 flex items-center justify-center text-${color}-600 border border-${color}-100 transition-transform group-hover:scale-105`}>
+        <div className="w-12 h-12 rounded-xl bg-[#16A34A]/10 flex items-center justify-center text-[#16A34A] border border-[#16A34A]/20 transition-transform group-hover:scale-105">
           <Icon className="w-6 h-6" />
         </div>
         <div>
@@ -426,7 +469,7 @@ export const ProfileDetailsV2 = () => {
         </div>
       </div>
       {onEdit && (
-        <button onClick={onEdit} className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 hover:text-orange-500 transition-all active:scale-90">
+        <button onClick={onEdit} className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 hover:text-[#16A34A] transition-all active:scale-90">
           <Edit2 className="w-4 h-4" />
         </button>
       )}
@@ -434,16 +477,16 @@ export const ProfileDetailsV2 = () => {
   )
 
   return (
-    <div className="min-h-screen bg-[#FDFEFE] font-poppins pb-24">
+    <div className="delivery-v2-theme min-h-screen bg-[#F8FFF9] font-sans pb-24">
       {/* ─── HEADER ─── */}
-      <div className="fixed top-0 inset-x-0 h-16 bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 px-4 flex items-center justify-between">
+      <div className="fixed top-0 inset-x-0 h-16 bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 px-4 flex items-center justify-between safe-top">
         <div className="flex items-center gap-4">
           <button onClick={goBack} className="p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
           <h1 className="text-lg font-black text-black uppercase tracking-tight leading-none">Profile</h1>
         </div>
-        <div className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20">
+        <div className="bg-[#16A34A] text-[#0F172A] px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20">
           ID: {profile?.deliveryId || "..."}
         </div>
       </div>
@@ -475,7 +518,7 @@ export const ProfileDetailsV2 = () => {
               
               <button 
                 onClick={() => handlePickFromGallery('profilePhoto', fileInputRef)}
-                className="bg-blue-600 text-white p-3 rounded-2xl shadow-xl hover:bg-blue-700 transition-all active:scale-95 border-4 border-white flex items-center justify-center"
+                className="bg-[#16A34A] text-[#0F172A] p-3 rounded-2xl shadow-xl hover:bg-[#15803D] transition-all active:scale-95 border-4 border-white flex items-center justify-center"
                 title="Gallery"
               >
                 <ImageIcon className="w-5 h-5" />
@@ -498,10 +541,10 @@ export const ProfileDetailsV2 = () => {
            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-2 mb-4">Delivery Partner • {profile?.location?.city}</p>
            
            <div className="flex items-center justify-center gap-2">
-              <div className={`${isAdminApproved ? 'bg-blue-600 text-white' : 'bg-orange-500/10 text-orange-500'} px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest border ${isAdminApproved ? 'border-blue-700 shadow-lg' : 'border-orange-500/20'} flex items-center gap-2`}>
+              <div className={`${isAdminApproved ? 'bg-[#16A34A] text-[#0F172A]' : 'bg-[#16A34A]/10 text-[#16A34A]'} px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest border ${isAdminApproved ? 'border-[#15803D] shadow-lg shadow-green-500/20' : 'border-[#16A34A]/20'} flex items-center gap-2`}>
                  <CheckCircle className="w-4 h-4" /> {isAdminApproved ? "Approved" : (profile?.status || "Pending")}
               </div>
-              <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest border border-blue-100 flex items-center gap-2">
+              <div className="bg-[#16A34A]/10 text-[#16A34A] px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest border border-[#16A34A]/20 flex items-center gap-2">
                  <Smartphone className="w-4 h-4" /> {profile?.phone}
               </div>
            </div>
@@ -551,6 +594,22 @@ export const ProfileDetailsV2 = () => {
           />
         </section>
 
+        {/* ─── ZONE SELECTION SECTION ─── */}
+        <section>
+          <div className="flex items-center justify-between mb-3 px-1">
+             <h3 className="text-xs font-black text-gray-950 uppercase tracking-widest flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-gray-400" /> Delivery Service Zone
+             </h3>
+          </div>
+          <InfoCard 
+            icon={MapPin} 
+            label="Service Zone" 
+            value={currentZoneName}
+            onEdit={() => setShowZonePopup(true)}
+            badge={!profile?.zone && <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 rounded uppercase font-bold">Required</span>}
+          />
+        </section>
+
         {/* ─── BANK & PAYMENTS SECTION (ENHANCED) ─── */}
         <section>
            <div className="flex items-center justify-between mb-4 px-1">
@@ -573,7 +632,7 @@ export const ProfileDetailsV2 = () => {
                   setUpiQrPreview(null)
                   setShowBankDetailsPopup(true)
                 }} 
-                className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline"
+                className="text-[10px] font-black text-[#16A34A] uppercase tracking-widest hover:underline"
               >
                 Edit Details
               </button>
@@ -588,7 +647,7 @@ export const ProfileDetailsV2 = () => {
                           <p className="text-white/40 text-[9px] font-black uppercase tracking-[0.2em] mb-1">Bank Account</p>
                           <h4 className="text-lg font-bold tracking-tight">{bankDetails.bankName || "Link Account"}</h4>
                        </div>
-                       <Banknote className="w-8 h-8 text-blue-500/50" />
+                       <Banknote className="w-8 h-8 text-[#16A34A]/50" />
                     </div>
                     <div className="flex justify-between items-end">
                        <div>
@@ -608,7 +667,7 @@ export const ProfileDetailsV2 = () => {
               {/* UPI Section */}
               <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex items-center justify-between group">
                  <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 border border-purple-100 group-hover:scale-105 transition-transform">
+                    <div className="w-14 h-14 bg-[#16A34A]/10 rounded-2xl flex items-center justify-center text-[#16A34A] border border-[#16A34A]/20 group-hover:scale-105 transition-transform">
                        <Smartphone className="w-7 h-7" />
                     </div>
                     <div>
@@ -716,6 +775,78 @@ export const ProfileDetailsV2 = () => {
                   {isDeletingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Remove"}
                 </button>
             </div>
+         </div>
+      </BottomPopup>
+
+      {/* Zone Selection Popup */}
+      <BottomPopup 
+        isOpen={showZonePopup} 
+        onClose={() => setShowZonePopup(false)} 
+        title="Select Service Zone"
+        showCloseButton={false}
+      >
+         <div className="pb-10 pt-2 space-y-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Available Zones</p>
+            
+            {loadingZones ? (
+              <div className="py-10 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 text-[#16A34A] animate-spin" />
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Fetching Zones...</p>
+              </div>
+            ) : zones.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm font-bold text-gray-500">No active zones found</p>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {zones.map((zone) => {
+                  const isSelected = (profile?.zone?._id || profile?.zone) === zone._id;
+                  return (
+                    <button
+                      key={zone._id}
+                      onClick={() => handleZoneUpdate(zone._id)}
+                      disabled={isUpdatingZone}
+                      className={`w-full p-4 rounded-2xl border transition-all flex items-center justify-between group active:scale-[0.98] ${
+                        isSelected 
+                          ? 'bg-[#16A34A]/5 border-[#16A34A] shadow-sm' 
+                          : 'bg-white border-gray-100 hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                          isSelected ? 'bg-[#16A34A] text-white' : 'bg-gray-50 text-gray-400 group-hover:bg-gray-100'
+                        }`}>
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                          <h4 className={`text-sm font-black uppercase tracking-tight ${isSelected ? 'text-[#16A34A]' : 'text-gray-900'}`}>
+                            {zone.name}
+                          </h4>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {zone.serviceLocation || zone.country || "Active Zone"}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {isSelected ? (
+                        <div className="w-6 h-6 bg-[#16A34A] rounded-full flex items-center justify-center shadow-lg shadow-green-500/20">
+                          <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                        </div>
+                      ) : (
+                        isUpdatingZone && <Loader2 className="w-4 h-4 text-gray-300 animate-spin" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            
+            <button 
+              onClick={() => setShowZonePopup(false)}
+              className="w-full bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] mt-4 active:scale-95"
+            >
+              Close
+            </button>
          </div>
       </BottomPopup>
 
@@ -841,7 +972,7 @@ export const ProfileDetailsV2 = () => {
                { label: "PAN Number", key: "panNumber", icon: FileText, format: (v) => v.toUpperCase(), maxLength: 10 },
                { label: "UPI ID", key: "upiId", icon: Smartphone, maxLength: 60 }
              ].map((field) => (
-               <div key={field.key} className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 group focus-within:border-orange-500/50 transition-all">
+               <div key={field.key} className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 group focus-within:border-[#16A34A]/50 transition-all">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-2">
                      <field.icon className="w-3.5 h-3.5" /> {field.label}
                   </label>
@@ -862,8 +993,8 @@ export const ProfileDetailsV2 = () => {
              ))}
 
              {/* UPI Scanner Upload */}
-             <div className="bg-purple-50 p-6 rounded-3xl border border-purple-100 flex flex-col items-center gap-4 text-center">
-                <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest">UPI Payment QR Scanner</p>
+             <div className="bg-[#16A34A]/10 p-6 rounded-3xl border border-[#16A34A]/20 flex flex-col items-center gap-4 text-center">
+                <p className="text-[10px] font-black text-[#16A34A] uppercase tracking-widest">UPI Payment QR Scanner</p>
                 
                 {upiQrPreview || bankDetails.upiQrCode ? (
                   <div className="relative">
@@ -902,7 +1033,7 @@ export const ProfileDetailsV2 = () => {
           <button 
             onClick={submitBankDetails} 
             disabled={isUpdatingBankDetails} 
-            className="w-full bg-blue-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+            className="w-full bg-[#16A34A] text-[#0F172A] py-5 rounded-[1.5rem] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-[#15803D] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
           >
             {isUpdatingBankDetails ? <><Loader2 className="w-5 h-5 animate-spin" /> saving...</> : "Update Systems"}
           </button>

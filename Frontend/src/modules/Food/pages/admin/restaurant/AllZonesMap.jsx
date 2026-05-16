@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { MapPin, ArrowLeft, Search } from "lucide-react"
+import { MapPin, ArrowLeft, Search, Store, Bike } from "lucide-react"
 import { adminAPI } from "@food/api"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { Loader } from "@googlemaps/js-api-loader"
@@ -8,6 +8,17 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const MapStyles = () => (
+  <style>{`
+    .marker-label {
+      color: #1e293b;
+      font-size: 11px;
+      font-weight: 700;
+      text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+      white-space: nowrap;
+    }
+  `}</style>
+)
 
 export default function AllZonesMap() {
   const navigate = useNavigate()
@@ -16,11 +27,14 @@ export default function AllZonesMap() {
   const zonesPolygonsRef = useRef([])
   const infoWindowsRef = useRef([])
   const restaurantMarkersRef = useRef([])
+  const deliveryPartnerMarkersRef = useRef([])
   
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState("")
   const [mapLoading, setMapLoading] = useState(true)
   const [zones, setZones] = useState([])
   const [restaurants, setRestaurants] = useState([])
+  const [deliveryPartners, setDeliveryPartners] = useState([])
+  const [viewType, setViewType] = useState('restaurants')
   const [loading, setLoading] = useState(true)
   const [locationSearch, setLocationSearch] = useState("")
   const autocompleteInputRef = useRef(null)
@@ -29,6 +43,7 @@ export default function AllZonesMap() {
   useEffect(() => {
     fetchZones()
     fetchRestaurants()
+    fetchDeliveryPartners()
     loadGoogleMaps()
   }, [])
 
@@ -55,17 +70,28 @@ export default function AllZonesMap() {
     }
   }, [mapLoading])
 
-  // Draw zones and restaurant markers when map and data are ready
+  // Draw zones and markers when map and data are ready
   useEffect(() => {
     if (!mapLoading && mapInstanceRef.current && window.google) {
-      if (zones.length > 0 && restaurants.length > 0) {
+      if (zones.length > 0) {
         drawAllZonesOnMap(window.google, mapInstanceRef.current)
       }
-      if (restaurants.length > 0) {
-        drawRestaurantMarkers(window.google, mapInstanceRef.current)
+      
+      if (viewType === 'restaurants') {
+        if (restaurants.length > 0) {
+          drawRestaurantMarkers(window.google, mapInstanceRef.current)
+        }
+        // Clear partner markers
+        deliveryPartnerMarkersRef.current.forEach(m => m.setMap(null))
+      } else {
+        if (deliveryPartners.length > 0) {
+          drawDeliveryPartnerMarkers(window.google, mapInstanceRef.current)
+        }
+        // Clear restaurant markers
+        restaurantMarkersRef.current.forEach(m => m.setMap(null))
       }
     }
-  }, [zones, mapLoading, restaurants])
+  }, [zones, mapLoading, restaurants, deliveryPartners, viewType])
 
   const fetchZones = async () => {
     try {
@@ -90,6 +116,17 @@ export default function AllZonesMap() {
       }
     } catch (error) {
       debugError("Error fetching restaurants:", error)
+    }
+  }
+
+  const fetchDeliveryPartners = async () => {
+    try {
+      const response = await adminAPI.getDeliveryPartners({ limit: 1000 })
+      if (response.data?.success && response.data.data?.deliveryPartners) {
+        setDeliveryPartners(response.data.data.deliveryPartners)
+      }
+    } catch (error) {
+      debugError("Error fetching delivery partners:", error)
     }
   }
 
@@ -318,19 +355,29 @@ export default function AllZonesMap() {
       // Create custom icon for restaurant
       const restaurantIcon = {
         path: google.maps.SymbolPath.CIRCLE,
-        scale: 8,
+        scale: 18, // Even larger
         fillColor: "#ef4444", // Red color
         fillOpacity: 1,
         strokeColor: "#ffffff",
-        strokeWeight: 2,
+        strokeWeight: 2.5,
+        labelOrigin: new google.maps.Point(2.8, 0) // Adjusted for even larger dot
       }
+
+      const displayName = restaurant.restaurantName || restaurant.name || "Restaurant"
 
       // Create marker
       const marker = new google.maps.Marker({
         position: { lat, lng },
         map: map,
         icon: restaurantIcon,
-        title: restaurant.name || "Restaurant",
+        title: displayName,
+        label: {
+          text: displayName,
+          color: "#334155",
+          fontSize: "11px",
+          fontWeight: "600",
+          className: "marker-label"
+        },
         zIndex: 1000, // Show above zones
       })
 
@@ -339,7 +386,7 @@ export default function AllZonesMap() {
         content: `
           <div style="padding: 12px; min-width: 200px;">
             <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #1e293b;">
-              ${restaurant.name || 'Unnamed Restaurant'}
+              ${restaurant.restaurantName || restaurant.name || 'Unnamed Restaurant'}
             </h3>
             <div style="font-size: 13px; color: #64748b; line-height: 1.6;">
               ${restaurant.location?.formattedAddress || restaurant.location?.address || restaurant.location?.area || 'Location not specified'}
@@ -368,8 +415,93 @@ export default function AllZonesMap() {
     })
   }
 
+  // Draw delivery partner markers on the map
+  const drawDeliveryPartnerMarkers = (google, map) => {
+    if (!deliveryPartners || deliveryPartners.length === 0) return
+
+    // Clear previous markers
+    deliveryPartnerMarkersRef.current.forEach(marker => {
+      if (marker) marker.setMap(null)
+    })
+    deliveryPartnerMarkersRef.current = []
+
+    deliveryPartners.forEach(partner => {
+      // Get coordinates from partner last location
+      let lat = partner.lastLat || (partner.lastLocation?.coordinates?.[1])
+      let lng = partner.lastLng || (partner.lastLocation?.coordinates?.[0])
+
+      // Skip if no valid coordinates
+      if (!lat || !lng || isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+        return
+      }
+
+      // Create custom icon for delivery partner
+      const partnerIcon = {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 15, // Even larger
+        fillColor: partner.availabilityStatus === 'online' ? "#10b981" : "#94a3b8", // Green if online, Gray if offline
+        fillOpacity: 1,
+        strokeColor: "#ffffff",
+        strokeWeight: 2.5,
+        labelOrigin: new google.maps.Point(2.5, 0) // Adjusted for even larger dot
+      }
+
+      const displayName = partner.name || "Delivery Partner"
+
+      // Create marker
+      const marker = new google.maps.Marker({
+        position: { lat, lng },
+        map: map,
+        icon: partnerIcon,
+        title: displayName,
+        label: {
+          text: displayName,
+          color: "#334155",
+          fontSize: "11px",
+          fontWeight: "600",
+          className: "marker-label"
+        },
+        zIndex: 2000, // Show above restaurants and zones
+      })
+
+      // Create info window
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="padding: 12px; min-width: 200px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: ${partner.availabilityStatus === 'online' ? '#10b981' : '#94a3b8'};"></div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #1e293b;">
+                ${partner.name || 'Unnamed Partner'}
+              </h3>
+            </div>
+            <div style="font-size: 13px; color: #64748b; line-height: 1.6;">
+              <div style="margin-bottom: 4px;"><strong>Phone:</strong> ${partner.phone || 'N/A'}</div>
+              <div style="margin-bottom: 4px;"><strong>Vehicle:</strong> ${partner.vehicleType || 'N/A'} ${partner.vehicleNumber ? `(${partner.vehicleNumber})` : ''}</div>
+              <div style="margin-bottom: 4px;"><strong>Status:</strong> <span style="color: ${partner.availabilityStatus === 'online' ? '#10b981' : '#64748b'}; font-weight: 600;">${partner.availabilityStatus?.toUpperCase() || 'OFFLINE'}</span></div>
+              ${partner.lastLocationAt ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Last active: ${new Date(partner.lastLocationAt).toLocaleString()}</div>` : ''}
+            </div>
+          </div>
+        `
+      })
+
+      // Add click listener to show info window
+      marker.addListener('click', () => {
+        // Close all other info windows
+        infoWindowsRef.current.forEach(iw => {
+          if (iw && iw !== infoWindow) iw.close()
+        })
+        
+        infoWindow.open(map, marker)
+        infoWindowsRef.current.push(infoWindow)
+      })
+
+      deliveryPartnerMarkersRef.current.push(marker)
+    })
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex flex-col h-screen bg-slate-50">
+      <MapStyles />
       <div className="p-4 lg:p-6">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -379,13 +511,41 @@ export default function AllZonesMap() {
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between gap-4 w-full">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-200">
+                <MapPin className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">All Zones Map</h1>
+                <p className="text-sm text-slate-600">View all restaurant delivery zones on map</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">All Zones Map</h1>
-              <p className="text-sm text-slate-600">View all restaurant delivery zones on map</p>
+
+            {/* View Toggle */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setViewType('restaurants')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  viewType === 'restaurants'
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Store className="w-4 h-4" />
+                Restaurants
+              </button>
+              <button
+                onClick={() => setViewType('deliveryPartners')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  viewType === 'deliveryPartners'
+                    ? "bg-white text-green-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Bike className="w-4 h-4" />
+                Delivery Partners
+              </button>
             </div>
           </div>
         </div>
@@ -457,10 +617,18 @@ export default function AllZonesMap() {
                     Click on any <span className="font-semibold text-blue-600">zone</span> on the map to view details. Total zones: <strong>{zones.length}</strong>
                   </p>
                 )}
-                {restaurants.length > 0 && (
-                  <p>
-                    Click on any <span className="font-semibold text-red-600">red marker</span> to view restaurant name and details. Total restaurants: <strong>{restaurants.length}</strong>
-                  </p>
+                {viewType === 'restaurants' ? (
+                  restaurants.length > 0 && (
+                    <p>
+                      Click on any <span className="font-semibold text-red-600">red marker</span> to view restaurant name and details. Total restaurants: <strong>{restaurants.length}</strong>
+                    </p>
+                  )
+                ) : (
+                  deliveryPartners.length > 0 && (
+                    <p>
+                      Click on any <span className="font-semibold text-green-600">arrow marker</span> to view delivery partner name and details. Total partners: <strong>{deliveryPartners.length}</strong>
+                    </p>
+                  )
                 )}
               </div>
             </div>

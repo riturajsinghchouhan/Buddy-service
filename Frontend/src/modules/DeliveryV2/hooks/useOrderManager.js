@@ -31,7 +31,10 @@ export const useOrderManager = () => {
 
     acceptOrderInFlight.current = true;
     try {
-      const response = await deliveryAPI.acceptOrder(orderId);
+      const isShared = order.isShared || order.dispatch?.isShared;
+      const response = isShared 
+        ? await deliveryAPI.acceptSharedOrder(orderId)
+        : await deliveryAPI.acceptOrder(orderId);
       
       if (response?.data?.success) {
         const fullOrder = response.data.data?.order || order;
@@ -203,36 +206,41 @@ export const useOrderManager = () => {
       throw new Error('Missing order id');
     }
     try {
-      // 1. Verify OTP first (if not already verified by modal)
-      const verifyRes = await deliveryAPI.verifyDropOtp(orderId, otp);
+      let finalOrder = activeOrder;
       
-      if (verifyRes?.data?.success) {
-        let finalOrder = verifyRes.data?.data?.order || activeOrder;
-        
-        try {
-          // 2. Mark as complete
-          const completeRes = await deliveryAPI.completeDelivery(orderId, { 
-            otp, 
-            rating: 5,
-            paymentMethod: paymentMethodOverride // Pass 'cash' or 'qr' if provided
-          });
-          if (completeRes.data?.success && completeRes.data?.data?.order) {
-            finalOrder = completeRes.data.data.order;
-          }
-        } catch (completeErr) {
-          console.warn('Complete call failed, but OTP was verified.', completeErr);
-          // If already completed, we proceed to show the summary with whatever we have
+      // 1. Verify OTP ONLY if not already verified in the system
+      const isAlreadyVerified = activeOrder?.deliveryVerification?.dropOtp?.verified;
+      
+      if (!isAlreadyVerified) {
+        if (!otp) {
+          toast.error('Handover code is required');
+          throw new Error('Missing OTP');
         }
-        
-        // Update local order state so Summary Modal shows 'delivered' status
-        if (finalOrder) setActiveOrder(finalOrder);
-        
-        updateTripStatus('COMPLETED');
-        // toast.success('Delivery Success!');
-      } else {
-        toast.error('Invalid OTP. Please check with customer.');
-        throw new Error('Invalid OTP');
+        const verifyRes = await deliveryAPI.verifyDropOtp(orderId, otp);
+        if (verifyRes?.data?.success) {
+          finalOrder = verifyRes.data?.data?.order || activeOrder;
+        } else {
+          toast.error('Invalid OTP. Please check with customer.');
+          throw new Error('Invalid OTP');
+        }
       }
+      
+      // 2. Mark as complete
+      try {
+        const completeRes = await deliveryAPI.completeDelivery(orderId, { 
+          otp: otp || 'VERIFIED', // Pass 'VERIFIED' fallback if already verified 
+          rating: 5,
+          paymentMethod: paymentMethodOverride 
+        });
+        if (completeRes.data?.success && completeRes.data?.data?.order) {
+          finalOrder = completeRes.data.data.order;
+        }
+      } catch (completeErr) {
+        console.warn('Complete call failed, but proceeding since OTP is verified.', completeErr);
+      }
+      
+      if (finalOrder) setActiveOrder(finalOrder);
+      updateTripStatus('COMPLETED');
     } catch (error) {
       console.error('Completion Error:', error);
       toast.error(

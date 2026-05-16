@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, MapPin, FastForward, Clock, Phone, ChefHat, ChevronDown } from 'lucide-react';
+import { User, MapPin, FastForward, Clock, Phone, ChefHat, ChevronDown, AlertTriangle } from 'lucide-react';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { getHaversineDistance, calculateETA } from '@/modules/DeliveryV2/utils/geo';
@@ -9,7 +9,7 @@ import { getHaversineDistance, calculateETA } from '@/modules/DeliveryV2/utils/g
  * NewOrderModal - Ported to Original 1:1 Theme with Slider Accept.
  * Matches the Zomato/Swiggy style Green Header + White Card.
  */
-export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
+export const NewOrderModal = ({ order, onAccept, onReject, onMinimize, riderProfile }) => {
   const { riderLocation } = useDeliveryStore();
   const [timeLeft, setTimeLeft] = useState(60);
 
@@ -61,7 +61,10 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
 
   if (!order) return null;
 
+  const isShared = order.isShared || order.dispatch?.isShared;
   const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
+  const totalOriginalEarning = order.sharedRiderEarning ? (Number(order.sharedRiderEarning) + Number(earnings)) : (isShared ? earnings * 2 : earnings);
+  
   const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
   const restaurantAddress = order.restaurantAddress || order.restaurant_address || (order.restaurantId?.location?.address) || 'Address not available';
   const deliveryAddress = order?.deliveryAddress || {};
@@ -102,6 +105,12 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
         )}`
       : null;
 
+  const orderZone = order.zoneName || order.zoneId?.name || order.zoneId?.zoneName || order.zone?.name || order.restaurantId?.zone?.name || order.restaurantId?.zoneName;
+  const riderZoneId = riderProfile?.zone?._id || riderProfile?.zone;
+  const orderZoneId = order.zoneId?._id || order.zoneId || order.zone?._id || order.zone || order.restaurantId?.zone?._id || order.restaurantId?.zone;
+  
+  const isOutsideZone = riderZoneId && orderZoneId && String(riderZoneId) !== String(orderZoneId);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -123,34 +132,81 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
           </button>
         </div>
 
-        {/* Header Ribbon (Old Green Style) */}
+        {/* Header Ribbon (Deep Tech Style) */}
         <div 
-          className="p-4 sm:p-8 flex justify-between items-center text-white border-b border-white/10"
-          style={{ background: 'linear-gradient(33deg, #15498b 0%, #000000 100%)' }}
+          className="p-4 sm:p-8 flex justify-between items-center text-white border-b border-white/5 bg-[#0A1F0A]"
         >
           <div>
-            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mb-1">Incoming Request</p>
-            <h2 className="text-2xl sm:text-4xl font-bold tracking-tighter">₹{Number(earnings || 0).toFixed(2)}</h2>
+            <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-1">
+              {isShared ? 'Special Shared Request' : 'Incoming Request'}
+            </p>
+            <div className="flex flex-col">
+               <h2 className={`text-2xl sm:text-4xl font-bold tracking-tighter ${isShared ? 'text-amber-400' : 'text-[#16A34A]'}`}>
+                 ₹{Number(earnings || 0).toFixed(2)}
+               </h2>
+               {isShared && (
+                 <span className="text-[10px] text-white/40 font-medium">
+                   (50% of ₹{Number(totalOriginalEarning).toFixed(2)} Total)
+                 </span>
+               )}
+            </div>
           </div>
-          <div className="bg-white/20 border border-white/30 rounded-2xl sm:rounded-3xl px-3 sm:px-6 py-2 sm:py-3 text-white font-bold text-lg sm:text-2xl shadow-inner tabular-nums">
+          <div className="bg-white/10 border border-white/10 rounded-2xl sm:rounded-3xl px-3 sm:px-6 py-2 sm:py-3 text-white font-bold text-lg sm:text-2xl shadow-inner tabular-nums">
             {timeLeft}s
           </div>
+        </div>
+
+        {/* Shared Badge */}
+        {isShared && (
+          <div className="px-4 sm:px-8 pt-4">
+            <div className="bg-amber-500/20 border border-amber-500/30 rounded-xl p-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-lg font-bold">
+                🤝
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-amber-600">Special Order</p>
+                <p className="text-[10px] text-amber-700 font-medium leading-tight">This order is shared by another partner. Earnings are split 50/50.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Zone Badge & Alert */}
+        <div className="px-4 sm:px-8 pt-4 flex flex-col gap-2">
+          {orderZone && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Order Zone:</span>
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-bold uppercase tracking-tight border border-gray-200">
+                {orderZone}
+              </span>
+            </div>
+          )}
+          
+          {isOutsideZone && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 animate-pulse">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[10px] font-bold text-amber-700 leading-tight">
+                This order is outside your selected zone. <br/>
+                <span className="uppercase tracking-wide">Aapko apne global order aaye ge</span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Multi-Restaurant Alert */}
         {order.pickups && order.pickups.length > 1 && (
           <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-2">
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-600 rounded-2xl p-3 sm:p-4 flex items-start gap-2.5 sm:gap-3">
+            <div className="bg-[#16A34A]/10 border-2 border-[#16A34A]/30 rounded-2xl p-3 sm:p-4 flex items-start gap-2.5 sm:gap-3">
               <div className="flex-shrink-0 mt-0.5">
-                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-yellow-400 dark:bg-yellow-500 flex items-center justify-center text-sm font-bold">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#16A34A] flex items-center justify-center text-[#0A1F0A] text-sm font-bold">
                   ⚡
                 </div>
               </div>
               <div>
-                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-yellow-800 dark:text-yellow-200 mb-0.5">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-[#0A1F0A] mb-0.5">
                   Multiple Restaurants
                 </p>
-                <p className="text-[10px] sm:text-xs text-yellow-700 dark:text-yellow-300 leading-tight">
+                <p className="text-[10px] sm:text-xs text-[#0A1F0A]/70 leading-tight">
                   User ordered from {order.pickups.length} restaurants. Pickup items from each location.
                 </p>
               </div>
@@ -166,27 +222,27 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
               {/* Pickup Points */}
               {(order.pickups && order.pickups.length > 0 ? order.pickups : [{ restaurantName, restaurantAddress }]).map((_, idx, arr) => (
                 <React.Fragment key={`dot-pickup-${idx}`}>
-                  <div className="w-5 h-5 rounded-full bg-green-500 border-4 border-green-50 shadow-lg shadow-green-500/20" />
-                  <div className="w-0.5 h-16 bg-dashed border-l-2 border-gray-100" />
+                  <div className="w-5 h-5 rounded-full bg-[#16A34A] border-4 border-[#F0FDF4] shadow-lg shadow-green-600/20" />
+                  <div className="w-0.5 h-16 bg-dashed border-l-2 border-[#E8F0E8]" />
                 </React.Fragment>
               ))}
               
               {/* Customer Drop Dot */}
-              <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-blue-50 shadow-lg shadow-blue-500/20" />
+              <div className="w-5 h-5 rounded-full bg-[#0A1F0A] border-4 border-[#F0FDF4] shadow-lg shadow-[#0A1F0A]/20" />
             </div>
 
             <div className="flex-1 space-y-5 sm:space-y-10">
               {/* Pickups */}
               {(order.pickups && order.pickups.length > 0 ? order.pickups : [{ restaurantName, restaurantAddress }]).map((pickup, idx) => (
                 <div key={`pickup-${idx}`}>
-                  <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-green-600">
+                  <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-[#16A34A]">
                     <ChefHat className="w-4 h-4" />
                     <span>Restaurant Pickup {order.pickups?.length > 1 ? `#${idx + 1}` : ''}</span>
                   </div>
-                  <p className="text-gray-950 font-bold text-base sm:text-xl leading-tight">
+                  <p className="text-[#0A1F0A] font-bold text-base sm:text-xl leading-tight">
                     {pickup.restaurantName || pickup.restaurant_name || restaurantName}
                   </p>
-                  <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                  <p className="text-[#5D6D5D] text-sm font-medium leading-relaxed">
                     {pickup.restaurantAddress || pickup.location?.address || restaurantAddress}
                   </p>
                 </div>
@@ -194,18 +250,18 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
 
               {/* Customer Drop */}
               <div>
-                <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-blue-600">
+                <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-[#0A1F0A]">
                   <MapPin className="w-4 h-4" />
                   <span>Customer Drop</span>
                 </div>
-                <p className="text-gray-950 font-bold text-base sm:text-xl leading-tight">Customer Location</p>
-                <p className="text-gray-500 text-sm font-medium line-clamp-2">{customerAddress}</p>
+                <p className="text-[#0A1F0A] font-bold text-base sm:text-xl leading-tight">Customer Location</p>
+                <p className="text-[#5D6D5D] text-sm font-medium line-clamp-2">{customerAddress}</p>
                 {mapsLink && (
                   <a
                     href={mapsLink}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex mt-2 text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700"
+                    className="inline-flex mt-2 text-[10px] font-bold uppercase tracking-widest text-[#0A1F0A] hover:text-[#22C55E]"
                   >
                     Open in Google Maps
                   </a>
@@ -215,18 +271,18 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
           </div>
 
            <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
-             <div className="p-3 sm:p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-2.5 sm:gap-3">
-               <Clock className="w-5 h-5 text-orange-500" />
+             <div className="p-3 sm:p-4 bg-[#F0FDF4] rounded-2xl border border-[#E8F0E8] flex items-center gap-2.5 sm:gap-3">
+               <Clock className="w-5 h-5 text-[#22C55E]" />
                <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Time</span>
-                  <span className="text-sm font-bold text-gray-900">{etaMins} MINS</span>
+                  <span className="text-[10px] text-[#5D6D5D] font-bold uppercase tracking-widest">Time</span>
+                  <span className="text-sm font-bold text-[#0A1F0A]">{etaMins} MINS</span>
                </div>
              </div>
-             <div className="p-3 sm:p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-2.5 sm:gap-3">
-               <MapPin className="w-5 h-5 text-gray-400" />
+             <div className="p-3 sm:p-4 bg-[#F0FDF4] rounded-2xl border border-[#E8F0E8] flex items-center gap-2.5 sm:gap-3">
+               <MapPin className="w-5 h-5 text-[#5D6D5D]" />
                <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Distance</span>
-                  <span className="text-sm font-bold text-gray-900">{distanceKm} KM</span>
+                  <span className="text-[10px] text-[#5D6D5D] font-bold uppercase tracking-widest">Distance</span>
+                  <span className="text-sm font-bold text-[#0A1F0A]">{distanceKm} KM</span>
                </div>
              </div>
           </div>
@@ -234,10 +290,10 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
         {/* Action Area */}
           <div className="space-y-4 sm:space-y-6 pt-1 sm:pt-2">
             <ActionSlider 
-              label="Slide to Accept" 
+              label={isShared ? "Slide to Join Order" : "Slide to Accept"} 
               onConfirm={() => onAccept(order)} 
-              color="bg-black"
-              successLabel="Order Accepted ✓"
+              color="bg-[#22C55E]"
+              successLabel={isShared ? "Joined Order ✓" : "Order Accepted ✓"}
             />
 
             <button 

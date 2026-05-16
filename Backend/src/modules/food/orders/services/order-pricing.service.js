@@ -34,6 +34,11 @@ export async function calculateOrderPricing(userId, dto) {
     0,
   );
 
+  const totalItemCount = items.reduce(
+    (sum, it) => sum + (Number(it.quantity) || 1),
+    0,
+  );
+
   const feeDoc = await FoodFeeSettings.findOne({ isActive: true })
     .sort({ createdAt: -1 })
     .lean();
@@ -90,9 +95,11 @@ export async function calculateOrderPricing(userId, dto) {
   if (!Number.isFinite(distanceKm)) distanceKm = 0;
   let deliveryFee = 0;
   let deliveryFeeBreakdown = null;
-  const multiOrderCharge = (restaurants.length > 1 && deliveryBoySettings?.multiOrderAdditionalCharge) 
-    ? Number(deliveryBoySettings.multiOrderAdditionalCharge) 
-    : 0;
+  const splitEnabled = deliveryBoySettings ? (deliveryBoySettings.splitOrderEnabled !== false) : true;
+  const splitThreshold = Number(deliveryBoySettings?.splitOrderThreshold ?? 20);
+  const isSplitOrder = Boolean(splitEnabled && splitThreshold > 0 && totalItemCount >= splitThreshold);
+  const isMultiRestaurant = restaurants.length > 1;
+  const deliveryMultiplier = (isMultiRestaurant || isSplitOrder) ? 2 : 1;
 
   if (
     Number.isFinite(freeUpTo) &&
@@ -133,31 +140,19 @@ export async function calculateOrderPricing(userId, dto) {
     }
   }
 
-  // Always add multi-order charge if applicable, even if base delivery is free
-  deliveryFee += multiOrderCharge;
-
-  // Split order logic: double delivery fee for large orders
-  let isSplitOrder = false;
-  let splitThreshold = 20;
-  const isSplitEnabled = deliveryBoySettings?.splitOrderEnabled !== false;
-  if (isSplitEnabled) {
-    splitThreshold = Number(deliveryBoySettings.splitOrderThreshold) || 20;
-    const itemCount = items.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
-    if (itemCount >= splitThreshold) {
-      deliveryFee = deliveryFee * 2;
-      isSplitOrder = true;
-    }
-  }
+  const baseFee = Number(deliveryFee || 0);
+  deliveryFee = baseFee * deliveryMultiplier;
 
   deliveryFeeBreakdown = {
     source: "distance",
     distanceKm,
-    isMultiRestaurant: restaurants.length > 1,
-    additionalCharge: multiOrderCharge,
-    baseFee: deliveryFee - multiOrderCharge,
-    fee: deliveryFee,
+    isMultiRestaurant,
     isSplitOrder,
-    splitThreshold
+    totalItems: totalItemCount,
+    multiplier: deliveryMultiplier,
+    additionalCharge: 0,
+    baseFee,
+    fee: deliveryFee
   };
 
   const gstRate = feeSettings.gstRate != null ? Number(feeSettings.gstRate) : 0;

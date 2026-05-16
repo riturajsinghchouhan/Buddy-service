@@ -147,6 +147,8 @@ export async function createInitialTransaction(order) {
       restaurantShare: Math.max(0, restaurantNet),
       restaurantCommission,
       riderShare,
+      primaryRiderShare: order.riderEarning || riderShare, // Fallback to total if not split yet
+      sharedRiderShare: order.sharedRiderEarning || 0,
       platformNetProfit,
       taxAmount: Number(order.pricing?.tax || 0) || 0
     },
@@ -192,6 +194,18 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
   if (details.paymentMethod) {
     transaction.paymentMethod = details.paymentMethod;
     transaction.payment.method = details.paymentMethod;
+  }
+
+  if (details.sharedPartnerId) {
+    transaction.sharedPartnerId = details.sharedPartnerId;
+  }
+
+  if (details.primaryRiderShare !== undefined) {
+    transaction.amounts.primaryRiderShare = details.primaryRiderShare;
+  }
+
+  if (details.sharedRiderShare !== undefined) {
+    transaction.amounts.sharedRiderShare = details.sharedRiderShare;
   }
 
   transaction.history.push({

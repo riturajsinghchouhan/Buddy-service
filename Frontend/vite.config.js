@@ -19,8 +19,16 @@ export default defineConfig({
       '@food/api': servicesApi,
       '@food': foodSrc,
       '@delivery': path.resolve(__dirname, './src/modules/DeliveryV2'),
+      '@qc': path.resolve(__dirname, './src/modules/quickCommerce'),
+      '@core': path.resolve(__dirname, './src/modules/quickCommerce/core'),
+      '@shared': path.resolve(__dirname, './src/modules/quickCommerce/shared'),
+      '@modules': path.resolve(__dirname, './src/modules/quickCommerce/modules'),
+      '@assets': path.resolve(__dirname, './src/modules/quickCommerce/assets'),
+      '@styles': path.resolve(__dirname, './src/modules/quickCommerce/styles'),
       '@': path.resolve(__dirname, './src'),
+
     },
+
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   optimizeDeps: {

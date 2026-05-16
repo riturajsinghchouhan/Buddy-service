@@ -136,7 +136,7 @@ export default function UserLayout() {
   const isUnder250 = normalizedPath === "/under-250" || normalizedPath === "/user/under-250"
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] transition-colors duration-200">
+    <div className="min-h-screen bg-[var(--background)] dark:bg-[#0a0a0a] transition-colors duration-200">
       <CartProvider>
         <ProfileProvider>
           <OrdersProvider>

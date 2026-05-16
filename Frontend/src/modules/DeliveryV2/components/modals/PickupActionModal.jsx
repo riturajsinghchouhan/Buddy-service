@@ -10,7 +10,8 @@ import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { uploadAPI, deliveryAPI, adminAPI } from '@food/api';
 import { toast } from 'sonner';
 import { openCamera } from "@food/utils/imageUploadUtils";
-import { Share2, Users } from 'lucide-react';
+import { Share2, Users, PhoneCall } from 'lucide-react';
+import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 
 /**
  * PickupActionModal - Unified White/Green Theme with Slider Actions.
@@ -113,7 +114,17 @@ export const PickupActionModal = ({
       const res = await deliveryAPI.shareOrder(order._id || order.orderId);
       if (res?.data?.success) {
         toast.success("Order shared! Waiting for another partner to join.");
-        // We might want to refresh order data or let parent handle it via socket
+        // Update the active order in the global store to reflect the shared status immediately
+        const { activeOrder, setActiveOrder } = useDeliveryStore.getState();
+        if (activeOrder && (activeOrder._id === order._id || activeOrder.orderId === order.orderId)) {
+           setActiveOrder({
+              ...activeOrder,
+              dispatch: {
+                 ...activeOrder.dispatch,
+                 isShared: true
+              }
+           });
+        }
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to share order");
@@ -122,7 +133,46 @@ export const PickupActionModal = ({
     }
   };
 
+  // Get rider ID: delivery_user localStorage is most reliable (has actual partner _id)
+  const getCurrentRiderId = () => {
+    try {
+      const stored = localStorage.getItem('delivery_user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        const id = user?._id || user?.id || user?.partnerId;
+        if (id) return String(id);
+      }
+    } catch {}
+    try {
+      const token = localStorage.getItem('delivery_accessToken');
+      if (!token) return null;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return String(payload?.userId || payload?.id || payload?.sub || '');
+    } catch { return null; }
+  };
+  const currentRiderId = getCurrentRiderId();
+  const primaryId = order.dispatch?.deliveryPartnerId?._id || order.dispatch?.deliveryPartnerId;
+  const secondaryId = order.dispatch?.sharedPartnerId?._id || order.dispatch?.sharedPartnerId;
+
+  const isPrimaryRider = Boolean(currentRiderId) && String(primaryId || '') === String(currentRiderId);
+  const isSharedRider = Boolean(currentRiderId) && String(secondaryId || '') === String(currentRiderId);
+  const isSharedOrder = Boolean(order.dispatch?.isShared || secondaryId);
+
+  // effectiveIsPrimary: primary if matched, OR if not a shared order (solo rider).
+  // Do NOT treat as primary just because IDs are unknown — that breaks bill/cash restriction.
+  const effectiveIsPrimary = isPrimaryRider || !isSharedOrder;
+
+  const otherPartner = effectiveIsPrimary ? order.dispatch?.sharedPartnerId : order.dispatch?.deliveryPartnerId;
+
+  const handleCallPartner = () => {
+    const phone = otherPartner?.phoneNumber || otherPartner?.phone;
+    if (phone) window.open(`tel:${phone}`);
+  };
+
   const isAtPickup = status === 'REACHED_PICKUP';
+  // Check if current partner has reached
+  const hasReachedPickup = order.deliveryState?.status === 'reached_pickup' || order.deliveryState?.currentPhase === 'at_pickup';
+
   // Order is pending restaurant acceptance if status is still 'created'
   const isPending = order.orderStatus === 'created';
   
@@ -146,7 +196,7 @@ export const PickupActionModal = ({
   const restaurantLogo = order.restaurantImage || order.restaurant?.logo || order.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
 
   return (
-    <div className="fixed inset-0 z-110 p-0 sm:p-4 flex items-end justify-center">
+    <div className="fixed inset-0 z-[2000] p-0 sm:p-4 flex items-end justify-center">
       {/* Background Dim */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -157,7 +207,7 @@ export const PickupActionModal = ({
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 max-h-[84vh] overflow-y-auto"
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-[120px] sm:pb-[140px] max-h-[84vh] overflow-y-auto"
       >
         {/* Handle / Minimize */}
         <div className="w-full flex justify-center pb-2 sm:pb-4 pt-1">
@@ -176,8 +226,8 @@ export const PickupActionModal = ({
               <div>
                 <h3 className="text-gray-950 text-lg sm:text-xl font-bold">{restaurantName}</h3>
                 <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
-                  {isAtPickup ? (
-                    <span className="text-green-600">Reached Location √</span>
+                  {hasReachedPickup ? (
+                    <span className="text-green-600">Reached Store √</span>
                   ) : (
                     <span className="text-orange-500">
                       {(distanceToTarget / 1000).toFixed(1)} km • {eta || '--'} min to Store
@@ -288,7 +338,7 @@ export const PickupActionModal = ({
 
         {/* Action Sliders */}
           <div className="space-y-4 sm:space-y-6">
-           {!isAtPickup ? (
+           {!hasReachedPickup ? (
             <div>
               <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 transition-colors ${
                 isPending ? 'text-red-500' : isWithinRange ? 'text-green-600' : 'text-orange-500 animate-pulse'
@@ -311,7 +361,7 @@ export const PickupActionModal = ({
           ) : (
             <div className="space-y-4">
               <div className="flex justify-center items-center gap-3 w-full">
-                 {!billImageUploaded && !isUploadingBill && (
+                 {!billImageUploaded && !isUploadingBill && (effectiveIsPrimary || !isSharedOrder) && (
                    <>
                       <button
                         onClick={handleTakeCameraPhoto}
@@ -328,6 +378,18 @@ export const PickupActionModal = ({
                         <span>Gallery</span>
                       </button>
                    </>
+                 )}
+
+                 {!effectiveIsPrimary && isSharedRider && isSharedOrder && (
+                   <div className="w-full bg-indigo-50 border border-indigo-100 rounded-2xl p-6 flex flex-col items-center text-center gap-3">
+                     <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                       <Clock className="w-6 h-6 animate-pulse" />
+                     </div>
+                     <div>
+                       <p className="text-xs font-bold text-indigo-900 mb-1">Waiting for Primary Partner</p>
+                       <p className="text-[10px] text-indigo-600 font-medium">Your partner is currently picking up the order items from the restaurant.</p>
+                     </div>
+                   </div>
                  )}
 
                  {isUploadingBill && (
@@ -354,7 +416,7 @@ export const PickupActionModal = ({
               </div>
 
               {/* Share Order Option for Large Orders */}
-              {totalQuantity >= splitThreshold && !order.dispatch?.isShared && (
+              {totalQuantity >= splitThreshold && !order.dispatch?.isShared && !order.dispatch?.sharedPartnerId && (
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex flex-col gap-3 mt-2">
                   <div className="flex gap-3 items-start">
                     <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
@@ -378,32 +440,58 @@ export const PickupActionModal = ({
                 </div>
               )}
 
-              {order.dispatch?.isShared && (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-3 items-center mt-2">
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                    <Users className="w-5 h-5" />
+              {(order.dispatch?.isShared || order.dispatch?.sharedPartnerId) && (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex flex-col gap-3 mt-2">
+                  <div className="flex gap-3 items-center">
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-1">Shared Order Status</p>
+                      <p className="text-xs font-bold text-indigo-900">
+                        {order.dispatch?.sharedPartnerId ? "Partner has joined! Earnings will be split." : "Waiting for another partner to join..."}
+                      </p>
+                    </div>
+                    {otherPartner && (
+                      <button 
+                        onClick={handleCallPartner}
+                        className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
+                      >
+                        <PhoneCall className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-1">Shared Order Status</p>
-                    <p className="text-xs font-bold text-indigo-900">
-                      {order.dispatch?.sharedPartnerId ? "Partner has joined! Earnings will be split." : "Waiting for another partner to join..."}
-                    </p>
-                  </div>
+                  {otherPartner && (
+                    <div className="flex items-center gap-2 px-1">
+                      <div className="w-6 h-6 rounded-full overflow-hidden bg-white border border-indigo-100">
+                        <img src={otherPartner.profileImage || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'} className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-[10px] font-bold text-indigo-800">
+                        {effectiveIsPrimary ? 'Shared with: ' : 'Primary Partner: '}
+                        {otherPartner.fullName || otherPartner.name || 'Delivery Partner'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div>
                 <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 ${billImageUploaded ? 'text-green-600' : 'text-gray-400'}`}>
-                  {billImageUploaded ? "Check the restaurant logo - Swipe to pick up" : "Capture bill to unlock swipe"}
+                  {effectiveIsPrimary || !isSharedOrder
+                    ? (billImageUploaded ? "Check the restaurant logo - Swipe to pick up" : "Capture bill to unlock swipe")
+                    : "Waiting for pick up confirmation..."
+                  }
                 </p>
-                <ActionSlider 
-                  key="action-pickup"
-                  label="Slide to Pick Up" 
-                  successLabel="Picked Up!"
-                  disabled={!billImageUploaded}
-                  onConfirm={() => onPickedUp(billImageUrl)}
-                  color="bg-orange-500"
-                />
+                {(effectiveIsPrimary || !isSharedOrder) && (
+                  <ActionSlider 
+                    key="action-pickup"
+                    label="Slide to Pick Up" 
+                    successLabel="Picked Up!"
+                    disabled={!billImageUploaded}
+                    onConfirm={() => onPickedUp(billImageUrl)}
+                    color="bg-orange-500"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -447,7 +535,7 @@ export const PickupActionModal = ({
       {/* Delay Selection Modal */}
       <AnimatePresence>
         {showDelayPicker && (
-          <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:p-4">
+          <div className="fixed inset-0 z-[1100] flex items-end justify-center p-0 sm:p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

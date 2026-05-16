@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, DollarSign, CheckCircle2, 
-  QrCode, Loader2, Info, X, RefreshCw, Package
+  QrCode, Loader2, Info, X, RefreshCw, Package,
+  Users, PhoneCall, Scale
 } from 'lucide-react';
+import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
@@ -87,7 +89,6 @@ const OtpModal = ({ order, onVerified, onClose }) => {
       const res = await deliveryAPI.verifyDropOtp(orderId, otpString);
       if (res?.data?.success) {
         setIsOtpVerified(true);
-        // toast.success("OTP Verified Successfully");
         setTimeout(() => onVerified(otpString), 600);
       }
     } catch (err) {
@@ -105,11 +106,11 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   const isAlreadyVerified = order?.deliveryVerification?.dropOtp?.verified;
 
   return (
-    <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
+    <div className="fixed inset-0 z-[2000] p-0 sm:p-4 flex items-end justify-center pointer-events-none">
       <Backdrop onClose={onClose} />
       <motion.div 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-[120px] sm:pb-[140px] pointer-events-auto max-h-[84vh] overflow-y-auto"
       >
         <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
         <div className="flex justify-between items-center mb-6">
@@ -165,9 +166,58 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
   const [paymentStatus, setPaymentStatus] = useState(isInitialPaid ? 'paid' : 'idle');
   const [isSyncing, setIsSyncing] = useState(false);
   const pollingRef = useRef(null);
+  const { profile } = useDeliveryStore();
+  // Get rider ID: delivery_user localStorage is most reliable (has actual partner _id)
+  const getCurrentRiderId = () => {
+    try {
+      const stored = localStorage.getItem('delivery_user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        const id = user?._id || user?.id || user?.partnerId;
+        if (id) return String(id);
+      }
+    } catch {}
+    try {
+      const token = localStorage.getItem('delivery_accessToken');
+      if (!token) return null;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return String(payload?.userId || payload?.id || payload?.sub || '');
+    } catch { return null; }
+  };
+  const currentRiderId = getCurrentRiderId();
+  const primaryId = order.dispatch?.deliveryPartnerId?._id || order.dispatch?.deliveryPartnerId;
+  const secondaryId = order.dispatch?.sharedPartnerId?._id || order.dispatch?.sharedPartnerId;
+  
+  const isPrimaryRider = Boolean(currentRiderId) && String(primaryId || '') === String(currentRiderId);
+  const isSharedRider = Boolean(currentRiderId) && String(secondaryId || '') === String(currentRiderId);
+  const isSharedOrder = Boolean(order.dispatch?.isShared || secondaryId);
 
-  const orderId = order.orderId || order._id || 'ORD';
+  // effectiveIsPrimary: primary if matched, OR if not a shared order (solo rider).
+  // Do NOT treat as primary just because IDs are unknown — that breaks cash restriction.
+  const effectiveIsPrimary = isPrimaryRider || !isSharedOrder;
+
+  const orderId = order._id || order.orderId || 'ORD';
   const amountToCollect = order.pricing?.total || order.amountToCollect || 0;
+  const isShared = !!(order.dispatch?.isShared || order.dispatch?.sharedPartnerId);
+  const isSplitConfirmed = !!order.deliveryState?.isSplitConfirmed;
+  
+  const totalDeliveryFee = Number(order.pricing?.deliveryFee || 0);
+  const primaryShare = isShared ? totalDeliveryFee / 2 : totalDeliveryFee;
+  const sharedShare = isShared ? totalDeliveryFee / 2 : 0;
+  const [isConfirmingSplit, setIsConfirmingSplit] = useState(false);
+
+  const handleConfirmSplit = async () => {
+    if (!isPrimaryRider) return;
+    try {
+      setIsConfirmingSplit(true);
+      await deliveryAPI.confirmSplit(orderId);
+      toast.success("Earnings split confirmed!");
+    } catch (err) {
+      toast.error(err.message || "Failed to confirm split");
+    } finally {
+      setIsConfirmingSplit(false);
+    }
+  };
 
   const checkPaymentSync = useCallback(async () => {
     try {
@@ -177,7 +227,6 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
       if (['paid', 'captured', 'authorized'].includes(status)) {
         setPaymentStatus('paid');
         if (pollingRef.current) clearInterval(pollingRef.current);
-        // toast.success("Payment Received Successfully!");
         setShowQrModal(false);
       }
     } catch (e) {}
@@ -221,11 +270,8 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
   const isPaid = paymentStatus === 'paid';
   const [isCashPayment, setIsCashPayment] = useState(false);
 
-  // Toggle handlers
   const handleCashSelection = () => {
     setIsCashPayment(true);
-    // If we were waiting for QR, we can stop the active pending UI but keep polling in background if needed
-    // However, the user said "if delivery boy clicks cash, slider enable".
   };
 
   const handleQrSelection = () => {
@@ -235,11 +281,11 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
 
   return (
     <>
-      <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
+      <div className="fixed inset-0 z-[2000] p-0 sm:p-4 flex items-end justify-center pointer-events-none">
         <Backdrop onClose={onClose} />
         <motion.div 
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
+          className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-[120px] sm:pb-[140px] pointer-events-auto max-h-[84vh] overflow-y-auto"
         >
           <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
           <div className="flex justify-between items-center mb-6">
@@ -256,6 +302,61 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
           </div>
 
           <DeliveryInstructionsPanel note={order?.note} />
+
+          {/* Earnings Split Section */}
+          {isShared && (
+            <div className={`p-5 rounded-3xl border-2 transition-all mb-6 ${isSplitConfirmed ? 'bg-emerald-50 border-emerald-100' : 'bg-indigo-50 border-indigo-100 shadow-lg'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-xl ${isSplitConfirmed ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+                    <Scale className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h4 className={`text-xs font-black uppercase tracking-wider ${isSplitConfirmed ? 'text-emerald-900' : 'text-indigo-900'}`}>Earnings Split</h4>
+                    <p className={`text-[10px] font-bold ${isSplitConfirmed ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                      {isSplitConfirmed ? 'Confirmation Received ✓' : 'Manual Confirmation Required'}
+                    </p>
+                  </div>
+                </div>
+                <Users className={`w-5 h-5 ${isSplitConfirmed ? 'text-emerald-400' : 'text-indigo-400'}`} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className={`p-3 rounded-2xl ${isSplitConfirmed ? 'bg-emerald-100/50' : 'bg-white'}`}>
+                  <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Primary Rider</p>
+                  <p className="text-sm font-black text-gray-900">₹{primaryShare.toFixed(2)}</p>
+                </div>
+                <div className={`p-3 rounded-2xl ${isSplitConfirmed ? 'bg-emerald-100/50' : 'bg-white'}`}>
+                  <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Shared Rider</p>
+                  <p className="text-sm font-black text-gray-900">₹{sharedShare.toFixed(2)}</p>
+                </div>
+              </div>
+
+              {!isSplitConfirmed ? (
+                effectiveIsPrimary ? (
+                  <button 
+                    onClick={handleConfirmSplit}
+                    disabled={isConfirmingSplit}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isConfirmingSplit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Confirm Split Amount
+                  </button>
+                ) : (
+                  <div className="py-3 px-4 bg-white/60 border border-indigo-100 rounded-2xl text-center">
+                    <p className="text-[10px] font-bold text-indigo-700">
+                      Waiting for Primary Partner to confirm split...
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center justify-center gap-2 py-1">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">System Ready</p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-amber-50 rounded-3xl p-4 sm:p-6 border border-amber-100 mb-6 sm:mb-8">
              <div className="flex justify-between items-center mb-6">
@@ -283,38 +384,54 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
                     {paymentStatus === 'pending' && !isCashPayment ? 'QR Active - Waiting...' : 'Show Payment QR'}
                   </button>
 
-                  <button 
-                    onClick={handleCashSelection}
-                    className={`w-full py-3.5 sm:py-4 border-2 rounded-2xl font-bold text-[11px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                      isCashPayment
-                        ? 'bg-amber-600 border-amber-600 text-white shadow-lg'
-                        : 'bg-white border-amber-200 text-amber-800'
-                    }`}
-                  >
-                    <DollarSign className="w-5 h-5" />
-                    Cash Payment
-                  </button>
+                  {!effectiveIsPrimary && isSharedRider && isShared ? (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-3 items-start">
+                      <Info className="w-5 h-5 text-indigo-500 shrink-0" />
+                      <p className="text-[11px] font-bold text-indigo-700 leading-tight">
+                        CASH COLLECTION RESTRICTED. <br/>
+                        Only the primary partner ({order.dispatch?.deliveryPartnerId?.fullName || order.dispatch?.deliveryPartnerId?.name || 'the lead rider'}) can collect cash.
+                      </p>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={handleCashSelection}
+                      className={`w-full py-3.5 sm:py-4 border-2 rounded-2xl font-bold text-[11px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                        isCashPayment
+                          ? 'bg-amber-600 border-amber-600 text-white shadow-lg'
+                          : 'bg-white border-amber-200 text-amber-800'
+                      }`}
+                    >
+                      <DollarSign className="w-5 h-5" />
+                      Cash Payment
+                    </button>
+                  )}
                 </div>
               )}
           </div>
 
           {/* If the driver collects physical cash, they can directly slide this, bypassing QR. Unless cash is selected or it's paid, lock slider. */}
+          {(!isCashPayment || effectiveIsPrimary || !isShared) ? (
             <ActionSlider 
-            key="action-payment"
-            label={isCashPayment ? "Slide to Confirm Cash" : "Slide to Complete Order"} 
-            successLabel="Delivered! ✓"
-            disabled={!isPaid && !isCashPayment}
-            onConfirm={async () => {
-                try {
-                    // Pass the payment method to completion if needed
-                    await onComplete(otpString, isCashPayment ? 'cash' : 'qr');
-                } catch (e) {
-                    // Slider handles reset
-                    throw e;
-                }
-            }}
-            color="bg-green-600"
-          />
+              key="action-payment"
+              label={isCashPayment ? "Slide to Confirm Cash" : "Slide to Complete Order"} 
+              successLabel="Delivered! ✓"
+              disabled={(!isPaid && !isCashPayment) || (isShared && !isSplitConfirmed)}
+              onConfirm={async () => {
+                  try {
+                      await onComplete(otpString, isCashPayment ? 'cash' : 'qr');
+                  } catch (e) {
+                      throw e;
+                  }
+              }}
+              color="bg-green-600"
+            />
+          ) : (
+            <div className="bg-gray-100 rounded-2xl p-4 text-center">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                Waiting for Primary to Confirm Cash
+              </p>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -322,7 +439,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
         {showQrModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-200 bg-black/80 flex items-center justify-center p-4 sm:p-6 pointer-events-auto"
+            className="fixed inset-0 z-[3000] bg-black/80 flex items-center justify-center p-4 sm:p-6 pointer-events-auto"
             onClick={() => setShowQrModal(false)}
           >
             <motion.div 
@@ -373,6 +490,8 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
     'cod'
   ).toLowerCase();
   const isCod = ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'].includes(paymentMethod);
+  const { profile } = useDeliveryStore();
+  const currentRiderId = profile?._id || profile?.id;
 
   // Determine initial step: skip OTP if already verified
   const [step, setStep] = useState(() => {
@@ -381,7 +500,12 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
     }
     return 'otp';
   });
-  const [verifiedOtp, setVerifiedOtp] = useState(alreadyVerified ? (order.deliveryVerification.dropOtp.code || '') : '');
+  const [verifiedOtp, setVerifiedOtp] = useState(() => {
+    if (alreadyVerified) {
+      return order.deliveryVerification?.dropOtp?.code || 'VERIFIED';
+    }
+    return '';
+  });
 
   const handleOtpVerified = (otpValue) => {
     setVerifiedOtp(otpValue);
@@ -418,12 +542,12 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
         />
       )}
       {step === 'complete' && (
-        <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
+        <div className="fixed inset-0 z-[2000] p-0 sm:p-4 flex items-end justify-center pointer-events-none">
           <Backdrop onClose={onClose || (() => {})} />
           <motion.div 
             key="complete-modal"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
+            className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-[120px] sm:pb-[140px] pointer-events-auto max-h-[84vh] overflow-y-auto"
           >
             <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
             <div className="flex items-center gap-3 mb-8">
@@ -435,6 +559,43 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">Payment Received Online</p>
               </div>
             </div>
+
+            {order.dispatch?.sharedPartnerId && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-5 mb-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Earnings Split Active</p>
+                    <p className="text-xs font-bold text-indigo-900">Shared Order Benefits</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                   <div className="flex justify-between items-center text-xs">
+                      <span className="text-indigo-600 font-bold uppercase tracking-tight">Total Payout</span>
+                      <span className="text-gray-900 font-black">₹{(Number(order.riderEarning || 0) + Number(order.sharedRiderEarning || 0)).toFixed(2)}</span>
+                   </div>
+                   <div className="h-px bg-indigo-100 w-full" />
+                   <div className="flex justify-between items-center text-xs">
+                      <span className="text-indigo-600 font-bold uppercase tracking-tight">Your Share (50%)</span>
+                      <span className="text-[#16A34A] font-black">₹{Number(order.dispatch?.deliveryPartnerId?._id === currentRiderId ? (order.riderEarning || 0) : (order.sharedRiderEarning || 0)).toFixed(2)}</span>
+                   </div>
+                   <div className="flex justify-between items-center text-xs">
+                      <span className="text-indigo-400 font-bold uppercase tracking-tight">Partner Share</span>
+                      <span className="text-gray-500 font-black">₹{Number(order.dispatch?.deliveryPartnerId?._id === currentRiderId ? (order.sharedRiderEarning || 0) : (order.riderEarning || 0)).toFixed(2)}</span>
+                   </div>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-indigo-100">
+                   <p className="text-[10px] font-bold text-indigo-500 italic leading-tight text-center">
+                      Earnings will be credited to both wallets automatically upon completion.
+                   </p>
+                </div>
+              </div>
+            )}
+
             <ActionSlider 
               key="action-complete"
               label="Slide to Complete Delivery" 

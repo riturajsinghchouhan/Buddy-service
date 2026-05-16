@@ -3768,6 +3768,11 @@ export async function getDeliveryPartners(query) {
         zone: doc.city || doc.state || doc.address || '',
         vehicleType: doc.vehicleType || '',
         status: doc.status,
+        availabilityStatus: doc.availabilityStatus || 'offline',
+        lastLocation: doc.lastLocation,
+        lastLat: doc.lastLat,
+        lastLng: doc.lastLng,
+        lastLocationAt: doc.lastLocationAt,
         totalOrders: countsMap.get(String(doc._id)) || 0,
         profilePhoto: doc.profilePhoto || null,
         profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null

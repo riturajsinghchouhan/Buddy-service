@@ -38,10 +38,12 @@ const RedirectToFood = () => {
 
 // const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
+const QCApp = lazy(() => import('@qc/index'))
+
+
 
 const AppRoutes = () => {
   const location = useLocation()
-
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -70,6 +72,9 @@ const AppRoutes = () => {
       {/* Food Module - Handle both /food and root / for the user app */}
       <Route path="/food/*" element={<FoodAppWrapper />} />
 
+      {/* Quick Commerce Module */}
+      <Route path="/qc/*" element={<Suspense fallback={<PageLoader />}><QCApp /></Suspense>} />
+
       {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
       <Route path="/admin/*" element={<AdminRouter />} />
 
@@ -78,6 +83,7 @@ const AppRoutes = () => {
     </Routes>
   )
 }
+
 
 export default AppRoutes
 

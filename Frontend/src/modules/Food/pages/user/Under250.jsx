@@ -371,16 +371,6 @@ export default function Under250() {
             if (!restaurantId) return null
 
             try {
-              const restaurantLocation = restaurant?.location
-              const restaurantLat = Number(
-                restaurantLocation?.latitude ??
-                (Array.isArray(restaurantLocation?.coordinates) ? restaurantLocation.coordinates[1] : null)
-              )
-              const restaurantLng = Number(
-                restaurantLocation?.longitude ??
-                (Array.isArray(restaurantLocation?.coordinates) ? restaurantLocation.coordinates[0] : null)
-              )
-
               const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurantId)
               const menu = getMenuFromResponse(menuResponse)
               const menuItems = flattenMenuItems(menu)
@@ -391,9 +381,6 @@ export default function Under250() {
                   return {
                     ...item,
                     id: String(item?.id || item?._id || `${restaurantId}-${item?.name || "dish"}`),
-                    restaurantId: String(restaurantId),
-                    latitude: restaurantLat,
-                    longitude: restaurantLng,
                     price: Number(item?.price || 0),
                     isVeg,
                     image:
@@ -413,7 +400,15 @@ export default function Under250() {
                 Number(restaurant?.estimatedDeliveryTimeMinutes) ||
                 Number(restaurant?.estimatedDeliveryTime) ||
                 null
-              
+              const restaurantLocation = restaurant?.location
+              const restaurantLat = Number(
+                restaurantLocation?.latitude ??
+                (Array.isArray(restaurantLocation?.coordinates) ? restaurantLocation.coordinates[1] : null)
+              )
+              const restaurantLng = Number(
+                restaurantLocation?.longitude ??
+                (Array.isArray(restaurantLocation?.coordinates) ? restaurantLocation.coordinates[0] : null)
+              )
               const distanceInKm = (
                 Number.isFinite(userLat) &&
                 Number.isFinite(userLng) &&
@@ -658,13 +653,10 @@ export default function Under250() {
       name: item.name,
       price: item.price,
       image: item.image,
-      restaurant: restaurantName || item.restaurant || "Restaurant",
-      restaurantId: item.restaurantId,
-      latitude: item.latitude,
-      longitude: item.longitude,
+      restaurant: restaurant,
       description: item.description || "",
       originalPrice: item.originalPrice || item.price,
-      priceOnOtherPlatforms: item.priceOnOtherPlatforms || null,
+      priceOnOtherPlatforms: item.priceOnOtherPlatforms || null, // Include platform pricing for savings display
       otherPlatformGst: item.otherPlatformGst ?? null,
     }
 
@@ -1199,33 +1191,6 @@ export default function Under250() {
             )
           }))}
       </div>
-
-      {/* Footer Branding - Buddy Service Style */}
-      <div className="flex flex-col items-center justify-center py-12 md:py-20 px-4 mt-8 bg-gray-50/50 dark:bg-white/5 border-t border-gray-100 dark:border-gray-800">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex items-center gap-3">
-             <div className="h-[1px] w-8 md:w-16 bg-gray-300 dark:bg-gray-700"></div>
-             <span className="text-gray-400 dark:text-gray-500 text-xs md:text-sm font-medium tracking-widest uppercase">That's all for now!</span>
-             <div className="h-[1px] w-8 md:w-16 bg-gray-300 dark:bg-gray-700"></div>
-          </div>
-          
-          <div className="flex flex-col items-center mt-2">
-            <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter text-[#23361A] dark:text-white flex items-center gap-2">
-              BUDDY <span className="text-[#A2B447]">SERVICE</span>
-            </h2>
-            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 font-bold tracking-[0.2em] mt-1">
-              CRAVINGS SATISFIED. DELIVERED FAST.
-            </p>
-          </div>
-          
-          <div className="mt-8 p-3 rounded-2xl bg-white dark:bg-[#1a1a1a] shadow-sm border border-gray-100 dark:border-gray-800">
-            <UtensilsCrossed className="h-6 w-6 text-[#A2B447]" />
-          </div>
-        </div>
-      </div>
-
-      {/* Extra spacing for scrolling past the sticky View Cart button */}
-      <div className="h-32 md:h-40"></div>
 
       {/* Sort Popup - Bottom Sheet */}
       <AnimatePresence>

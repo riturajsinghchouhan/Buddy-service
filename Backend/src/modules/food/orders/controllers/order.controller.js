@@ -398,12 +398,36 @@ export async function shareOrderDeliveryController(req, res, next) {
     }
 }
 
+export async function confirmSplitDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.confirmSplitDelivery(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Earnings split confirmed successfully', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
 export async function acceptSharedOrderDeliveryController(req, res, next) {
     try {
         const deliveryPartnerId = req.user?.userId;
         const orderId = req.params.orderId;
         const order = await orderService.acceptSharedOrderDelivery(orderId, deliveryPartnerId);
         return sendResponse(res, 200, 'Shared order accepted', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function reportOrderDelayController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const role = req.user?.role;
+        const orderId = req.params.orderId;
+        const { reason } = req.body;
+        const order = await orderService.reportOrderDelay(orderId, userId, role, reason);
+        return sendResponse(res, 200, 'Order delay reported', { order });
     } catch (err) {
         next(err);
     }

@@ -31,11 +31,15 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         FoodOrder.aggregate([
             { 
                 $match: { 
-                    $or: [
-                        { 'dispatch.deliveryPartnerId': partnerId },
-                        { 'dispatch.sharedPartnerId': partnerId }
-                    ],
-                    orderStatus: 'delivered' 
+                    $and: [
+                        {
+                            $or: [
+                                { 'dispatch.deliveryPartnerId': partnerId },
+                                { 'dispatch.sharedPartnerId': partnerId }
+                            ]
+                        },
+                        { orderStatus: { $in: ['delivered', 'completed', 'DELIVERED', 'COMPLETED'] } }
+                    ]
                 } 
             },
             { 
@@ -63,15 +67,95 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         FoodOrder.aggregate([
             { 
                 $match: { 
-                    $or: [
-                        { 'dispatch.deliveryPartnerId': partnerId },
-                        { 'dispatch.sharedPartnerId': partnerId }
-                    ],
-                    orderStatus: { $in: ['accepted', 'preparing', 'ready_for_pickup', 'picked_up', 'reached_drop', 'delivered'] }, 
-                    'payment.method': 'cash'
+                    $and: [
+                        {
+                            $or: [
+                                { 'dispatch.deliveryPartnerId': partnerId },
+                                { 'dispatch.sharedPartnerId': partnerId }
+                            ]
+                        },
+                        {
+                            orderStatus: { 
+                                $in: [
+                                    'confirmed', 'preparing', 'ready_for_pickup', 'reached_pickup', 'picked_up', 'reached_drop', 'delivered', 'completed',
+                                    'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'REACHED_PICKUP', 'PICKED_UP', 'REACHED_DROP', 'DELIVERED', 'COMPLETED'
+                                ] 
+                            }
+                        },
+                        {
+                            $or: [
+                                { 'payment.method': { $in: ['cash', 'cod', 'CASH', 'COD'] } },
+                                { 'paymentMethod': { $in: ['cash', 'cod', 'CASH', 'COD'] } },
+                                { 
+                                    $and: [
+                                        { 'payment.method': { $exists: false } },
+                                        { 'paymentMethod': { $exists: false } }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
                 } 
             },
-            { $group: { _id: null, cashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
+            { 
+                $group: { 
+                    _id: null, 
+                    actualCashCollected: { 
+                        $sum: { 
+                            $cond: [
+                                { $in: ["$orderStatus", ["delivered", "completed", "DELIVERED", "COMPLETED"]] },
+                                {
+                                    $cond: [
+                                        { $gt: [{ $ifNull: ["$amountToCollect", 0] }, 0] },
+                                        "$amountToCollect",
+                                        {
+                                            $cond: [
+                                                { $gt: [{ $ifNull: ["$payment.amountDue", 0] }, 0] },
+                                                "$payment.amountDue",
+                                                {
+                                                    $cond: [
+                                                        { $gt: [{ $ifNull: ["$payment.amount", 0] }, 0] },
+                                                        "$payment.amount",
+                                                        { $ifNull: ["$pricing.total", { $ifNull: ["$totalAmount", 0] }] }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                0
+                            ]
+                        } 
+                    },
+                    pendingCashLiability: { 
+                        $sum: { 
+                            $cond: [
+                                { $not: { $in: ["$orderStatus", ["delivered", "completed", "DELIVERED", "COMPLETED"]] } },
+                                {
+                                    $cond: [
+                                        { $gt: [{ $ifNull: ["$amountToCollect", 0] }, 0] },
+                                        "$amountToCollect",
+                                        {
+                                            $cond: [
+                                                { $gt: [{ $ifNull: ["$payment.amountDue", 0] }, 0] },
+                                                "$payment.amountDue",
+                                                {
+                                                    $cond: [
+                                                        { $gt: [{ $ifNull: ["$payment.amount", 0] }, 0] },
+                                                        "$payment.amount",
+                                                        { $ifNull: ["$pricing.total", { $ifNull: ["$totalAmount", 0] }] }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                0
+                            ]
+                        } 
+                    }
+                } 
+            }
         ]),
         FoodDeliveryCashDeposit.aggregate([
             { $match: { deliveryPartnerId: partnerId, status: 'Completed' } },
@@ -89,7 +173,8 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
 
     const totalEarned = Number(ordersRes[0]?.totalEarned || 0);
     const totalOrders = Number(ordersRes[0]?.count || 0);
-    const totalCashCollected = Number(cashCollectedRes[0]?.cashCollected || 0);
+    const actualCashCollected = Number(cashCollectedRes[0]?.actualCashCollected || 0);
+    const pendingCashLiability = Number(cashCollectedRes[0]?.pendingCashLiability || 0);
     const totalCashDeposited = Number(depositsRes[0]?.total || 0);
     const totalBonus = Number(bonusRes[0]?.total || 0);
 
@@ -98,20 +183,25 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         return acc;
     }, {});
 
-    const totalWithdrawn = Number(withdrawalsMap['approved'] || 0);
+    const totalWithdrawn = Number(withdrawalsMap['approved'] || 0) + Number(withdrawalsMap['processed'] || 0);
     const pendingWithdrawals = Number(withdrawalsMap['pending'] || 0);
 
     // Lifetime Earnings = Total from orders + bonuses
     const lifetimeEarnings = totalEarned + totalBonus;
     
-    // Pocket balance = Total Earned + Bonuses - All non-rejected withdrawals
-    const pocketBalance = Math.max(0, lifetimeEarnings - (totalWithdrawn + pendingWithdrawals));
+    // 1. Calculate raw earnings available for withdrawal/substitution
+    const rawEarningsBalance = Math.max(0, lifetimeEarnings - (totalWithdrawn + pendingWithdrawals));
     
-    // Cash in hand = Total cash collected from customers - Total cash deposited to admin
-    const cashInHand = Math.max(0, totalCashCollected - totalCashDeposited);
+    // 2. Calculate actual cash in hand (already delivered - total deposited)
+    const actualCashInHand = Math.max(0, actualCashCollected - totalCashDeposited);
 
-    const totalCashLimit = Number(cashLimitSettings?.deliveryCashLimit) || 2000;
+    const pocketBalance = rawEarningsBalance;
+    const netCashInHand = actualCashInHand;
+
+    const totalCashLimit = Number(partner?.cashLimit || cashLimitSettings?.deliveryCashLimit) || 2000;
     const deliveryWithdrawalLimit = Number(cashLimitSettings?.deliveryWithdrawalLimit) || 100;
+
+    const totalCurrentLiability = netCashInHand + pendingCashLiability;
 
     // Get transactions for UI (Orders, Bonuses, Withdrawals)
     const [ordersTx, withdrawalsList, depositList] = await Promise.all([
@@ -123,7 +213,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
             orderStatus: 'delivered' 
         })
             .sort({ createdAt: -1 })
-            .select('orderId riderEarning payment orderStatus createdAt')
+            .select('orderId riderEarning sharedRiderEarning dispatch pricing payment orderStatus createdAt')
             .limit(20)
             .lean(),
         FoodDeliveryWithdrawal.find({ deliveryPartnerId: partnerId })
@@ -137,17 +227,27 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     ]);
 
     const transactions = [
-        ...(ordersTx || []).map(o => ({
-            id: o._id,
-            type: 'payment',
-            amount: String(o.dispatch?.deliveryPartnerId || '') === String(partnerId) 
+        ...(ordersTx || []).map(o => {
+            const earning = String(o.dispatch?.deliveryPartnerId || '') === String(partnerId) 
                 ? (o.riderEarning || o.pricing?.deliveryFee || 0)
-                : (o.sharedRiderEarning || 0),
-            status: 'Completed',
-            date: o.createdAt,
-            description: o.payment?.method === 'cash' ? 'COD delivery earning' : 'Online delivery earning',
-            orderId: o.orderId
-        })),
+                : (o.sharedRiderEarning || 0);
+            
+            const collectedAmount = o.payment?.method === 'cash' || o.paymentMethod === 'cash'
+                ? (o.amountToCollect || o.payment?.amountDue || o.pricing?.total || 0)
+                : 0;
+
+            return {
+                id: o._id,
+                type: 'payment',
+                amount: Number(Number(earning).toFixed(2)),
+                orderTotal: Number(Number(o.pricing?.total || 0).toFixed(2)),
+                collectedAmount: Number(Number(collectedAmount).toFixed(2)),
+                status: 'Completed',
+                date: o.createdAt,
+                description: o.payment?.method === 'cash' || o.paymentMethod === 'cash' ? 'COD delivery earning' : 'Online delivery earning',
+                orderId: o.orderId || o._id
+            };
+        }),
         ...(withdrawalsList || []).map(w => ({
             id: w._id,
             type: 'withdrawal',
@@ -175,21 +275,24 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     }).sort({ updatedAt: -1 }).lean();
 
     return {
-        totalBalance: lifetimeEarnings,
+        totalBalance: Number(rawEarningsBalance.toFixed(2)),
         pocketBalance: Number(pocketBalance.toFixed(2)),
-        cashInHand: Number(cashInHand.toFixed(2)),
+        cashInHand: Number(actualCashInHand.toFixed(2)), // Show physical cash held
+        netCashInHand: Number(netCashInHand.toFixed(2)), // For internal/admin reference
+        totalActualCashCollected: Number(actualCashCollected.toFixed(2)),
+        totalCashDeposited: Number(totalCashDeposited.toFixed(2)),
         totalEarned: Number(totalEarned.toFixed(2)),
         totalBonus: Number(totalBonus.toFixed(2)),
         totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
         pendingWithdrawals: Number(pendingWithdrawals.toFixed(2)),
         totalOrders,
         lastPayout: lastWithdrawal ? {
-            amount: lastWithdrawal.amount,
+            amount: Number(lastWithdrawal.amount.toFixed(2)),
             date: lastWithdrawal.updatedAt
         } : null,
-        totalCashLimit,
-        availableCashLimit: Math.max(0, totalCashLimit - cashInHand),
-        deliveryWithdrawalLimit,
+        totalCashLimit: Number(totalCashLimit.toFixed(2)),
+        availableCashLimit: Number(Math.max(0, totalCashLimit - totalCurrentLiability).toFixed(2)),
+        deliveryWithdrawalLimit: Number(deliveryWithdrawalLimit.toFixed(2)),
         transactions: transactions.slice(0, 50)
     };
 };

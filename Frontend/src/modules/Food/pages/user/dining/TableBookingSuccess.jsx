@@ -46,12 +46,12 @@ export default function TableBookingSuccess() {
             <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className={`w-20 h-20 ${booking.status === 'pending' ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-[#F7FBEA] dark:bg-slate-900'} rounded-full flex items-center justify-center mb-6 transition-colors`}
+                className={`w-20 h-20 ${booking.status === 'pending' ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-[#F0FDF4] dark:bg-slate-900'} rounded-full flex items-center justify-center mb-6 transition-colors`}
             >
                 {booking.status === 'pending' ? (
                     <Clock className="w-12 h-12 text-amber-500" />
                 ) : (
-                    <CheckCircle2 className="w-12 h-12 text-[#23361A]" />
+                    <CheckCircle2 className="w-12 h-12 text-[#16A34A]" />
                 )}
             </motion.div>
 
@@ -68,7 +68,7 @@ export default function TableBookingSuccess() {
                     {booking.status === 'pending' ? 'Waiting for restaurant approval' : 'Your table is ready for you'}
                 </p>
                 <div className="pt-2">
-                    <span className="bg-[#F7FBEA] dark:bg-slate-900 text-[#23361A] dark:text-purple-400 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-[#23361A]/20 dark:border-purple-400/20">
+                    <span className="bg-[#F0FDF4] dark:bg-slate-900 text-[#16A34A] dark:text-purple-400 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-[#16A34A]/20 dark:border-purple-400/20">
                         BOOKING ID: {booking.bookingId}
                     </span>
                 </div>

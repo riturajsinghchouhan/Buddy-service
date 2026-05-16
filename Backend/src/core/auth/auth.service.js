@@ -89,6 +89,7 @@ const sanitizeDeliveryForAuthResponse = (deliveryDoc = {}) => {
     profileImage: toSafeImageUrl(deliveryDoc?.profilePhoto),
     walletAmount: Number(deliveryDoc?.walletAmount || 0),
     refCode: deliveryDoc?.referralCode || "",
+    zone: deliveryDoc?.zone || null,
   };
 };
 
@@ -447,7 +448,7 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp, fcmToken, platform) 
       { phone: normalized },
       { phone: { $regex: new RegExp(normalized + "$") } },
     ],
-  });
+  }).populate('zone');
 
   if (!deliveryPartner) {
     return { needsRegistration: true, phone };
@@ -624,7 +625,7 @@ export const getProfile = async (userId, role) => {
       }
       break;
     case ROLES.DELIVERY_PARTNER: {
-      const partner = await FoodDeliveryPartner.findById(id).lean();
+      const partner = await FoodDeliveryPartner.findById(id).populate('zone').lean();
       if (!partner) break;
       const deliveryId = partner._id
         ? `DP-${partner._id.toString().slice(-8).toUpperCase()}`

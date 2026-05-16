@@ -51,6 +51,8 @@ router.get('/orders/:orderId/payment-status', authMiddleware, requireRoles('DELI
 router.post('/orders/:orderId/resend-to-restaurant', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.resendOrderToRestaurantController);
 router.post('/orders/:orderId/share', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.shareOrderDeliveryController);
 router.post('/orders/:orderId/accept-share', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.acceptSharedOrderDeliveryController);
+router.patch('/orders/:orderId/confirm-split', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.confirmSplitDeliveryController);
+router.post('/orders/:orderId/delay', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.reportOrderDelayController);
 
 // ----- Earnings / Settings -----
 router.get('/earning-addons/active', authMiddleware, requireRoles('DELIVERY_PARTNER'), getActiveEarningAddonsController);

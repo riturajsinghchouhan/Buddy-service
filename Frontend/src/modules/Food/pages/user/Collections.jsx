@@ -11,13 +11,13 @@ import collectionsBanner from "@food/assets/collectionspagebanner.png"
 // Gradient colors for collection cards
 const gradientColors = [
   "bg-gradient-to-br from-red-400 to-red-600",
-  "bg-gradient-to-br from-orange-400 to-#A2B447",
+  "bg-gradient-to-br from-orange-400 to-#15803D",
   "bg-gradient-to-br from-purple-500 to-pink-600",
   "bg-gradient-to-br from-green-400 to-emerald-600",
   "bg-gradient-to-br from-orange-400 to-red-500",
   "bg-gradient-to-br from-amber-400 to-yellow-600",
   "bg-gradient-to-br from-pink-400 to-rose-600",
-  "bg-gradient-to-br from-amber-400 to-#A2B447",
+  "bg-gradient-to-br from-amber-400 to-#15803D",
 ]
 
 export default function Collections() {
@@ -90,7 +90,7 @@ export default function Collections() {
           >
             Delivery
             {activeTab === "delivery" && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-1 bg-[#23361A] rounded-full" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-1 bg-[#16A34A] rounded-full" />
             )}
           </button>
           <button
@@ -100,7 +100,7 @@ export default function Collections() {
           >
             Dining
             {activeTab === "dining" && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-1 bg-[#23361A] rounded-full" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-1 bg-[#16A34A] rounded-full" />
             )}
           </button>
         </div>
@@ -146,7 +146,7 @@ export default function Collections() {
                       {/* Right card - Restaurant */}
                       <div className="absolute right-0 top-0 w-14 h-11 bg-white rounded-lg shadow-lg transform rotate-12 overflow-hidden">
                         <div className="w-full h-full bg-gray-50 flex items-center justify-center p-1">
-                          <Store className="h-6 w-6 text-[#23361A]" />
+                          <Store className="h-6 w-6 text-[#16A34A]" />
                         </div>
                         {/* Striped awning */}
                         <div className="absolute -top-0.5 left-0 right-0 h-2 bg-gradient-to-r from-orange-400 via-white to-orange-400"
@@ -172,8 +172,8 @@ export default function Collections() {
               onClick={() => setIsCreateDialogOpen(true)}
               className="bg-white dark:bg-[#1a1a1a] border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-4 h-48 flex flex-col items-center justify-center gap-3 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <div className="w-12 h-12 rounded-full bg-[#F7FBEA] dark:bg-[#23361A]/20 flex items-center justify-center border-2 border-[#23361A]/30 dark:border-[#23361A]/40">
-                <Plus className="h-6 w-6 text-[#23361A] dark:text-[#23361A]" />
+              <div className="w-12 h-12 rounded-full bg-[#F0FDF4] dark:bg-[#16A34A]/20 flex items-center justify-center border-2 border-[#16A34A]/30 dark:border-[#16A34A]/40">
+                <Plus className="h-6 w-6 text-[#16A34A] dark:text-[#16A34A]" />
               </div>
               <div className="text-center">
                 <p className="text-gray-700 dark:text-gray-300 font-semibold">Create a new</p>
@@ -224,7 +224,7 @@ export default function Collections() {
                     handleCreateCollection()
                   }
                 }}
-                className="w-full h-12 text-base border-2 border-gray-200 dark:border-gray-700 focus:border-[#23361A] dark:focus:border-[#23361A] rounded-xl bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                className="w-full h-12 text-base border-2 border-gray-200 dark:border-gray-700 focus:border-[#16A34A] dark:focus:border-[#16A34A] rounded-xl bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                 autoFocus
               />
 
@@ -252,7 +252,7 @@ export default function Collections() {
               <Button
                 onClick={handleCreateCollection}
                 disabled={!newCollectionName.trim()}
-                className="flex-1 h-11 bg-[#23361A] hover:bg-[#A2B447] text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 h-11 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Collection
               </Button>

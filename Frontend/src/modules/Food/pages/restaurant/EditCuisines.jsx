@@ -180,7 +180,7 @@ export default function EditCuisines() {
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-6 h-6 text-[#23361A]" />
+          <ArrowLeft className="w-6 h-6 text-[#16A34A]" />
         </button>
         <div className="flex flex-col">
           <h1 className="text-lg font-bold text-gray-900">Edit restaurant cuisines</h1>
@@ -228,8 +228,8 @@ export default function EditCuisines() {
                 >
                   <span className="text-sm text-gray-900">{name}</span>
                   <span
-                    className={`w-5 h-5 border border-[#23361A] rounded-sm flex items-center justify-center ${
-                      isSelected ? "bg-[#23361A]" : "bg-white"
+                    className={`w-5 h-5 border border-[#16A34A] rounded-sm flex items-center justify-center ${
+                      isSelected ? "bg-[#16A34A]" : "bg-white"
                     }`}
                   >
                     {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -284,7 +284,7 @@ export default function EditCuisines() {
           className={`w-full h-12 rounded-xl text-base font-bold shadow-lg transition-all active:scale-[0.98] ${
             selected.length === 0
               ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-[#23361A] text-white shadow-[#23361A]/20"
+              : "bg-[#16A34A] text-white shadow-[#16A34A]/20"
           }`}
         >
           Update Cuisines

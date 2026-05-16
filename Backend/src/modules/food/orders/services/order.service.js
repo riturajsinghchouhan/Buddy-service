@@ -16,6 +16,7 @@ import { FoodRestaurantCommission } from '../../admin/models/restaurantCommissio
 import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
 import { config } from '../../../../config/env.js';
+import { FoodDeliveryBoySettings } from '../../admin/models/deliveryBoySettings.model.js';
 import {
   createRazorpayOrder,
   verifyPaymentSignature,
@@ -175,6 +176,11 @@ export async function createOrder(userId, dto) {
     return sum + (Number(item.price) || 0) * (Number(item.quantity) || 1);
   }, 0);
 
+  const totalItemCount = items.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 1),
+    0,
+  );
+
   const normalizedPricing = {
     subtotal: Number(dto.pricing?.subtotal ?? computedSubtotal),
     tax: Number(dto.pricing?.tax ?? 0),
@@ -188,7 +194,6 @@ export async function createOrder(userId, dto) {
     deliveryFeeBreakdown: dto.pricing?.deliveryFeeBreakdown || null,
   };
 
-  const { FoodDeliveryBoySettings } = await import('../../admin/models/deliveryBoySettings.model.js');
   let deliveryBoySettings = await FoodDeliveryBoySettings.findOne({ isActive: true })
     .sort({ createdAt: -1 })
     .lean();
@@ -197,27 +202,25 @@ export async function createOrder(userId, dto) {
       .sort({ createdAt: -1 })
       .lean();
   }
-  const multiOrderCharge = (restaurants.length > 1 && deliveryBoySettings?.multiOrderAdditionalCharge)
-    ? Number(deliveryBoySettings.multiOrderAdditionalCharge)
-    : 0;
+  // Trust the pricing service for the delivery fee and total. 
+  // Redundant multiplier logic removed to prevent double-doubling.
+  const splitEnabled = deliveryBoySettings ? (deliveryBoySettings.splitOrderEnabled !== false) : true;
+  const splitThreshold = Number(deliveryBoySettings?.splitOrderThreshold ?? 20);
+  const isSplitOrder = Boolean(splitEnabled && splitThreshold > 0 && totalItemCount >= splitThreshold);
+  const isMultiRestaurant = restaurants.length > 1;
+  const deliveryMultiplier = (isMultiRestaurant || isSplitOrder) ? 2 : 1;
+  const baseFee = Number(normalizedPricing.deliveryFeeBreakdown?.baseFee || 0) || (Number(normalizedPricing.deliveryFee || 0) / deliveryMultiplier);
 
-  if (multiOrderCharge > 0) {
-    const existingAdditional = Number(normalizedPricing.deliveryFeeBreakdown?.additionalCharge || 0);
-    if (existingAdditional < multiOrderCharge) {
-      const diff = multiOrderCharge - existingAdditional;
-      normalizedPricing.deliveryFee = Number(normalizedPricing.deliveryFee || 0) + diff;
-      normalizedPricing.total = Number(normalizedPricing.total || 0) + diff;
-    }
-
-    const baseFee = Math.max(0, Number(normalizedPricing.deliveryFee || 0) - multiOrderCharge);
-    normalizedPricing.deliveryFeeBreakdown = {
-      ...(normalizedPricing.deliveryFeeBreakdown || {}),
-      isMultiRestaurant: true,
-      additionalCharge: multiOrderCharge,
-      baseFee,
-      fee: Number(normalizedPricing.deliveryFee || 0),
-    };
-  }
+  normalizedPricing.deliveryFeeBreakdown = {
+    ...(normalizedPricing.deliveryFeeBreakdown || {}),
+    isMultiRestaurant,
+    isSplitOrder,
+    totalItems: totalItemCount,
+    multiplier: deliveryMultiplier,
+    additionalCharge: 0,
+    baseFee,
+    fee: Number(normalizedPricing.deliveryFee || 0),
+  };
 
   // Distance calculation
   let totalDistanceKm = 0;
@@ -234,9 +237,8 @@ export async function createOrder(userId, dto) {
   }
 
   let riderEarning = await getRiderEarning(totalDistanceKm);
-  if (restaurants.length > 1 && deliveryBoySettings?.multiOrderAdditionalCharge) {
-    riderEarning += Number(deliveryBoySettings.multiOrderAdditionalCharge);
-  }
+  const multiplier = Number(normalizedPricing.deliveryFeeBreakdown?.multiplier || 1);
+  riderEarning *= multiplier;
 
   const pickups = restaurants.map(r => ({
     restaurantId: r._id,
@@ -513,10 +515,15 @@ export async function getOrderById(
 
   const orderUserId = order.userId?._id?.toString() || order.userId?.toString();
   const orderRestaurantId = order.restaurantId?._id?.toString() || order.restaurantId?.toString();
-  const orderPartnerId = order.dispatch?.deliveryPartnerId?._id?.toString() || order.dispatch?.deliveryPartnerId?.toString();
+  const orderPartnerId = order.dispatch?.deliveryPartnerId?.toString();
+  const sharedPartnerId = order.dispatch?.sharedPartnerId?.toString();
 
   if (userId && orderUserId !== userId.toString())
     throw new ForbiddenError("Not your order");
+  
+  if (deliveryPartnerId && orderPartnerId !== deliveryPartnerId.toString() && sharedPartnerId !== deliveryPartnerId.toString()) {
+    throw new ForbiddenError("Not your delivery order");
+  }
   if (restaurantId) {
     const restaurantIdStr = restaurantId.toString();
     const isPrimaryRestaurant = orderRestaurantId === restaurantIdStr;
@@ -534,7 +541,7 @@ export async function getOrderById(
     }
   }
 
-  if (deliveryPartnerId && orderPartnerId !== deliveryPartnerId.toString())
+  if (deliveryPartnerId && ![orderPartnerId, sharedPartnerId].includes(deliveryPartnerId.toString()))
     throw new ForbiddenError("Not assigned to you");
 
   if (deliveryPartnerId || restaurantId) {
@@ -1441,6 +1448,10 @@ export async function updateOrderStatusDelivery(orderId, deliveryPartnerId, orde
   return deliveryService.updateOrderStatusDelivery(orderId, deliveryPartnerId, orderStatus);
 }
 
+export async function confirmSplitDelivery(orderId, deliveryPartnerId) {
+  return deliveryService.confirmSplitDelivery(orderId, deliveryPartnerId);
+}
+
 // ----- COD QR collection -----
 export async function createCollectQr(
   orderId,
@@ -1771,4 +1782,142 @@ export async function reportOrderDelay(orderId, userId, role, reason) {
   } catch {}
 
   return order;
+}
+
+/**
+ * Marks an order as shared so other delivery partners can accept it.
+ */
+export async function shareOrderDelivery(orderId, deliveryPartnerId) {
+  const identity = buildOrderIdentityFilter(orderId);
+  const order = await FoodOrder.findOne({
+    ...identity,
+    "dispatch.deliveryPartnerId": new mongoose.Types.ObjectId(deliveryPartnerId)
+  });
+
+  if (!order) throw new NotFoundError("Order not found or not assigned to you");
+
+  const currentStatus = order.orderStatus;
+  const sharedStatuses = ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'];
+  
+  if (!sharedStatuses.includes(currentStatus)) {
+    throw new ValidationError(`Order in status '${currentStatus}' cannot be shared.`);
+  }
+
+  if (order.dispatch?.sharedPartnerId) {
+    throw new ValidationError('Order already has a shared partner');
+  }
+
+  // Set sharing flags
+  order.dispatch.isShared = true;
+  order.dispatch.sharedPartnerId = null; // Ensure it's null so another partner can join
+
+  // Split the net rider earning 50/50
+  // Fallback to delivery fee if rider earning is not pre-calculated
+  const totalEarning = Number(order.riderEarning || order.pricing?.deliveryFee || 0);
+  const sharedSplit = Math.round(totalEarning / 2);
+  order.sharedRiderEarning = sharedSplit;
+  order.riderEarning = Math.max(0, totalEarning - sharedSplit);
+
+  pushStatusHistory(order, {
+    byRole: "DELIVERY_PARTNER",
+    byId: deliveryPartnerId,
+    from: currentStatus,
+    to: currentStatus,
+    note: "Order marked as shared with other partners"
+  });
+
+  await order.save();
+
+  // Notify nearby riders via socket (broadcast to all_delivery room)
+  try {
+    const io = getIO();
+    if (io) {
+      const payload = buildDeliverySocketPayload(order, order.restaurantId);
+      io.to('all_delivery').emit('shareable_order_available', {
+        ...payload,
+        sharedFrom: deliveryPartnerId
+      });
+    }
+  } catch (err) {
+    logger.error(`Socket notification failed for shared order: ${err.message}`);
+  }
+
+  return normalizeOrderForClient(order);
+}
+
+/**
+ * Allows another delivery partner to join a shared order.
+ */
+export async function acceptSharedOrderDelivery(orderId, newPartnerId) {
+  const identity = buildOrderIdentityFilter(orderId);
+  const order = await FoodOrder.findOne({
+    ...identity,
+    'dispatch.isShared': true,
+    'dispatch.sharedPartnerId': null
+  });
+
+  if (!order) throw new NotFoundError("Shared order not found or no longer available");
+  
+  if (String(order.dispatch.deliveryPartnerId) === String(newPartnerId)) {
+    throw new ValidationError("You already have this order assigned.");
+  }
+
+  const oldPartnerId = order.dispatch.deliveryPartnerId;
+  const currentStatus = order.orderStatus;
+
+  // Assign the shared partner without replacing the primary partner
+  order.dispatch.sharedPartnerId = new mongoose.Types.ObjectId(newPartnerId);
+  order.dispatch.isShared = false; // Closed for further joining
+
+  // Maintain separate earnings (already split during 'share' call)
+  // Ensure the shared status is tracked in history
+  pushStatusHistory(order, {
+    byRole: "DELIVERY_PARTNER",
+    byId: newPartnerId,
+    from: currentStatus,
+    to: currentStatus,
+    note: `Shared order slot joined by partner ${newPartnerId}`
+  });
+
+  await order.save();
+
+  // Sync shared partner to transaction
+  try {
+    await foodTransactionService.updateTransactionStatus(order._id, 'shared_partner_assigned', {
+      sharedPartnerId: newPartnerId,
+      primaryRiderShare: order.riderEarning,
+      sharedRiderShare: order.sharedRiderEarning,
+      note: `Partner ${newPartnerId} joined the delivery. Earning will be split.`
+    });
+  } catch (err) {
+    logger.error(`Failed to sync shared partner to transaction: ${err.message}`);
+  }
+
+  // Notify both partners and user
+  try {
+    const io = getIO();
+    if (io) {
+      const payload = {
+        orderId: order._id.toString(),
+        orderStatus: order.orderStatus,
+        dispatch: order.dispatch
+      };
+      io.to(rooms.delivery(oldPartnerId)).emit('order_shared_accepted', payload);
+      io.to(rooms.delivery(newPartnerId)).emit('order_shared_accepted', payload);
+      io.to(rooms.delivery(oldPartnerId)).emit('order_status_update', payload);
+      io.to(rooms.delivery(newPartnerId)).emit('order_status_update', payload);
+      io.to(rooms.user(order.userId)).emit('delivery_partner_updated', payload);
+      
+      // Also notify all riders that the shareable slot is no longer available
+      io.to('all_delivery').emit('order_claimed', { orderId: order._id.toString() });
+    }
+  } catch (err) {}
+
+  await order.populate([
+    { path: 'restaurantId' },
+    { path: 'userId' },
+    { path: 'dispatch.deliveryPartnerId', select: 'name fullName phone phoneNumber profileImage' },
+    { path: 'dispatch.sharedPartnerId', select: 'name fullName phone phoneNumber profileImage' }
+  ]);
+  return normalizeOrderForClient(order);
 }

@@ -7,6 +7,7 @@ import { useDeliveryNotifications } from '@food/hooks/useDeliveryNotifications';
 import { writeOrderTracking } from '@food/realtimeTracking';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import '@/modules/DeliveryV2/deliveryTheme.css';
 
 // Components
 import LiveMap from '@/modules/DeliveryV2/components/map/LiveMap';
@@ -68,9 +69,9 @@ function BottomPopup({ isOpen, onClose, title, children }) {
 export default function DeliveryHomeV2({ tab = 'feed' }) {
   const navigate = useNavigate();
   const { isOnline, toggleOnline, riderLocation, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
-  const { isWithinRange, distanceToTarget } = useProximityCheck();
+  const { isWithinRange, distanceToTarget, durationToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
-  const { newOrder, clearNewOrder, sharedOrder, clearSharedOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, adminNotification, clearAdminNotification, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+  const { newOrder, clearNewOrder, sharedOrder, clearSharedOrder, orderStatusUpdate, clearOrderStatusUpdate, claimedOrderId, clearClaimedOrderId, adminNotification, clearAdminNotification, isConnected: isSocketConnected, emitLocation, socket } = useDeliveryNotifications();
   const companyName = useCompanyName();
   const { items: broadcastItems, unreadCount: notificationUnreadCount, markAsRead: markBroadcastAsRead, dismissAll: dismissAllBroadcast } = useNotificationInbox("delivery", { limit: 20 });
 
@@ -87,6 +88,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const [showVerification, setShowVerification] = useState(false);
   const [showEmergencyPopup, setShowEmergencyPopup] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
+  const [riderProfile, setRiderProfile] = useState(null);
   const [emergencyNumbers, setEmergencyNumbers] = useState({
     medicalEmergency: "",
     accidentHelpline: "",
@@ -101,7 +103,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const rollingSpeedRef = useRef([]);
   const lastAutoArrivalRef = useRef({ PICKING_UP: false, PICKED_UP: false });
 
-  const [zoom, setZoom] = useState(14);
+  const [zoom, setZoom] = useState(16);
   const [isSimMode, setIsSimMode] = useState(false);
   const [simPath, setSimPath] = useState([]);
   const [simIndex, setSimIndex] = useState(0);
@@ -109,6 +111,30 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const [activePolyline, setActivePolyline] = useState(null);
   const mapRef = useRef(null);
   const simInitializedRef = useRef(false);
+  const [riderAddress, setRiderAddress] = useState("Determining location...");
+
+  // Reverse Geocoding Effect
+  useEffect(() => {
+    if (!isOnline || !riderLocation || !window.google?.maps?.Geocoder) return;
+
+    const geocoder = new window.google.maps.Geocoder();
+    const latlng = {
+      lat: parseFloat(riderLocation.lat || riderLocation.latitude),
+      lng: parseFloat(riderLocation.lng || riderLocation.longitude),
+    };
+
+    const throttleId = setTimeout(() => {
+      geocoder.geocode({ location: latlng }, (results, status) => {
+        if (status === "OK" && results[0]) {
+          // Use a shorter version of the address for the UI
+          const address = results[0].formatted_address.split(',').slice(0, 2).join(',');
+          setRiderAddress(address);
+        }
+      });
+    }, 2000); // Throttle geocoding to every 2 seconds
+
+    return () => clearTimeout(throttleId);
+  }, [isOnline, riderLocation]);
 
   const isLoggingOut = useRef(false);
   const handleLogout = useCallback(() => {
@@ -225,6 +251,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         }
         if (profileRes?.data?.success && profileRes.data.data?.profile) {
           const profile = profileRes.data.data.profile;
+          setRiderProfile(profile);
           setProfileImage(profile.profileImage?.url || profile.documents?.photo || null);
         }
       } catch (err) { console.warn('Navbar Data Fetch Error:', err); }
@@ -669,11 +696,25 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       }
     }, isSocketConnected ? 12000 : 5000);
 
+    if (socket) {
+      socket.on('order_earnings_split', (data) => {
+        const { totalEarnings, primaryShare, sharedShare, deliveryPartnerId: pId, sharedPartnerId: sId } = data;
+        const isPrimary = (profile?._id || profile?.id) === (pId?._id || pId);
+        const myShare = isPrimary ? primaryShare : sharedShare;
+        
+        toast.success(`Order Split! Total: ₹${totalEarnings}`, {
+          description: `Your share of ₹${myShare} has been added to your wallet.`,
+          duration: 8000,
+        });
+      });
+    }
+
     return () => {
       cancelled = true;
       window.clearInterval(poller);
+      if (socket) socket.off('order_earnings_split');
     };
-  }, [activeOrder, currentTab, isOnline, isSocketConnected, setActiveOrder, tripStatus, updateTripStatus]);
+  }, [activeOrder, currentTab, isOnline, isSocketConnected, setActiveOrder, tripStatus, updateTripStatus, socket]);
 
   useEffect(() => {
     if (orderStatusUpdate) {
@@ -732,24 +773,23 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
   const handleMapClick = (lat, lng) => {
     if (activeOrder || incomingOrder || showVerification) {
-      setIsModalMinimized(true);
-    }
+  }
   };
 
   return (
-    <div className="relative h-screen w-full bg-white text-gray-900 overflow-hidden flex flex-col">
-      {/* ─── 1. TOP HEADER (Premium Dark Gray) ─── */}
+    <div className="delivery-v2-theme relative h-screen w-full text-[#0F172A] overflow-hidden flex flex-col">
+      {/* ─── 1. TOP HEADER (Premium Deep Tech) ─── */}
       {currentTab !== 'history' && (
-      <div className="absolute top-0 inset-x-0 bg-[#121212]/95 backdrop-blur-2xl shadow-2xl z-[200] safe-top pb-2 border-b border-white/10">
-        <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-4">
+      <div className="absolute top-0 inset-x-0 header-blend shadow-lg z-[200] safe-top pb-1">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <div className="flex items-center gap-2">
              <div 
                 onClick={() => navigate('/food/delivery/profile')}
-                className="w-10 h-10 rounded-full border border-white/20 p-0.5 shadow-xl overflow-hidden bg-white/5 cursor-pointer active:scale-95 transition-all"
+                className="w-10 h-10 rounded-full border border-gray-100 p-0.5 shadow-sm overflow-hidden bg-gray-50 cursor-pointer active:scale-95 transition-all"
              >
                 <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover rounded-full" />
              </div>
-              <button 
+                <button 
                 onClick={async () => {
                   const nextState = !isOnline;
                   toggleOnline(); // Store action
@@ -762,32 +802,34 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                      deliveryAPI.updateOnlineStatus(false).catch(() => {});
                   }
                 }}
-                className={`delivery-online-toggle relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'is-online bg-green-500 shadow-lg shadow-green-500/20' : 'is-offline bg-green-400 shadow-lg shadow-green-400/20'}`}
+                className={`delivery-online-toggle relative w-[80px] h-7 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'is-online bg-blue-600 shadow-lg shadow-blue-500/20' : 'is-offline bg-gray-200 shadow-sm'}`}
               >
-                <div className={`flex items-center justify-between w-full px-2 text-[8.5px] font-black uppercase tracking-widest text-white`}>
+                <div className={`flex items-center justify-between w-full px-1.5 text-[8px] font-black uppercase tracking-widest ${isOnline ? 'text-white' : 'text-gray-500'}`}>
                   <span>{isOnline ? 'Online' : ''}</span>
                   <span>{!isOnline ? 'Offline' : ''}</span>
                 </div>
-                <motion.div animate={{ x: isOnline ? 59 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
+                <div className={`absolute left-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-500 flex items-center justify-center ${isOnline ? 'translate-x-[48px]' : 'translate-x-0'}`}>
+                  {isOnline && <div className="w-2 h-2 bg-[#16A34A] rounded-full animate-pulse" />}
+                </div>
               </button>
 
               {/* DEV SIMULATION TOGGLE */}
               {import.meta.env.DEV && (
                  <button 
                    onClick={() => setIsSimMode(!isSimMode)}
-                   className={`px-3 h-8 rounded-lg text-[9px] font-black border transition-all ${isSimMode ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-white/10 border-white/20 text-white/40'}`}
+                   className={`px-3 h-8 rounded-lg text-[9px] font-black border transition-all ${isSimMode ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-gray-100 border-gray-200 text-gray-400'}`}
                  >
                    SIM
                  </button>
               )}
            </div>
           <div className="flex items-center gap-3">
-             <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 active:scale-95 transition-all shadow-lg"><AlertTriangle className="w-4 h-4" /></button>
-             <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><Contact className="w-4 h-4" /></button>
-             <button onClick={() => setShowNotifications(true)} className="relative w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg">
+             <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100 active:scale-95 transition-all shadow-sm"><AlertTriangle className="w-4 h-4" /></button>
+             <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 border border-blue-100 active:scale-95 transition-all shadow-sm"><Contact className="w-4 h-4" /></button>
+             <button onClick={() => setShowNotifications(true)} className="relative w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center text-[#0F172A] border border-gray-100 active:scale-95 transition-all shadow-sm">
                 <Bell className="w-4 h-4" />
                 {notificationUnreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-600 flex items-center justify-center text-[9px] font-black text-white border-2 border-[#121212] shadow-xl animate-in zoom-in duration-300">
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 flex items-center justify-center text-[9px] font-black text-white border-2 border-white shadow-lg animate-in zoom-in duration-300">
                     {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
                   </span>
                 )}
@@ -802,62 +844,64 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="px-3 md:px-4 mt-1"
+              className="px-3 md:px-4 mt-0.5"
             >
               {activeOrder ? (
-                <div className="grid grid-cols-2 gap-3 w-full">
-                  {/* LEFT: DISTANCE (Vibrant Orange Card) */}
-                  <div className="bg-[#ff8100] rounded-2xl p-3.5 shadow-xl shadow-orange-500/20 border border-orange-400/50 flex items-center justify-between overflow-hidden relative">
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  {/* LEFT: DISTANCE (Vibrant Green Card) */}
+                  <div className="bg-[#16A34A] rounded-2xl p-3 shadow-xl shadow-green-600/20 border border-white/20 flex items-center justify-between overflow-hidden relative">
                     <div className="flex flex-col z-10">
-                      <span className="text-[9px] text-white/70 font-black uppercase tracking-[0.15em] mb-1">Distance</span>
+                      <span className="text-[8px] text-white/60 font-black uppercase tracking-[0.15em] mb-0.5">Distance</span>
                       <div className="flex items-end gap-1">
-                        <span className="text-2xl font-black text-white leading-none tracking-tighter">
+                        <span className="text-xl font-black text-white leading-none tracking-tighter">
                           {distanceToTarget && distanceToTarget !== Infinity ? (distanceToTarget / 1000).toFixed(1) : '--'}
                         </span>
-                        <span className="text-[11px] text-white/80 font-bold mb-0.5">KM</span>
+                        <span className="text-[10px] text-white/60 font-black mb-0.5 uppercase tracking-widest">KM</span>
                       </div>
                     </div>
-                    <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center z-10 shadow-lg">
-                      <Navigation2 className="w-4 h-4 text-[#ff8100] rotate-45" />
+                    <div className="w-8 h-8 bg-[#0F172A] rounded-lg flex items-center justify-center z-10 shadow-lg">
+                      <Navigation2 className="w-4 h-4 text-[#16A34A] rotate-45" />
                     </div>
                   </div>
 
-                  {/* RIGHT: TIME (Emerald PRO Content) */}
-                  <div className="bg-[#10B981] rounded-2xl p-3.5 shadow-xl shadow-green-500/20 border border-green-400/50 flex items-center justify-between relative overflow-hidden group">
+                  {/* RIGHT: TIME (Clean Surface Card) */}
+                  <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex items-center justify-between overflow-hidden relative">
                     <div className="flex flex-col z-10">
-                      <span className="text-[9px] text-white/70 font-black uppercase tracking-[0.15em] mb-1">Arrival</span>
+                      <span className="text-[8px] text-gray-400 font-black uppercase tracking-[0.15em] mb-0.5">Arrival</span>
                       <div className="flex items-end gap-1">
-                        <span className="text-2xl font-black text-white leading-none tracking-tighter">
-                          {eta ? String(eta) : '--'}
+                        <span className="text-xl font-black text-[#0F172A] leading-none tracking-tighter">
+                          {durationToTarget && durationToTarget !== Infinity ? Math.round(durationToTarget / 60) : '--'}
                         </span>
-                        <span className="text-[11px] text-white/80 font-bold mb-0.5">MIN</span>
+                        <span className="text-[10px] text-gray-400 font-black mb-0.5 uppercase tracking-widest">MIN</span>
                       </div>
                     </div>
-                    <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center z-10 shadow-lg">
-                       <Clock className="w-4 h-4 text-[#10B981]" />
+                    <div className="w-8 h-8 bg-[#16A34A] rounded-lg flex items-center justify-center z-10 shadow-lg">
+                      <Clock className="w-4 h-4 text-white" />
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-white/5 rounded-2xl p-4 flex items-center border border-white/5 shadow-sm backdrop-blur-md">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
-                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+              ) : isOnline ? (
+                <div className="bg-white rounded-2xl p-3 flex items-center border border-white/20 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#16A34A]/10 rounded-full flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
                     </div>
-                    <div>
-                      <h3 className="text-white font-black text-[11px] uppercase tracking-widest leading-none mb-1">{isOnline ? 'System Online' : 'System Offline'}</h3>
-                      <p className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">{isOnline ? 'Waiting for order requests' : 'Go online to receive jobs'}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-[#0F172A] font-black text-[10px] uppercase tracking-widest leading-none mb-1">System Online</h3>
+                      <p className="text-gray-500 text-[9px] font-bold uppercase tracking-tight truncate">
+                        {riderAddress || 'Waiting for order requests'}
+                      </p>
                     </div>
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {!activeOrder && cashLimitNotice?.blocked && (
-                <div className="mt-3 rounded-2xl border border-amber-300/40 bg-amber-500/10 px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-200">
+                <div className="mt-2 rounded-2xl border border-amber-300/40 bg-amber-500/10 px-4 py-2">
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-amber-200">
                     Cash Limit Alert
                   </p>
-                  <p className="mt-1 text-[11px] font-semibold text-amber-100">
+                  <p className="mt-0.5 text-[10px] font-semibold text-amber-100">
                     {cashLimitNotice?.message || 'Please deposit your amount to get orders.'}
                   </p>
                 </div>
@@ -869,117 +913,161 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       )}
 
       {/* ─── 2. MAIN CONTENT ─── */}
-      <div className={`flex-1 relative overflow-y-auto ${currentTab === 'history' ? 'pt-0' : 'pt-[120px]'} no-scrollbar`}>
+      <div className={`flex-1 relative overflow-y-auto ${currentTab === 'history' ? 'pt-0' : (currentTab === 'feed' ? 'pt-[105px]' : 'pt-[56px]')} no-scrollbar`}>
          {currentTab === 'feed' ? (
-           <div className="absolute inset-0 top-[-120px]">
-             <LiveMap 
-               onMapLoad={(m) => mapRef.current = m}
-               onMapClick={handleMapClick}
-               onPathReceived={setSimPath}
-               onPolylineReceived={(poly) => {
-                 setActivePolyline(poly);
-                 // If we have an order, push the INITIAL polyline to Firebase immediately for the customer
-                 const orderId = activeOrder?.orderId || activeOrder?._id;
-                 if (orderId && poly) {
-                   writeOrderTracking(orderId, { polyline: poly, status: tripStatus, eta: eta }).catch(() => {});
-                 }
-               }}
-               zoom={zoom}
-             />
-             
-             {/* SIMULATION INDICATOR */}
-             {isSimMode && (
-               <div className="absolute top-[180px] left-4 right-4 z-[100] bg-black/80 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center justify-between shadow-2xl">
-                  <div className="flex items-center gap-4">
-                     <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center animate-pulse">
-                        <Play className="w-4 h-4 text-white fill-current" />
-                     </div>
-                     <div className="flex flex-col">
-                        <span className="text-orange-500 text-[10px] font-bold uppercase tracking-widest">Auto Navigation Active</span>
-                        <span className="text-white text-[11px] font-medium">Following actual road path...</span>
-                     </div>
-                  </div>
-                  <button onClick={() => setIsSimMode(false)} className="bg-white/10 text-white/50 hover:text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-white/10">Stop</button>
+           <div className="absolute inset-0 top-[-105px]">
+             {isOnline ? (
+               <>
+                 <LiveMap 
+                   onMapLoad={(m) => mapRef.current = m}
+                   onMapClick={handleMapClick}
+                   onPathReceived={setSimPath}
+                   onPolylineReceived={(poly) => {
+                     setActivePolyline(poly);
+                     // If we have an order, push the INITIAL polyline to Firebase immediately for the customer
+                     const orderId = activeOrder?.orderId || activeOrder?._id;
+                     if (orderId && poly) {
+                       writeOrderTracking(orderId, { polyline: poly, status: tripStatus, eta: eta }).catch(() => {});
+                     }
+                   }}
+                   zoom={zoom}
+                 />
+                 
+                 {/* SIMULATION INDICATOR */}
+                 {isSimMode && (
+                   <div className="absolute top-[160px] left-4 right-4 z-[100] bg-black/80 backdrop-blur-md rounded-xl p-3 border border-white/20 flex items-center justify-between shadow-2xl">
+                      <div className="flex items-center gap-3">
+                         <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center animate-pulse">
+                            <Play className="w-3 h-3 text-white fill-current" />
+                         </div>
+                         <div className="flex flex-col">
+                            <span className="text-orange-500 text-[9px] font-bold uppercase tracking-widest">Auto Navigation Active</span>
+                            <span className="text-white text-[10px] font-medium">Following actual road path...</span>
+                         </div>
+                      </div>
+                      <button onClick={() => setIsSimMode(false)} className="bg-white/10 text-white/50 hover:text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-white/10">Stop</button>
+                   </div>
+                 )}
+
+                 <div className="absolute right-3 bottom-24 md:bottom-28 flex flex-col gap-3 z-[120]">
+                    <div className="flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+                       <button onClick={() => setZoom(z => Math.min(22, z + 1))} className="p-2.5 hover:bg-gray-50 border-b border-gray-100 text-gray-900 active:scale-90 transition-all" aria-label="Zoom in"><Plus className="w-5 h-5 stroke-[2.75]" /></button>
+                       <button onClick={() => setZoom(z => Math.max(8, z - 1))} className="p-2.5 hover:bg-gray-50 text-gray-900 active:scale-90 transition-all" aria-label="Zoom out"><Minus className="w-5 h-5 stroke-[2.75]" /></button>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if (activeOrder?.orderStatus === 'created') {
+                          toast.info('Wait for restaurant to accept order before moving.');
+                          return;
+                        }
+                        const nextSimState = !isSimMode;
+                        setIsSimMode(nextSimState);
+
+                        if (nextSimState) {
+                          toast.warning('Simulation Mode Active');
+
+                          const parsePoint = (raw) => {
+                            if (!raw) return null;
+                            const lat = Number(raw.lat ?? raw.latitude);
+                            const lng = Number(raw.lng ?? raw.longitude);
+                            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                            return { lat, lng };
+                          };
+
+                          const target =
+                            tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP'
+                              ? parsePoint(activeOrder?.customerLocation)
+                              : parsePoint(activeOrder?.restaurantLocation);
+
+                          const currentRider = useDeliveryStore.getState().riderLocation;
+                          const riderPoint = parsePoint(currentRider) || (target
+                            ? { lat: target.lat + 0.001, lng: target.lng + 0.001 }
+                            : null);
+
+                          if (riderPoint) {
+                            setRiderLocation({ lat: riderPoint.lat, lng: riderPoint.lng, heading: 0 });
+                          }
+
+                          if (riderPoint && target && (!simPath || simPath.length < 2)) {
+                            const steps = 60;
+                            const fallbackPath = Array.from({ length: steps + 1 }, (_, i) => {
+                              const t = i / steps;
+                              return {
+                                lat: riderPoint.lat + (target.lat - riderPoint.lat) * t,
+                                lng: riderPoint.lng + (target.lng - riderPoint.lng) * t,
+                              };
+                            });
+                            setSimPath(fallbackPath);
+                          }
+                        }
+                      }}
+                      className={`w-12 h-12 rounded-full shadow-2xl flex items-center justify-center border border-gray-100 transition-all ${isSimMode ? 'bg-orange-500 text-white' : 'bg-white text-[#16A34A]'}`}
+                    >
+                      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${isSimMode ? 'border-white' : 'border-[#16A34A]'}`}>
+                        <Play className={`w-3 h-3 fill-current ml-0.5 ${isSimMode ? 'animate-pulse' : ''}`} />
+                      </div>
+                    </button>
+                    <button 
+                       onClick={() => {
+                         if (activeOrder?.orderStatus === 'created') {
+                           toast.info('Wait for restaurant to accept order before navigating.');
+                           return;
+                         }
+                         mapRef.current?.setOptions({ gestureHandling: 'greedy' });
+                       }} 
+                       className="w-12 h-12 bg-white rounded-full shadow-2xl flex items-center justify-center text-blue-600 border border-gray-100 active:scale-90 transition-all"
+                    >
+                      <div className="w-7 h-7 rounded-full border-2 border-blue-600 flex items-center justify-center"><Navigation2 className="w-3 h-3" /></div>
+                    </button>
+                    <button 
+                      onClick={handleCenterMap}
+                      className="w-12 h-12 bg-white rounded-full shadow-2xl flex items-center justify-center text-gray-900 border border-gray-100 group active:scale-90 transition-all"
+                    >
+                      <Target className="w-6 h-6" />
+                    </button>
+                 </div>
+               </>
+             ) : (
+               <div className="h-full w-full bg-white flex flex-col items-center justify-center pt-[100px] px-6 text-center">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="w-64 h-64 mb-8"
+                  >
+                     <img 
+                       src="/delivery_boy_welcome.png" 
+                       alt="Welcome" 
+                       className="w-full h-full object-contain drop-shadow-2xl" 
+                     />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <h2 className="text-2xl font-black text-[#0F172A] uppercase tracking-tight mb-2">Welcome Back!</h2>
+                    <p className="text-[#5D6D5D] text-xs font-bold uppercase tracking-widest max-w-[280px] leading-relaxed mx-auto">
+                      Go online to start receiving new delivery requests in your area.
+                    </p>
+                  </motion.div>
+                  
+                  <motion.button
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    onClick={() => {
+                      toggleOnline();
+                      navigator.geolocation.getCurrentPosition((pos) => {
+                         deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => {});
+                      }, (err) => console.warn('Online sync position failed:', err), { enableHighAccuracy: true });
+                    }}
+                    className="mt-8 px-10 py-4 bg-[#16A34A] hover:bg-[#15803D] text-[#0F172A] rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl shadow-green-600/30 active:scale-95 transition-all flex items-center gap-4 border-b-4 border-[#15803D]"
+                  >
+                    Go Online Now
+                  </motion.button>
                </div>
              )}
-
-             <div className="absolute right-4 bottom-28 md:bottom-32 flex flex-col gap-4 z-[120]">
-                <div className="flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-                   <button onClick={() => setZoom(z => Math.min(22, z + 1))} className="p-3 hover:bg-gray-50 border-b border-gray-100 text-gray-900 active:scale-90 transition-all" aria-label="Zoom in"><Plus className="w-5 h-5 stroke-[2.75]" /></button>
-                   <button onClick={() => setZoom(z => Math.max(8, z - 1))} className="p-3 hover:bg-gray-50 text-gray-900 active:scale-90 transition-all" aria-label="Zoom out"><Minus className="w-5 h-5 stroke-[2.75]" /></button>
-                </div>
-                <button 
-                  onClick={() => {
-                    if (activeOrder?.orderStatus === 'created') {
-                      toast.info('Wait for restaurant to accept order before moving.');
-                      return;
-                    }
-                    const nextSimState = !isSimMode;
-                    setIsSimMode(nextSimState);
-
-                    if (nextSimState) {
-                      toast.warning('Simulation Mode Active');
-
-                      const parsePoint = (raw) => {
-                        if (!raw) return null;
-                        const lat = Number(raw.lat ?? raw.latitude);
-                        const lng = Number(raw.lng ?? raw.longitude);
-                        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-                        return { lat, lng };
-                      };
-
-                      const target =
-                        tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP'
-                          ? parsePoint(activeOrder?.customerLocation)
-                          : parsePoint(activeOrder?.restaurantLocation);
-
-                      const currentRider = useDeliveryStore.getState().riderLocation;
-                      const riderPoint = parsePoint(currentRider) || (target
-                        ? { lat: target.lat + 0.001, lng: target.lng + 0.001 }
-                        : null);
-
-                      if (riderPoint) {
-                        setRiderLocation({ lat: riderPoint.lat, lng: riderPoint.lng, heading: 0 });
-                      }
-
-                      if (riderPoint && target && (!simPath || simPath.length < 2)) {
-                        const steps = 60;
-                        const fallbackPath = Array.from({ length: steps + 1 }, (_, i) => {
-                          const t = i / steps;
-                          return {
-                            lat: riderPoint.lat + (target.lat - riderPoint.lat) * t,
-                            lng: riderPoint.lng + (target.lng - riderPoint.lng) * t,
-                          };
-                        });
-                        setSimPath(fallbackPath);
-                      }
-                    }
-                  }}
-                  className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center border border-gray-100 transition-all ${isSimMode ? 'bg-orange-500 text-white' : 'bg-white text-green-500'}`}
-                >
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isSimMode ? 'border-white' : 'border-green-500'}`}>
-                    <Play className={`w-4 h-4 fill-current ml-0.5 ${isSimMode ? 'animate-pulse' : ''}`} />
-                  </div>
-                </button>
-                <button 
-                   onClick={() => {
-                     if (activeOrder?.orderStatus === 'created') {
-                       toast.info('Wait for restaurant to accept order before navigating.');
-                       return;
-                     }
-                     mapRef.current?.setOptions({ gestureHandling: 'greedy' });
-                   }} 
-                   className="w-14 h-14 bg-white rounded-full shadow-2xl flex items-center justify-center text-blue-600 border border-gray-100 active:scale-90 transition-all"
-                >
-                  <div className="w-8 h-8 rounded-full border-2 border-blue-600 flex items-center justify-center"><Navigation2 className="w-4 h-4" /></div>
-                </button>
-                <button 
-                  onClick={handleCenterMap}
-                  className="w-14 h-14 bg-white rounded-full shadow-2xl flex items-center justify-center text-gray-900 border border-gray-100 group active:scale-90 transition-all"
-                >
-                  <Target className="w-7 h-7" />
-                </button>
-             </div>
            </div>
          ) : currentTab === 'pocket' ? (
            <PocketV2 />
@@ -1002,53 +1090,40 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-x-0 top-0 bottom-[92px] z-[300] pointer-events-none flex items-end"
+              className="fixed inset-x-0 top-0 bottom-[80px] z-[1000] pointer-events-none flex items-end"
             >
               <div className="w-full pointer-events-auto relative">
                 {incomingOrder && (
                   <NewOrderModal 
                     order={incomingOrder} 
+                    riderProfile={riderProfile}
                     isSharedAcceptance={Boolean(sharedOrder)}
                     onAccept={async (o) => {
                       try {
-                        if (sharedOrder) {
-                          const res = await deliveryAPI.acceptSharedOrder(o.orderId || o._id);
-                          const updatedOrder = res?.data?.data?.order || res?.data?.order || o;
-                          
-                          // Helper to map locations (same as acceptOrder)
-                          const getLoc = (ref) => {
-                            if (!ref?.location?.coordinates) return null;
-                            return { lat: ref.location.coordinates[1], lng: ref.location.coordinates[0] };
-                          };
-                          
-                          setActiveOrder({
-                            ...updatedOrder,
-                            orderId: updatedOrder._id || updatedOrder.orderId,
-                            restaurantLocation: getLoc(updatedOrder.restaurantId) || updatedOrder.restaurantLocation,
-                            customerLocation: getLoc(updatedOrder.deliveryAddress) || updatedOrder.customerLocation
-                          });
-                          updateTripStatus('PICKING_UP');
-                          
-                          setIncomingOrder(null);
-                          clearNewOrder();
-                          clearSharedOrder();
-                          toast.success('Joined Delivery Slot!');
-                        } else {
-                          await acceptOrder(o);
-                          setIncomingOrder(null);
-                          clearNewOrder();
-                          toast.success('Order Accepted!');
-                        }
+                        // Use the robust hook which handles both shared and standard orders
+                        await acceptOrder(o);
+                        
+                        // Successfully accepted/joined
+                        const isShared = o.isShared || o.dispatch?.isShared;
+                        toast.success(isShared ? 'Joined Delivery Slot!' : 'Order Accepted!');
+                        
+                        setIncomingOrder(null);
+                        clearNewOrder();
+                        clearSharedOrder();
                       } catch (err) {
-                        const msg = String(err?.response?.data?.message || err?.message || '');
+                        console.error('Acceptance failed in UI:', err);
+                        const msg = String(err?.response?.data?.message || err?.response?.data?.error || err?.message || '');
                         const isTaken = msg.toLowerCase().includes('already accepted') || 
                                         msg.toLowerCase().includes('another partner') ||
-                                        (err?.response?.status === 403);
+                                        msg.toLowerCase().includes('no longer available') ||
+                                        (err?.response?.status === 403) || (err?.response?.status === 404);
+                                        
                         if (isTaken) {
                           setIncomingOrder(null);
                           clearNewOrder();
                           clearSharedOrder();
                         }
+                        // Note: useOrderManager already shows the error toast
                       }
                     }}
                     onReject={() => { 
@@ -1072,18 +1147,18 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   />
                 )}
                 {(tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') && (
-                  <div className="absolute inset-x-0 z-[120] px-4" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                  <div className="absolute inset-x-0 z-[120] px-4" style={{ bottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
                     {tripStatus === 'PICKED_UP' ? (
-                      <div className="bg-white rounded-[3rem] p-8 shadow-[0_-20px_80px_rgba(0,0,0,0.4)] border border-gray-100 flex flex-col items-center">
+                      <div className="bg-white rounded-[2rem] p-6 shadow-[0_-20px_80px_rgba(0,0,0,0.4)] border border-gray-100 flex flex-col items-center">
                         {/* Handle / Minimize */}
-                        <div className="w-full flex justify-center pb-4 pt-0 -mt-2">
+                        <div className="w-full flex justify-center pb-2 pt-0 -mt-2">
                           <button onClick={() => setIsModalMinimized(true)} className="p-1 hover:bg-gray-100 active:scale-95 transition-all rounded-full flex flex-col items-center">
-                             <ChevronDown className="w-6 h-6 text-gray-400 stroke-[3]" />
+                             <ChevronDown className="w-5 h-5 text-gray-400 stroke-[3]" />
                           </button>
                         </div>
-                        <div className="flex justify-between w-full items-center mb-10 px-2 text-left">
-                          <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                        <div className="flex justify-between w-full items-center mb-6 px-1 text-left">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shadow-sm">
                                <img 
                                  src={activeOrder?.user?.logo || activeOrder?.user?.profileImage || 'https://cdn-icons-png.flaticon.com/512/1275/1275302.png'} 
                                  className="w-full h-full object-cover" 
@@ -1091,8 +1166,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                                />
                             </div>
                             <div>
-                               <h3 className="text-gray-950 text-2xl font-bold uppercase">Handover Drop</h3>
-                               <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5 ${isWithinRange ? 'text-green-600' : 'text-orange-500'}`}>
+                               <h3 className="text-[#1A2517] text-lg font-black uppercase">Handover Drop</h3>
+                               <p className={`text-[9px] font-black uppercase tracking-[0.2em] mt-0.5 ${isWithinRange ? 'text-[#ACC8A2]' : 'text-orange-500'}`}>
                                  {isWithinRange ? 'Ready - Swipe to Arrive √' : `${(distanceToTarget / 1000).toFixed(1)} km • ${eta || '--'} min Arrival`}
                                </p>
                             </div>
@@ -1101,28 +1176,28 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
                         {/* Customer Instructions Panel */}
                         {activeOrder?.note && (
-                          <div className="w-full bg-orange-50 border border-orange-100 rounded-3xl p-5 mb-8 flex gap-4 items-start shadow-sm mx-2">
-                             <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center text-orange-500 shadow-sm shrink-0 border border-orange-50">
-                                <Package className="w-5 h-5" />
+                          <div className="w-full bg-[#ACC8A2]/10 border border-[#ACC8A2]/20 rounded-2xl p-4 mb-6 flex gap-3 items-start shadow-sm mx-1">
+                             <div className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-[#ACC8A2] shadow-sm shrink-0 border border-[#ACC8A2]/10">
+                                <Package className="w-4 h-4" />
                              </div>
                              <div className="flex-1">
-                                <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] mb-1.5 opacity-80">Drop Message</p>
-                                <p className="text-sm font-bold text-gray-950 leading-relaxed capitalize">"{activeOrder.note}"</p>
+                                <p className="text-[9px] font-black text-[#1A2517] uppercase tracking-[0.2em] mb-1 opacity-80">Drop Message</p>
+                                <p className="text-xs font-bold text-[#1A2517] leading-relaxed capitalize">"{activeOrder.note}"</p>
                              </div>
                           </div>
                         )}
-                        <ActionSlider label="Slide to Arrive" successLabel="Arrived ✓" disabled={!isWithinRange} onConfirm={reachDrop} color="bg-blue-600" />
+                        <ActionSlider label="Slide to Arrive" successLabel="Arrived ✓" disabled={!isWithinRange} onConfirm={reachDrop} color="bg-[#ACC8A2]" />
                       </div>
                     ) : (
                       <button 
                         onClick={() => setShowVerification(true)} 
-                        className="w-full text-white rounded-2xl py-4 sm:py-5 px-4 font-bold text-xs sm:text-sm tracking-[0.14em] transform transition-all active:scale-95 flex items-center justify-center gap-2.5 sm:gap-3 border border-white/20"
+                        className="w-full text-[#ACC8A2] rounded-2xl py-4 px-4 font-black text-xs tracking-[0.2em] transform transition-all active:scale-95 flex items-center justify-center gap-2.5 border border-white/10"
                         style={{
-                          background: 'linear-gradient(33deg, #15498b 0%, #000000 100%)',
-                          boxShadow: '0 14px 34px rgba(21, 73, 139, 0.42)',
+                          background: '#1A2517',
+                          boxShadow: '0 14px 34px rgba(26, 37, 23, 0.3)',
                         }}
                       >
-                        <CheckCircle2 className="w-6 h-6" /> VERIFY & COMPLETE
+                        <CheckCircle2 className="w-5 h-5" /> VERIFY & COMPLETE
                       </button>
                     )}
                   </div>
@@ -1158,7 +1233,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
       {/* ─── MODALS RESTORED FROM OLD UI ─── */}
       <BottomPopup isOpen={showEmergencyPopup} title="Emergency Help" onClose={() => setShowEmergencyPopup(false)}>
-         <div className="grid gap-4 py-2">
+         <div className="grid gap-3 py-2">
            {emergencyOptions.map((opt, i) => (
              <button 
                key={i} 
@@ -1167,12 +1242,12 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                  if (num) window.location.href = `tel:${num}`;
                  else toast.error('Number not configured');
                }}
-               className="flex items-center gap-5 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 active:scale-95 transition-all text-left"
+               className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl hover:bg-gray-100 active:scale-95 transition-all text-left"
              >
-               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-xl">{opt.icon}</div>
+               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-lg">{opt.icon}</div>
                <div>
-                 <h4 className="font-bold text-gray-900">{opt.title}</h4>
-                 <p className="text-xs text-gray-500 font-medium">{opt.subtitle}</p>
+                 <h4 className="text-sm font-bold text-gray-900">{opt.title}</h4>
+                 <p className="text-[10px] text-gray-500 font-medium">{opt.subtitle}</p>
                </div>
              </button>
            ))}
@@ -1184,7 +1259,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         title="Notifications" 
         onClose={() => {
            setShowNotifications(false);
-           // Optional: refresh count if needed
         }}
       >
          <div className="flex flex-col gap-3 -mt-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
@@ -1196,40 +1270,39 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                            dismissAllBroadcast();
                            toast.success("All notifications cleared");
                         }}
-                        className="text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-50 px-3 py-1.5 rounded-full"
+                        className="text-[9px] font-black uppercase tracking-widest text-red-500 bg-red-50 px-3 py-1 rounded-full"
                      >
                         Clear All
                      </button>
                   </div>
-                  <div className="grid gap-2.5">
+                  <div className="grid gap-2">
                      {broadcastItems.map((item) => (
                         <div 
                            key={item.id} 
                            onClick={() => {
                               markBroadcastAsRead(item.id);
                               if (item.link) {
-                                 // Handle link if present
                                  const path = item.link.startsWith('/') ? item.link : `/${item.link}`;
                                  navigate(path);
                                  setShowNotifications(false);
                               }
                            }}
-                           className={`p-4 rounded-2xl border transition-all active:scale-[0.98] cursor-pointer ${item.read ? 'bg-gray-50 border-gray-100' : 'bg-orange-50 border-orange-100 shadow-sm shadow-orange-500/5'}`}
+                           className={`p-3 rounded-2xl border transition-all active:scale-[0.98] cursor-pointer ${item.read ? 'bg-gray-50 border-gray-100' : 'bg-orange-50 border-orange-100 shadow-sm shadow-orange-500/5'}`}
                         >
                            <div className="flex gap-3 items-start">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.read ? 'bg-gray-200 text-gray-500' : 'bg-[#EB590E] text-white shadow-lg'}`}>
-                                 <Bell className="w-4 h-4" />
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.read ? 'bg-gray-200 text-gray-500' : 'bg-[#EB590E] text-white shadow-lg'}`}>
+                                 <Bell className="w-3.5 h-3.5" />
                               </div>
                               <div className="flex-1 min-w-0">
                                  <div className="flex justify-between items-start gap-2">
-                                    <h4 className={`text-sm font-bold truncate ${item.read ? 'text-gray-600' : 'text-gray-950'}`}>
+                                    <h4 className={`text-xs font-bold truncate ${item.read ? 'text-gray-600' : 'text-gray-950'}`}>
                                        {item.title}
                                     </h4>
-                                    <span className="text-[9px] font-black uppercase text-gray-400 shrink-0 whitespace-nowrap pt-0.5">
+                                    <span className="text-[8px] font-black uppercase text-gray-400 shrink-0 whitespace-nowrap pt-0.5">
                                        {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                  </div>
-                                 <p className={`text-[12px] leading-relaxed mt-0.5 break-words ${item.read ? 'text-gray-500 line-clamp-2' : 'text-gray-700'}`}>
+                                 <p className={`text-[11px] leading-relaxed mt-0.5 break-words ${item.read ? 'text-gray-500 line-clamp-2' : 'text-gray-700'}`}>
                                     {item.message}
                                  </p>
                               </div>
@@ -1239,22 +1312,22 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   </div>
                </>
             ) : (
-               <div className="py-20 flex flex-col items-center justify-center text-center px-10">
-                  <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mb-4 border border-gray-100/50">
-                     <Bell className="w-7 h-7 text-gray-300" />
+               <div className="py-16 flex flex-col items-center justify-center text-center px-10">
+                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 border border-gray-100/50">
+                     <Bell className="w-6 h-6 text-gray-300" />
                   </div>
-                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest leading-none mb-2">No Notifications</h3>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-tight leading-relaxed">System notifications for order requests and updates will appear here.</p>
+                  <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest leading-none mb-1">No Notifications</h3>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight leading-relaxed">System notifications will appear here.</p>
                </div>
             )}
          </div>
-         <div className="mt-8 mb-2">
+         <div className="mt-6 mb-1">
             <button 
                onClick={() => {
                   setShowNotifications(false);
                   navigate('/food/delivery/notifications');
                }}
-               className="w-full py-4 rounded-2xl bg-gray-950 text-white text-xs font-black uppercase tracking-[0.2em] shadow-xl shadow-gray-950/20 active:scale-95 transition-all"
+               className="w-full py-3.5 rounded-2xl bg-[#16A34A] text-[#0F172A] text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-green-600/20 active:scale-95 transition-all"
             >
                View Notification History
             </button>
@@ -1266,37 +1339,57 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         <motion.div 
            initial={{ y: 100, opacity: 0 }}
            animate={{ y: 0, opacity: 1 }}
-           className="fixed bottom-[100px] inset-x-0 z-[300] px-6"
+           className="fixed bottom-[90px] inset-x-6 z-[300]"
         >
            <button 
              onClick={() => setIsModalMinimized(false)}
-             className="w-full bg-gray-900/90 text-white rounded-2xl py-4 flex items-center justify-between px-6 shadow-2xl backdrop-blur-md border border-white/10"
+             className="w-full bg-white text-[#0F172A] rounded-2xl py-3 flex items-center justify-between px-5 shadow-2xl border border-gray-100"
            >
-              <div className="flex flex-col items-start gap-0.5">
-                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Order Action Pending</span>
-                 <span className="text-xs font-bold uppercase tracking-wider">Tap to open delivery panel</span>
+              <div className="flex flex-col items-start gap-0">
+                 <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Order Action Pending</span>
+                 <span className="text-[11px] font-bold uppercase tracking-wider">Tap to open delivery panel</span>
               </div>
-              <div className="bg-orange-500 p-2 rounded-xl text-white">
-                 <Plus className="w-5 h-5" />
+              <div className="bg-[#16A34A] p-1.5 rounded-lg text-white shadow-lg shadow-green-600/20">
+                 <Plus className="w-4 h-4" />
               </div>
            </button>
         </motion.div>
       )}
 
-      {/* ─── 3. BOTTOM NAV (Fixed - Compact Pro) ─── */}
-      <div className="bg-white border-t border-gray-100 px-8 py-3 pb-6 flex justify-between items-center z-[200] shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
-         <button onClick={() => navigate('/food/delivery/feed')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'feed' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
-            <LayoutGrid className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Feed</span>
-         </button>
-         <button onClick={() => navigate('/food/delivery/pocket')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'pocket' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
-            <Wallet className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Pocket</span>
-         </button>
-         <button onClick={() => navigate('/food/delivery/history')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'history' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
-            <History className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Trip History</span>
-         </button>
-         <button onClick={() => navigate('/food/delivery/profile')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'profile' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
-            <UserIcon className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Profile</span>
-         </button>
+      {/* ─── 3. BOTTOM NAV (Premium Floating Pill Dock) ─── */}
+       <div className="fixed bottom-4 inset-x-6 z-[500] flex justify-center">
+        <div className="bg-white/95 rounded-full px-1.5 py-1.5 flex items-center gap-0.5 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.2)] border border-gray-100 backdrop-blur-lg">
+           {[
+             { id: 'feed', label: 'Delivery', icon: LayoutGrid, path: '/food/delivery/feed' },
+             { id: 'pocket', label: 'Pocket', icon: Wallet, path: '/food/delivery/pocket' },
+             { id: 'history', label: 'History', icon: History, path: '/food/delivery/history' },
+             { id: 'profile', label: 'Profile', icon: UserIcon, path: '/food/delivery/profile' },
+           ].map((item) => {
+             const isActive = currentTab === item.id;
+             const Icon = item.icon;
+             
+             return (
+               <button 
+                 key={item.id}
+                 onClick={() => navigate(item.path)} 
+                 className={`relative flex items-center gap-2.5 px-5 py-3 rounded-full transition-all duration-500 overflow-hidden ${isActive ? 'bg-[#16A34A] shadow-sm' : 'bg-transparent'}`}
+               >
+                 <div className={`transition-all duration-300 ${isActive ? 'text-[#0F172A] scale-110' : 'text-gray-400'}`}>
+                   <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[2]'}`} />
+                 </div>
+                 {isActive && (
+                   <motion.span 
+                     initial={{ opacity: 0, x: -10 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     className="text-[11px] font-black uppercase tracking-widest text-[#0F172A] whitespace-nowrap"
+                   >
+                     {item.label}
+                   </motion.span>
+                 )}
+               </button>
+             );
+           })}
+        </div>
       </div>
     </div>
   );

@@ -52,12 +52,12 @@ export default function BottomNavigation() {
         <Link
           to="/"
           className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isDelivery
-              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              ? "bg-[#F0FDF4] text-[#0F172A] shadow-sm"
               : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <Truck className={`h-4.5 w-4.5 ${isDelivery ? "text-[#1a2517] fill-[#1a2517]/10" : "text-gray-500"}`} strokeWidth={isDelivery ? 2.5 : 2} />
-          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDelivery ? "text-[#1a2517]" : "text-gray-500"}`}>
+          <Truck className={`h-4.5 w-4.5 ${isDelivery ? "text-[#0F172A] fill-[#0F172A]/10" : "text-gray-500"}`} strokeWidth={isDelivery ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDelivery ? "text-[#0F172A]" : "text-gray-500"}`}>
             Delivery
           </span>
         </Link>
@@ -66,12 +66,12 @@ export default function BottomNavigation() {
         <Link
           to="/food/user/dining"
           className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isDining
-              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              ? "bg-[#F0FDF4] text-[#0F172A] shadow-sm"
               : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <UtensilsCrossed className={`h-4.5 w-4.5 ${isDining ? "text-[#1a2517]" : "text-gray-500"}`} strokeWidth={isDining ? 2.5 : 2} />
-          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDining ? "text-[#1a2517]" : "text-gray-500"}`}>
+          <UtensilsCrossed className={`h-4.5 w-4.5 ${isDining ? "text-[#0F172A]" : "text-gray-500"}`} strokeWidth={isDining ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDining ? "text-[#0F172A]" : "text-gray-500"}`}>
             Dining
           </span>
         </Link>
@@ -80,12 +80,12 @@ export default function BottomNavigation() {
         <Link
           to="/food/user/under-250"
           className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isUnder250
-              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              ? "bg-[#F0FDF4] text-[#0F172A] shadow-sm"
               : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <Tag className={`h-4.5 w-4.5 ${isUnder250 ? "text-[#1a2517] fill-[#1a2517]/10" : "text-gray-500"}`} strokeWidth={isUnder250 ? 2.5 : 2} />
-          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isUnder250 ? "text-[#1a2517]" : "text-gray-500"}`}>
+          <Tag className={`h-4.5 w-4.5 ${isUnder250 ? "text-[#0F172A] fill-[#0F172A]/10" : "text-gray-500"}`} strokeWidth={isUnder250 ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isUnder250 ? "text-[#0F172A]" : "text-gray-500"}`}>
             ₹{under250PriceLimit}
           </span>
         </Link>
@@ -94,12 +94,12 @@ export default function BottomNavigation() {
         <Link
           to="/food/user/profile"
           className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-full transition-all duration-300 relative ${isProfile
-              ? "bg-[#acc8a2] text-[#1a2517] shadow-sm"
+              ? "bg-[#F0FDF4] text-[#0F172A] shadow-sm"
               : "text-gray-500 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
             }`}
         >
-          <User className={`h-4.5 w-4.5 ${isProfile ? "text-[#1a2517] fill-[#1a2517]/10" : "text-gray-500"}`} strokeWidth={isProfile ? 2.5 : 2} />
-          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isProfile ? "text-[#1a2517]" : "text-gray-500"}`}>
+          <User className={`h-4.5 w-4.5 ${isProfile ? "text-[#0F172A] fill-[#0F172A]/10" : "text-gray-500"}`} strokeWidth={isProfile ? 2.5 : 2} />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isProfile ? "text-[#0F172A]" : "text-gray-500"}`}>
             Profile
           </span>
         </Link>

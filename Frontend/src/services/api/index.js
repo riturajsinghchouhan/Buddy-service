@@ -1854,6 +1854,14 @@ export const deliveryAPI = {
         contextModule: "delivery",
       },
     ),
+  acceptSharedOrder: (orderId) =>
+    apiClient.post(
+      `/food/delivery/orders/${String(orderId)}/accept-share`,
+      {},
+      {
+        contextModule: "delivery",
+      },
+    ),
   resendOrderToRestaurant: (orderId) =>
     apiClient.post(
       `/food/delivery/orders/${String(orderId)}/resend-to-restaurant`,
@@ -2040,6 +2048,10 @@ export const deliveryAPI = {
     }),
   acceptSharedOrder: (orderId) =>
     apiClient.post(`/food/delivery/orders/${String(orderId)}/accept-share`, {}, {
+      contextModule: "delivery",
+    }),
+  confirmSplit: (orderId) =>
+    apiClient.patch(`/food/delivery/orders/${String(orderId)}/confirm-split`, {}, {
       contextModule: "delivery",
     }),
   reportDelay: (orderId, reason) =>

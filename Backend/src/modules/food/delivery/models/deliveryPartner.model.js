@@ -125,6 +125,11 @@ const deliveryPartnerSchema = new mongoose.Schema(
             type: String,
             enum: ['weekly', 'monthly'],
             default: 'weekly'
+        },
+        zone: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'FoodZone',
+            default: null
         }
     },
     {
@@ -137,4 +142,3 @@ const deliveryPartnerSchema = new mongoose.Schema(
 deliveryPartnerSchema.index({ lastLocation: '2dsphere' });
 
 export const FoodDeliveryPartner = mongoose.model('FoodDeliveryPartner', deliveryPartnerSchema);
-

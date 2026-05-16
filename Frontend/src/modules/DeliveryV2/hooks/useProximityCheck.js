@@ -61,6 +61,13 @@ export const useProximityCheck = () => {
     );
   }, [riderLocation, targetLocation]);
 
+  // Calculate real-time duration (in seconds)
+  const durationToTarget = useMemo(() => {
+    if (distanceToTarget === Infinity) return Infinity;
+    // Default speed: 7 m/s (approx 25 km/h)
+    return Math.round(distanceToTarget / 7);
+  }, [distanceToTarget]);
+
   // Dev mode bypass
   const isDevMode = import.meta.env.VITE_APP_MODE === 'developer' || 
                     import.meta.env.VITE_ENABLE_RANGE_BYPASS === 'true' ||
@@ -70,6 +77,7 @@ export const useProximityCheck = () => {
 
   return {
     distanceToTarget,
+    durationToTarget,
     isWithinRange,
     actionLimit,
   };

@@ -172,6 +172,10 @@ export const updateDeliveryPartnerDetails = async (userId, payload) => {
         partner.profilePhoto = payload.profilePhoto ? String(payload.profilePhoto).trim() : '';
     }
 
+    if (payload?.zone !== undefined) {
+        partner.zone = payload.zone || null;
+    }
+
     await partner.save();
     return partner.toObject();
 };
@@ -331,18 +335,21 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
     const deliveryWithdrawalLimit = Number(cashLimitSettings.deliveryWithdrawalLimit) || 100;
 
     const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
-
     // Earnings paid to rider through completed deliveries
     // Also track cash collected from customers (COD total)
     const [earningsAgg, cashAgg, withdrawalAgg, bonusAgg] = await Promise.all([
         FoodOrder.aggregate([
             {
                 $match: {
-                    $or: [
-                        { 'dispatch.deliveryPartnerId': partnerId },
-                        { 'dispatch.sharedPartnerId': partnerId }
-                    ],
-                    orderStatus: 'delivered',
+                    $and: [
+                        {
+                            $or: [
+                                { 'dispatch.deliveryPartnerId': partnerId },
+                                { 'dispatch.sharedPartnerId': partnerId }
+                            ]
+                        },
+                        { orderStatus: { $in: ['delivered', 'completed', 'DELIVERED', 'COMPLETED'] } }
+                    ]
                 }
             },
             {
@@ -369,19 +376,44 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         FoodOrder.aggregate([
             {
                 $match: {
-                    $or: [
-                        { 'dispatch.deliveryPartnerId': partnerId },
-                        { 'dispatch.sharedPartnerId': partnerId }
-                    ],
-                    orderStatus: 'delivered',
-                    'payment.method': 'cash',
-                    'payment.status': 'paid'
+                    $and: [
+                        {
+                            $or: [
+                                { 'dispatch.deliveryPartnerId': partnerId },
+                                { 'dispatch.sharedPartnerId': partnerId }
+                            ]
+                        },
+                        {
+                            orderStatus: { 
+                                $in: [
+                                    'confirmed', 'preparing', 'ready_for_pickup', 'reached_pickup', 'picked_up', 'reached_drop', 'delivered', 'completed',
+                                    'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'REACHED_PICKUP', 'PICKED_UP', 'REACHED_DROP', 'DELIVERED', 'COMPLETED'
+                                ] 
+                            }
+                        },
+                        {
+                            $or: [
+                                { 'payment.method': { $in: ['cash', 'cod', 'CASH', 'COD'] } },
+                                { 'paymentMethod': { $in: ['cash', 'cod', 'CASH', 'COD'] } }
+                            ]
+                        }
+                    ]
                 }
             },
             {
                 $group: {
                     _id: null,
-                    cashInHand: { $sum: { $ifNull: ['$pricing.total', 0] } }
+                    cashCollected: { 
+                        $sum: { 
+                            $max: [
+                                { $ifNull: ['$pricing.total', 0] },
+                                { $ifNull: ['$payment.amountDue', 0] },
+                                { $ifNull: ['$payment.amount', 0] },
+                                { $ifNull: ['$amountToCollect', 0] },
+                                { $ifNull: ['$totalAmount', 0] }
+                            ] 
+                        } 
+                    }
                 }
             }
         ]),
@@ -389,26 +421,52 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
             {
                 $match: {
                     deliveryPartnerId: partnerId,
-                    status: 'approved'
+                    status: { $in: ['pending', 'approved', 'processed'] }
                 }
             },
             {
                 $group: {
-                    _id: null,
-                    totalWithdrawn: { $sum: '$amount' }
+                    _id: '$status',
+                    total: { $sum: '$amount' }
                 }
             }
         ]),
         DeliveryBonusTransaction.aggregate([
-            { $match: { deliveryPartnerId: partnerId } },
+            { $match: { deliveryPartnerId: partnerId, status: 'credited' } },
             { $group: { _id: null, total: { $sum: '$amount' } } }
         ])
     ]);
  
     const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
-    const cashInHand = Number(cashAgg?.[0]?.cashInHand) || 0;
-    const totalWithdrawn = Number(withdrawalAgg?.[0]?.totalWithdrawn) || 0;
     const totalBonus = Number(bonusAgg?.[0]?.total) || 0;
+    const grossCashCollected = Number(cashAgg?.[0]?.cashCollected) || 0;
+
+    const depositsAgg = await FoodDeliveryCashDeposit.aggregate([
+        { $match: { deliveryPartnerId: partnerId, status: 'Completed' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalCashDeposited = Number(depositsAgg?.[0]?.total || 0);
+
+    const withdrawalsMap = (withdrawalAgg || []).reduce((acc, curr) => {
+        acc[curr._id] = curr.total;
+        return acc;
+    }, {});
+    const totalWithdrawn = Number(withdrawalsMap['approved'] || 0) + Number(withdrawalsMap['processed'] || 0);
+    const pendingWithdrawals = Number(withdrawalsMap['pending'] || 0);
+
+    // Lifetime Earnings = Total from orders + bonuses
+    const lifetimeEarnings = totalEarned + totalBonus;
+    
+    // 1. Calculate raw earnings available for withdrawal/substitution
+    const rawEarningsBalance = Math.max(0, lifetimeEarnings - (totalWithdrawn + pendingWithdrawals));
+    
+    // 2. Calculate raw cash in hand (total collected - total deposited)
+    const rawCashInHand = Math.max(0, grossCashCollected - totalCashDeposited);
+
+    // 3. Keep them independent (No Substitution)
+    const pocketBalance = Number(rawEarningsBalance.toFixed(2));
+    const cashInHand = Number(rawCashInHand.toFixed(2));
+    const availableCashLimit = Math.max(0, totalCashLimit - cashInHand);
 
     // Keep transactions list reasonably small (UI only needs recent data for charts)
     const [paymentTxList, bonusTxList] = await Promise.all([
@@ -420,7 +478,7 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
             orderStatus: 'delivered',
         })
             .sort({ 'deliveryState.deliveredAt': -1, createdAt: -1 })
-            .select('orderId riderEarning payment orderStatus deliveryState createdAt deliveryState.deliveredAt')
+            .select('orderId riderEarning sharedRiderEarning dispatch payment orderStatus deliveryState createdAt deliveryState.deliveredAt')
             .limit(2000)
             .lean(),
         DeliveryBonusTransaction.find({ deliveryPartnerId: partnerId })
@@ -432,10 +490,14 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
     const paymentTransactions = (paymentTxList || []).map((o) => {
         const deliveredAt = o?.deliveryState?.deliveredAt || o?.deliveredAt || null;
         const date = deliveredAt || o?.createdAt || new Date();
+        const isSharedPartner = String(o?.dispatch?.sharedPartnerId || '') === String(partnerId);
+        const earningAmount = isSharedPartner
+            ? (Number(o?.sharedRiderEarning) || 0)
+            : (Number(o?.riderEarning) || 0);
         return {
             _id: o._id,
             type: 'payment',
-            amount: Number(o.riderEarning) || 0,
+            amount: earningAmount,
             status: 'Completed',
             date,
             createdAt: date,
@@ -446,7 +508,6 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         };
     });
 
-    // Frontend weekly earnings expects bonus transactions as `earning_addon`.
     const bonusTransactions = (bonusTxList || []).map((t) => ({
         _id: t._id,
         type: 'earning_addon',
@@ -458,12 +519,9 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         description: t.reference ? `Bonus - ${t.reference}` : 'Bonus'
     }));
 
-    const totalBalance = Math.max(0, totalEarned + totalBonus - totalWithdrawn);
-    const availableCashLimit = Math.max(0, totalCashLimit - cashInHand);
-
     return {
-        totalBalance,
-        pocketBalance: totalBalance,
+        totalBalance: lifetimeEarnings,
+        pocketBalance,
         cashInHand,
         totalWithdrawn,
         totalEarned,
@@ -507,11 +565,15 @@ export const getDeliveryPartnerEarnings = async (deliveryPartnerId, query = {}) 
     }
 
     const match = {
-        $or: [
-            { 'dispatch.deliveryPartnerId': partnerId },
-            { 'dispatch.sharedPartnerId': partnerId }
-        ],
-        orderStatus: 'delivered',
+        $and: [
+            {
+                $or: [
+                    { 'dispatch.deliveryPartnerId': partnerId },
+                    { 'dispatch.sharedPartnerId': partnerId }
+                ]
+            },
+            { orderStatus: { $in: ['delivered', 'completed', 'DELIVERED', 'COMPLETED'] } }
+        ]
     };
     if (range) {
         match['deliveryState.deliveredAt'] = { $gte: range.start, $lte: range.end };
@@ -612,7 +674,7 @@ const computeRange = (period, date) => {
     return { start: toStartOfDay(anchor), end: toEndOfDay(anchor) };
 };
 
-const toTripDto = (order) => {
+const toTripDto = (order, deliveryPartnerId) => {
     const createdAt = order?.createdAt || null;
     const deliveredAt = order?.deliveryState?.deliveredAt || order?.deliveredAt || order?.completedAt || null;
     const dateForUi = deliveredAt || createdAt || order?.updatedAt || null;
@@ -636,9 +698,30 @@ const toTripDto = (order) => {
     const paymentMethod = order?.payment?.method || order?.paymentMethod || '';
     const pricingTotal = Number(order?.pricing?.total) || Number(order?.totalAmount) || 0;
 
-    const earningAmount = Number(order?.riderEarning ?? order?.deliveryEarning ?? order?.pricing?.deliveryFee ?? 0) || 0;
+    const totalEarningForFallback = Number(order?.riderEarning || order?.deliveryEarning || order?.pricing?.deliveryFee || 0);
+    const earningAmount = String(order?.dispatch?.sharedPartnerId) === String(deliveryPartnerId)
+        ? (Number(order?.sharedRiderEarning) || (totalEarningForFallback / 2))
+        : (order?.dispatch?.sharedPartnerId 
+            ? (Number(order?.riderEarning) || (totalEarningForFallback / 2))
+            : totalEarningForFallback);
+
     const codAmount = paymentMethod === 'cash' ? Number(order?.payment?.amountDue) || 0 : 0;
     const codCollectedAmount = paymentMethod === 'cash' && order?.payment?.status === 'paid' ? codAmount : 0;
+
+    const isSharedPartner = String(order?.dispatch?.sharedPartnerId) === String(deliveryPartnerId);
+    const otherPartner = isSharedPartner ? order?.dispatch?.deliveryPartnerId : order?.dispatch?.sharedPartnerId;
+
+    // Split info for history
+    const totalForSplit = Number(order?.riderEarning || order?.pricing?.deliveryFee || 0);
+    const splitInfo = order?.dispatch?.sharedPartnerId ? {
+        isShared: true,
+        otherPartner,
+        primaryPartner: order?.dispatch?.deliveryPartnerId,
+        sharedPartner: order?.dispatch?.sharedPartnerId,
+        primaryEarning: Number(order?.riderEarning || (totalForSplit / 2)),
+        sharedEarning: Number(order?.sharedRiderEarning || (totalForSplit / 2))
+    } : null;
+
     return {
         id: order?._id,
         _id: order?._id,
@@ -660,7 +743,8 @@ const toTripDto = (order) => {
         deliveredAt: deliveredAt,
         completedAt: deliveredAt,
         date: dateForUi,
-        time
+        time,
+        splitInfo
     };
 };
 
@@ -712,7 +796,7 @@ export const getDeliveryPartnerTripHistory = async (deliveryPartnerId, query = {
         period,
         date: (date || new Date()).toISOString(),
         range: { start: start.toISOString(), end: end.toISOString() },
-        trips: (orders || []).map(toTripDto)
+        trips: (orders || []).map(o => toTripDto(o, deliveryPartnerId))
     };
 };
 
@@ -741,6 +825,8 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
         ]
     })
         .populate({ path: 'restaurantId', select: 'restaurantName' })
+        .populate({ path: 'dispatch.deliveryPartnerId', select: 'name fullName phone' })
+        .populate({ path: 'dispatch.sharedPartnerId', select: 'name fullName phone' })
         .sort({ 'deliveryState.deliveredAt': -1, deliveredAt: -1, completedAt: -1, updatedAt: -1, createdAt: -1 })
         .limit(limit)
         .lean();
@@ -753,19 +839,26 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
         .limit(limit)
         .lean();
 
-    const trips = (orders || []).map(toTripDto);
+    const trips = (orders || []).map(o => toTripDto(o, deliveryPartnerId));
 
-    const paymentTransactions = (orders || []).map((o) => ({
-        _id: o._id,
-        type: 'payment',
-        amount: Number(o.riderEarning) || Number(o.pricing?.deliveryFee) || 0,
-        status: 'Completed',
-        date: o?.deliveryState?.deliveredAt || o?.deliveredAt || o?.createdAt,
-        createdAt: o?.deliveryState?.deliveredAt || o?.deliveredAt || o?.createdAt,
-        orderId: o.orderId || String(o._id),
-        metadata: { orderId: o.orderId || String(o._id) },
-        description: o?.restaurantId?.restaurantName ? `Order earning - ${o.restaurantId.restaurantName}` : 'Order earning'
-    }));
+    const paymentTransactions = (orders || []).map((o) => {
+        const isSharedPartner = String(o?.dispatch?.sharedPartnerId || '') === String(partnerId);
+        const earningAmount = isSharedPartner
+            ? (Number(o?.sharedRiderEarning) || 0)
+            : (Number(o?.riderEarning) || Number(o.pricing?.deliveryFee) || 0);
+
+        return {
+            _id: o._id,
+            type: 'payment',
+            amount: earningAmount,
+            status: 'Completed',
+            date: o?.deliveryState?.deliveredAt || o?.deliveredAt || o?.createdAt,
+            createdAt: o?.deliveryState?.deliveredAt || o?.deliveredAt || o?.createdAt,
+            orderId: o.orderId || String(o._id),
+            metadata: { orderId: o.orderId || String(o._id) },
+            description: o?.restaurantId?.restaurantName ? `Order earning - ${o.restaurantId.restaurantName}` : 'Order earning'
+        };
+    });
 
     const bonusTransactions = (bonusTxList || []).map((t) => ({
         _id: t._id,

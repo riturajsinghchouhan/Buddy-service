@@ -251,6 +251,8 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     deliveryFleet: order?.deliveryFleet,
     dispatch: order?.dispatch,
     pickups: order?.pickups || [],
+    zoneId: order?.zoneId?._id || order?.zoneId || "",
+    zoneName: order?.zoneId?.name || order?.zoneId?.zoneName || order?.zoneName || "",
     createdAt: order?.createdAt,
     updatedAt: order?.updatedAt,
   };

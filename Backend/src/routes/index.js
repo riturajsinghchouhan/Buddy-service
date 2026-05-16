@@ -18,8 +18,12 @@ import { getQueuesController } from '../controllers/admin.controller.js';
 import { getPublicEnvController } from '../modules/food/landing/controllers/publicEnv.controller.js';
 import webhookRoutes from '../core/payments/routes/webhook.routes.js'; // ✅ NEW
 import searchRoutes from '../modules/food/search/routes/search.routes.js';
+import qcRoutes from '../modules/quickCommerce/routes/index.js';
 
 const router = express.Router();
+// ... (previous routes)
+router.use('/v1/qc', qcRoutes);
+
 
 router.get('/v1/health', (req, res) => {
     res.status(200).json({ status: 'UP', message: 'Server is healthy' });

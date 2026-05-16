@@ -7,6 +7,7 @@ const foodTransactionSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodUser', required: true, index: true },
     restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodRestaurant', required: true, index: true },
     deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner', index: true },
+    sharedPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner', index: true },
 
     // Core Payment Info
     paymentMethod: { 
@@ -60,7 +61,9 @@ const foodTransactionSchema = new mongoose.Schema({
         totalCustomerPaid: { type: Number, required: true, min: 0 },
         restaurantShare: { type: Number, required: true, min: 0 },
         restaurantCommission: { type: Number, required: true, min: 0 },
-        riderShare: { type: Number, required: true, min: 0 },
+        riderShare: { type: Number, required: true, min: 0 }, // Total rider share
+        primaryRiderShare: { type: Number, default: 0, min: 0 },
+        sharedRiderShare: { type: Number, default: 0, min: 0 },
         platformNetProfit: { type: Number, required: true },
         taxAmount: { type: Number, default: 0, min: 0 }
     },
