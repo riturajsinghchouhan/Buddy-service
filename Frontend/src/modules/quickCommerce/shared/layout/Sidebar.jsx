@@ -280,37 +280,42 @@ const SidebarContent = ({ items, title, onClose, openMenu, handleToggle, hovered
         className="mt-4 px-3 space-y-1.5 flex-1 overflow-y-auto overscroll-contain custom-scrollbar-dark min-h-0 pb-6 relative z-20"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {!title?.toLowerCase().includes("seller") && (
-          <div className="space-y-2 mb-6">
-            {/* Food Module Switcher */}
-            <Link
-              to="/admin/food"
-              className={cn(
-                "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:from-orange-500 hover:to-amber-500 transition-all duration-300 shadow-lg shadow-orange-900/20 group border border-orange-400/20"
-              )}
-            >
-              <UtensilsCrossed className="w-4 h-4 shrink-0 text-orange-100 group-hover:scale-110 transition-transform" />
-              <div className="flex-1 flex items-center justify-between overflow-hidden">
-                <span className="font-semibold text-xs uppercase tracking-wider truncate">Food Module</span>
-                <HiChevronRight className="w-3.5 h-3.5 shrink-0 text-orange-200 group-hover:translate-x-0.5 transition-transform" />
-              </div>
-            </Link>
+          <>
+            <p className="px-3 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] mb-3">
+              Cross-Module Navigation
+            </p>
+            <div className="space-y-2 mb-6">
+              {/* Food Module Switcher */}
+              <Link
+                to="/admin/food"
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:from-orange-500 hover:to-amber-500 transition-all duration-300 shadow-lg shadow-orange-900/20 group border border-orange-400/20",
+                  "justify-start"
+                )}
+              >
+                <UtensilsCrossed className="w-4 h-4 shrink-0 text-orange-100 group-hover:scale-110 transition-transform" />
+                <div className="flex-1 flex items-center justify-between overflow-hidden">
+                  <span className="font-semibold text-xs uppercase tracking-wider truncate">Food Module</span>
+                  <HiChevronRight className="w-3.5 h-3.5 shrink-0 text-orange-200 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </Link>
 
-            {/* Taxi Service */}
-            <Link
-              to="/taxi/admin"
-              className={cn(
-                "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white hover:from-amber-500 hover:to-yellow-500 transition-all duration-300 shadow-lg shadow-amber-900/20 group border border-amber-400/20"
-              )}
-            >
-              <Car className="w-4 h-4 shrink-0 text-amber-100 group-hover:scale-110 transition-transform" />
-              <div className="flex-1 flex items-center justify-between overflow-hidden">
-                <span className="font-semibold text-xs uppercase tracking-wider truncate">Taxi Service</span>
-                <HiChevronRight className="w-3.5 h-3.5 shrink-0 text-amber-200 group-hover:translate-x-0.5 transition-transform" />
-              </div>
-            </Link>
-          </div>
-        )}
+              {/* Taxi Service */}
+              <Link
+                to="/taxi/admin"
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 text-white hover:from-amber-500 hover:to-yellow-500 transition-all duration-300 shadow-lg shadow-amber-900/20 group border border-amber-400/20",
+                  "justify-start"
+                )}
+              >
+                <Car className="w-4 h-4 shrink-0 text-amber-100 group-hover:scale-110 transition-transform" />
+                <div className="flex-1 flex items-center justify-between overflow-hidden">
+                  <span className="font-semibold text-xs uppercase tracking-wider truncate">Taxi Service</span>
+                  <HiChevronRight className="w-3.5 h-3.5 shrink-0 text-amber-200 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </Link>
+            </div>
+          </>
 
         <p className="px-3 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] mb-3">
           Core Management
