@@ -22,7 +22,7 @@ let socketBridgeInitialized = false;
 function tryInitSocketBridge() {
   if (socketBridgeInitialized) return;
   try {
-    const io = getIO();
+    const io = getIO(true);
     if (io) {
       import('../../../../shared/adapters/socket-bridge.service.js')
         .then(({ initializeSocketBridge }) => {

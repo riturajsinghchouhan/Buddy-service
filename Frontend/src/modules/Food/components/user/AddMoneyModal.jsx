@@ -12,7 +12,14 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
+export default function AddMoneyModal({ 
+  open, 
+  onOpenChange, 
+  onSuccess,
+  createOrder = (amount) => userAPI.createWalletTopupOrder(amount),
+  verifyPayment = (data) => userAPI.verifyWalletTopupPayment(data),
+  getUserProfile = () => userAPI.getProfile()
+}) {
   const [amount, setAmount] = useState("")
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -47,7 +54,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
       setLoading(true)
 
       debugLog("Creating wallet top-up order for amount:", amountNum)
-      const orderResponse = await userAPI.createWalletTopupOrder(amountNum)
+      const orderResponse = await createOrder(amountNum)
       debugLog("Order response:", orderResponse)
 
       const { razorpay } = orderResponse.data.data
@@ -66,7 +73,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
 
       let userInfo = {}
       try {
-        const userResponse = await userAPI.getProfile()
+        const userResponse = await getUserProfile()
         userInfo = userResponse?.data?.data?.user || userResponse?.data?.user || {}
       } catch (err) {
         debugWarn("Could not fetch user profile for Razorpay prefill:", err)
@@ -96,7 +103,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
         },
         handler: async (response) => {
           try {
-            await userAPI.verifyWalletTopupPayment({
+            await verifyPayment({
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,

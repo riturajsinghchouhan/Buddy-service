@@ -388,8 +388,8 @@ export const initSocket = async (server) => {
  * Returns the initialized Socket.IO instance.
  * @returns {Server | null}
  */
-export const getIO = () => {
-    if (!io) {
+export const getIO = (silent = false) => {
+    if (!io && !silent) {
         logger.warn('Socket.IO not initialized');
     }
     return io;

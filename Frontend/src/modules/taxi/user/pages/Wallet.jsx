@@ -6,6 +6,7 @@ import { userAuthService } from '../services/authService';
 import { useSettings } from '../../../shared/context/SettingsContext';
 import { openExternalCheckout } from '../../../shared/utils/externalNavigation';
 import { rememberPendingPhonePeRedirect } from '../../../shared/utils/phonePeResume';
+import AddMoneyModal from '@food/components/user/AddMoneyModal';
 
 const PHONEPE_USER_WALLET_FLOW_KEY = 'user-wallet-topup';
 
@@ -16,9 +17,6 @@ const Wallet = () => {
   const activePaymentGateway = settings.paymentGateway || null;
 
   const [showAddMoney, setShowAddMoney] = React.useState(false);
-  const [amount, setAmount] = React.useState('');
-  const [isAdding, setIsAdding] = React.useState(false);
-  const [isSuccess, setIsSuccess] = React.useState(false);
   const [walletLoading, setWalletLoading] = React.useState(true);
   const [walletError, setWalletError] = React.useState('');
   const [wallet, setWallet] = React.useState({ balance: 0, currency: 'INR', recentTransactions: [] });
@@ -71,223 +69,39 @@ const Wallet = () => {
     refreshWallet();
   }, []);
 
-  const loadRazorpayScript = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-
-  const isMobileOrWebView = () => {
-    const ua = String(window.navigator?.userAgent || '');
-    return /Android|iPhone|iPad|iPod/i.test(ua)
-      || /; wv\)/i.test(ua)
-      || /Version\/[\d.]+/i.test(ua);
-  };
-
-  const handleAddMoney = async () => {
-    const amountValue = Number(amount);
-    if (!Number.isFinite(amountValue) || amountValue <= 0) return;
-
-    setIsAdding(true);
-    setWalletError('');
-
-    try {
-      if (!activePaymentGateway) {
-        throw new Error('No payment gateway is enabled by admin right now.');
-      }
-
-      if (!supportsWalletTopUp || !canTopUpWallet) {
-        throw new Error(`${walletTopUpGatewayLabel} is enabled by admin, but wallet top-up is not implemented for it yet.`);
-      }
-
-      if (walletTopUpMode === 'phonepe_redirect') {
-        const sessionResponse = await userAuthService.createPhonePeWalletTopupOrder(amountValue);
-        const session = sessionResponse?.data || {};
-
-        if (!session.checkoutUrl) {
-          throw new Error('Unable to start PhonePe payment');
-        }
-
-        rememberPendingPhonePeRedirect(PHONEPE_USER_WALLET_FLOW_KEY, {
-          merchantTransactionId: session.merchantTransactionId,
-          checkoutUrl: session.checkoutUrl,
-        });
-        const opened = await openExternalCheckout(session.checkoutUrl);
-        if (!opened) {
-          throw new Error('PhonePe checkout could not open outside the app WebView. Please update the app bridge or open this payment flow in your browser.');
-        }
-        setIsAdding(false);
-        return;
-      }
-
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        throw new Error('Razorpay SDK failed to load');
-      }
-
-      const orderResponse = await userAuthService.createWalletTopupOrder(amountValue);
-      const order = orderResponse?.data || {};
-
-      if (!order.keyId || !order.orderId) {
-        throw new Error('Unable to start payment');
-      }
-
-      let userInfo = {};
-      try {
-        userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-      } catch {
-        userInfo = {};
-      }
-
-      const rzp = new window.Razorpay({
-        key: order.keyId,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: appName,
-        description: 'Wallet Topup',
-        order_id: order.orderId,
-        ...(isMobileOrWebView() && order.callbackUrl
-          ? {
-              callback_url: order.callbackUrl,
-              redirect: true,
-            }
-          : {}),
-        prefill: {
-          name: userInfo?.name || '',
-          email: userInfo?.email || '',
-          contact: userInfo?.phone ? `+91${userInfo.phone}` : '',
-        },
-        modal: {
-          ondismiss: () => {
-            setIsAdding(false);
-          },
-        },
-        handler: async (response) => {
-          try {
-            const verifyResponse = await userAuthService.verifyWalletTopup(response);
-            const data = verifyResponse?.data || {};
-            setWallet({
-              balance: Number(data.balance || 0),
-              currency: data.currency || 'INR',
-              recentTransactions: Array.isArray(data.recentTransactions) ? data.recentTransactions : [],
-            });
-            setIsSuccess(true);
-            setTimeout(() => {
-              setIsSuccess(false);
-              setShowAddMoney(false);
-              setAmount('');
-            }, 1400);
-          } catch (err) {
-            setWalletError(err?.message || 'Payment verification failed');
-          } finally {
-            setIsAdding(false);
-          }
-        },
-        theme: {
-          color: '#E85D04',
-        },
-      });
-
-      rzp.on('payment.failed', (event) => {
-        const message = event?.error?.description || event?.error?.reason || 'Payment failed';
-        setWalletError(message);
-        setIsAdding(false);
-      });
-
-      rzp.open();
-    } catch (err) {
-      setWalletError(err?.message || 'Topup failed');
-      setIsAdding(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 max-w-lg mx-auto flex flex-col font-sans pb-24 relative overflow-x-hidden">
-      <AnimatePresence>
-        {showAddMoney && (
-          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/40 backdrop-blur-sm p-4">
-            <Motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              className="bg-white w-full max-w-md rounded-3xl p-8 pb-10 space-y-8 shadow-2xl relative"
-            >
-              <button
-                onClick={() => setShowAddMoney(false)}
-                className="absolute top-6 right-6 w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 active:scale-90 transition-colors"
-              >
-                <Plus size={20} className="rotate-45" />
-              </button>
-
-                <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-slate-900">Add Money</h3>
-                <p className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
-                  {activePaymentGateway ? `Top-up via ${walletTopUpGatewayLabel}` : 'Select amount to top-up'}
-                </p>
-              </div>
-
-              {isSuccess ? (
-                <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center py-8 gap-4">
-                  <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center">
-                    <History size={32} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-slate-900">Wallet Refilled!</p>
-                    <p className="text-xs font-medium text-slate-400 mt-1">Balance updated successfully</p>
-                  </div>
-                </Motion.div>
-              ) : (
-                <div className="space-y-8">
-                  <div className="relative">
-                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
-                    <input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full h-16 bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-6 text-2xl font-bold text-slate-900 focus:outline-none focus:border-slate-300 transition-all text-center placeholder:text-slate-200"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    {['100', '500', '1000'].map((val) => (
-                      <button
-                        key={val}
-                        onClick={() => setAmount(val)}
-                        className={`py-3 rounded-xl font-bold text-sm transition-all ${
-                          amount === val ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-600 border border-slate-100'
-                        }`}
-                      >
-                        +₹{val}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={handleAddMoney}
-                    disabled={isAdding || !amount}
-                    className={`w-full h-14 rounded-2xl font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 ${
-                      isAdding || !amount ? 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed' : 'bg-slate-900 text-white shadow-slate-200'
-                    }`}
-                  >
-                    {isAdding ? 'Processing...' : 'Refill Wallet'}
-                    {!isAdding && <Plus size={18} />}
-                  </button>
-                </div>
-              )}
-            </Motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <AddMoneyModal 
+        open={showAddMoney} 
+        onOpenChange={setShowAddMoney} 
+        onSuccess={refreshWallet}
+        createOrder={async (amount) => {
+          const res = await userAuthService.createWalletTopupOrder(amount);
+          return {
+            data: {
+              data: {
+                razorpay: {
+                  key: res.data?.data?.keyId,
+                  orderId: res.data?.data?.orderId,
+                  amount: res.data?.data?.amount,
+                  currency: res.data?.data?.currency || 'INR'
+                }
+              }
+            }
+          };
+        }}
+        verifyPayment={async (data) => {
+          return await userAuthService.verifyWalletTopup({
+            razorpay_order_id: data.razorpayOrderId,
+            razorpay_payment_id: data.razorpayPaymentId,
+            razorpay_signature: data.razorpaySignature
+          });
+        }}
+        getUserProfile={async () => {
+          const res = await userAuthService.getCurrentUser();
+          return { data: { data: { user: res.data?.data } } };
+        }}
+      />
 
       <header className="bg-white px-5 pt-10 pb-4 sticky top-0 z-20 border-b border-slate-100 shadow-sm">
         <div className="flex items-center gap-3">
