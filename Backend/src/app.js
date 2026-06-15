@@ -11,7 +11,6 @@ import { responseTimeLogger } from './middleware/responseTimeLogger.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { healthCheck } from './config/health.js';
 import { config } from './config/env.js';
-
 const app = express();
 
 // Trust first proxy (essential for express-rate-limit if behind a proxy)

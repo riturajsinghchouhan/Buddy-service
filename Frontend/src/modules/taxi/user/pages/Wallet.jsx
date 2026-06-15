@@ -81,10 +81,10 @@ const Wallet = () => {
             data: {
               data: {
                 razorpay: {
-                  key: res.data?.data?.keyId,
-                  orderId: res.data?.data?.orderId,
-                  amount: res.data?.data?.amount,
-                  currency: res.data?.data?.currency || 'INR'
+                  key: res.data?.keyId,
+                  orderId: res.data?.orderId,
+                  amount: res.data?.amount,
+                  currency: res.data?.currency || 'INR'
                 }
               }
             }

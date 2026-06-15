@@ -357,12 +357,7 @@ const isStaleAuthMessage = (message = '') => {
 // Request Interceptor: Attach Auth Token automatically
 api.interceptors.request.use(
   (config) => {
-    if (
-      config.url === '/users/me' ||
-      config.url?.startsWith('/users/me/')
-    ) {
-      config.baseURL = config.baseURL ? config.baseURL.replace(/\/taxi$/, '') : '';
-    }
+// Removed legacy baseURL replace for /users/me
 
     const existingAuthorization = config.headers?.Authorization || config.headers?.authorization;
 
