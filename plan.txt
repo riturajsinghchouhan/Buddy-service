@@ -1,0 +1,35 @@
+Restructure Driver Onboarding and Vehicle Selection Flow
+This plan outlines the required changes to restructure the driver onboarding process, reorder the steps, and introduce a session-based vehicle selection check when accessing a service panel.
+
+User Review Required
+IMPORTANT
+
+This plan defers "Vehicle Details" to the very end of the onboarding flow, just before admin verification.
+We are introducing a new "Active Vehicle Check" for subsequent app logins, requiring the driver to confirm the vehicle they are driving for the session. Is this intended to be a simple prompt on the home screen before they go online?
+Are KYC, Bank, and Selfie steps considered part of the "Basic Common Details" to be asked before Service Selection? (This plan assumes YES).
+Proposed Changes
+Backend (Buddy-service/Backend/src/core/identity/)
+[MODIFY] 
+driverOnboarding.service.js
+Reorder getNextStep State Machine: Update the step progression to: basics -> kyc -> bank -> selfie -> services -> vehicle_food/vehicle_taxi -> done. Currently, it starts with services. This needs to be changed so that basics is the default first step.
+Update normalizeOnboardingStepForClient: Adjust the normalization logic to reflect the new sequence. For example, if no step is defined, it should default to basics instead of services.
+Admin Verification Trigger: Ensure that completeOnboarding correctly triggers after the vehicle details are submitted, setting the driver's capability statuses to pending (for Admin Verification).
+Frontend (Buddy-service/Frontend/src/modules/driver/)
+[MODIFY] 
+OnboardingWizard.jsx
+Reorder buildSteps: Update the visual wizard steps to match the backend order: basics, kyc, bank, selfie, services, vehicle_food (if food selected), vehicle_taxi (if taxi selected).
+Taxi Configured Vehicle Details: Ensure the vehicle_taxi step continues to fetch pre-configured vehicle types via /taxi/users/vehicle-types (this is already partially implemented but needs to be rigorously tied into the new step order).
+Navigation/Submission Logic: Adjust handleNext to save steps in the correct order and finally call driverOnboardingAPI.complete() after the vehicle step.
+[NEW] [ActiveVehicleSelector.jsx] (Conceptual / Home Screen)
+Session Vehicle Check: On the driver's home screen or panel dashboard, implement a check when the app loads (or when the user attempts to go "Online"). If the driver hasn't selected their active vehicle for the session, block them with a modal/drawer (ActiveVehicleSelector) prompting them to select the vehicle they are currently driving.
+Verification Plan
+Manual Verification
+New User Onboarding:
+Register a new driver via phone number and OTP.
+Verify the wizard starts at "About You" (Basics), then proceeds to KYC, Bank, and Selfie.
+Verify the user is then asked to pick a Service (Food / Taxi).
+Verify the user is then prompted to enter the specific Vehicle Details for the chosen service(s).
+Verify the application goes into "Pending Admin Approval" state.
+Next Time Access (Active Vehicle Check):
+After admin approval, login as the driver.
+Verify that accessing the panel prompts the driver to confirm/select their vehicle if not already selected for the session.
