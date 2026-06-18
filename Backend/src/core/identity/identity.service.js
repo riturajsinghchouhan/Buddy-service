@@ -9,6 +9,7 @@ import { FoodRefreshToken } from '../refreshTokens/refreshToken.model.js';
 import { createOrUpdateOtp, verifyOtp } from '../otp/otp.service.js';
 
 import { BuddyIdentity } from './buddyIdentity.model.js';
+import { normalizeOnboardingStepForClient } from './driverOnboarding.service.js';
 import { normalizePhone, normalizeRoleKey } from './identity.helpers.js';
 
 import { FoodUser } from '../users/user.model.js';
@@ -138,7 +139,7 @@ const sanitizeIdentityForResponse = (identity) => ({
   isVerified: Boolean(identity.isVerified),
   isActive: identity.isActive !== false,
   onboardingComplete: Boolean(identity.onboardingComplete),
-  onboardingStep: identity.onboardingStep || 'basics',
+  onboardingStep: normalizeOnboardingStepForClient(identity.onboardingStep || 'services', identity),
   // Normalise the legacy stored `'none'` to the new canonical `'off'` on the
   // way out so clients only ever see one off-state value.
   activeService:
@@ -333,7 +334,7 @@ export const verifyOtpUnified = async ({
         services: [],
         isNewUser: isNewIdentity,
         needsOnboarding: true,
-        onboardingStep: identity.onboardingStep || 'basics',
+        onboardingStep: normalizeOnboardingStepForClient(identity.onboardingStep || 'services', identity),
       };
     }
 

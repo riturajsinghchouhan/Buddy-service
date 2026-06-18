@@ -14,6 +14,7 @@ import userBusService from './user/services/busService';
 import { userService } from './user/services/userService';
 import { syncUpcomingRideReminders } from './user/utils/upcomingRideReminderService';
 import { getAuthenticatedDriverRole, getLocalDriverToken, getCurrentDriver } from './driver/services/registrationService';
+import { isUnifiedIdentityDriverSession } from '@food/api';
 
 // Lazy loading pages for performance
 const UserHome = lazy(() => import('./user/pages/Home'));
@@ -375,6 +376,9 @@ const UserProtectedRoute = () => {
 };
 
 const REDIRECT_TO_USER_LOGIN = () => <Navigate to="/user/auth/login" replace />;
+const REDIRECT_TO_DRIVER_LOGIN = () => <Navigate to="/driver/login" replace />;
+const REDIRECT_TO_DRIVER_ONBOARDING = () => <Navigate to="/driver/onboarding" replace />;
+const REDIRECT_TO_DRIVER_HOME = () => <Navigate to="/driver/home" replace />;
 
 const UserHomeRoute = ({ taxiPrefixed = false }) => (
   getLocalUserToken()
@@ -548,6 +552,10 @@ const DriverEntryRedirect = () => {
     return <Navigate to="/driver/login" replace />;
   }
 
+  if (isUnifiedIdentityDriverSession()) {
+    return <Navigate to="/driver/home" replace />;
+  }
+
   return (
     <Navigate
       to={
@@ -559,7 +567,7 @@ const DriverEntryRedirect = () => {
               ? '/taxi/driver/bus-home'
               : role === 'pooling_driver'
                 ? '/taxi/driver/pooling'
-                : '/taxi/driver/home'
+                : '/driver/home'
       }
       replace
     />
@@ -683,26 +691,26 @@ export default function TaxiApp() {
             </Route>
 
             {/* Non-prefixed Fallbacks for Compatibility */}
-            <Route path="login" element={<Navigate to="/taxi/user/login" replace />} />
-            <Route path="signup" element={<Navigate to="/taxi/user/signup" replace />} />
-            <Route path="onboarding" element={<Navigate to="/taxi/user/onboarding" replace />} />
-            <Route path="verify-otp" element={<Navigate to="/taxi/user/verify-otp" replace />} />
+            <Route path="login" element={<REDIRECT_TO_USER_LOGIN />} />
+            <Route path="signup" element={<REDIRECT_TO_USER_LOGIN />} />
+            <Route path="onboarding" element={<REDIRECT_TO_USER_LOGIN />} />
+            <Route path="verify-otp" element={<REDIRECT_TO_USER_LOGIN />} />
             <Route path="user/*" element={<Navigate to="/taxi/user" replace />} />
 
             {/* Driver Routes */}
             <Route path="driver" element={<DriverLayout />}>
               <Route index element={<DriverEntryRedirect />} />
-              <Route path="login" element={<Navigate to="/driver/login" replace />} />
+              <Route path="login" element={<REDIRECT_TO_DRIVER_LOGIN />} />
               <Route path="terms" element={<LegalPage />} />
               <Route path="privacy" element={<LegalPage />} />
-              <Route path="otp-verify" element={<Navigate to="/driver/login" replace />} />
-              <Route path="select-role" element={<RoleSelection />} />
-              <Route path="step-personal" element={<StepPersonal />} />
-              <Route path="role-signup" element={<RoleSpecificOnboarding />} />
-              <Route path="step-referral" element={<StepReferral />} />
-              <Route path="step-vehicle" element={<StepVehicle />} />
-              <Route path="step-documents" element={<StepDocuments />} />
-              <Route path="registration-status" element={<RegistrationStatus />} />
+              <Route path="otp-verify" element={<REDIRECT_TO_DRIVER_LOGIN />} />
+              <Route path="select-role" element={<REDIRECT_TO_DRIVER_ONBOARDING />} />
+              <Route path="step-personal" element={<REDIRECT_TO_DRIVER_ONBOARDING />} />
+              <Route path="role-signup" element={<REDIRECT_TO_DRIVER_ONBOARDING />} />
+              <Route path="step-referral" element={<REDIRECT_TO_DRIVER_ONBOARDING />} />
+              <Route path="step-vehicle" element={<REDIRECT_TO_DRIVER_ONBOARDING />} />
+              <Route path="step-documents" element={<REDIRECT_TO_DRIVER_ONBOARDING />} />
+              <Route path="registration-status" element={<REDIRECT_TO_DRIVER_HOME />} />
               <Route path="status" element={<ApplicationStatus />} />
               <Route path="home" element={<DriverHome />} />
               <Route path="bus-home" element={<BusDriverHome />} />
@@ -828,8 +836,6 @@ export default function TaxiApp() {
               <Route path="users/subscriptions/create" element={<AdminUserSubscriptionCreate />} />
               <Route path="drivers" element={<AdminDriverList />} />
               <Route path="drivers/create" element={<AdminDriverCreate />} />
-              <Route path="drivers/edit/:id" element={<AdminDriverEdit />} />
-              <Route path="drivers/:id" element={<AdminDriverDetails />} />
               <Route path="drivers/pending" element={<AdminPendingDrivers />} />
               <Route path="drivers/subscriptions" element={<AdminDriverSubscriptions />} />
               <Route path="drivers/subscriptions/create" element={<AdminDriverSubscriptionCreate />} />
@@ -846,6 +852,8 @@ export default function TaxiApp() {
               <Route path="drivers/bulk-upload" element={<AdminDriverBulkUpload />} />
               <Route path="drivers/audit" element={<AdminDriverAudit />} />
               <Route path="drivers/payment-methods" element={<AdminPaymentMethods />} />
+              <Route path="drivers/edit/:id" element={<AdminDriverEdit />} />
+              <Route path="drivers/:id" element={<AdminDriverDetails />} />
               <Route path="owners" element={<AdminOwnerDashboard />} />
               <Route path="owners/manage" element={<AdminManageOwners />} />
               <Route path="owners/pending" element={<AdminPendingOwners />} />
@@ -888,6 +896,8 @@ export default function TaxiApp() {
               <Route path="price-management/driver-incentives" element={<AdminDriverIncentive />} />
               <Route path="price-management/surge-pricing" element={<AdminSurgePricing />} />
               <Route path="price-management/vehicle-types" element={<AdminVehicleType />} />
+              <Route path="price-management/vehicle-types/create" element={<AdminVehicleType mode="create" />} />
+              <Route path="price-management/vehicle-types/edit/:id" element={<AdminVehicleType mode="edit" />} />
               <Route path="price-management/rental-vehicle-types" element={<AdminRentalVehicleTypes />} />
               <Route path="price-management/rental-commission" element={<AdminRentalCommissionManager />} />
               <Route path="price-management/rental-tracking" element={<AdminRentalTracking />} />

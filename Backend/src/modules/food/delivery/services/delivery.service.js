@@ -5,7 +5,7 @@ import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransa
 import { FoodEarningAddon } from '../../admin/models/earningAddon.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
-import { ValidationError } from '../../../../core/auth/errors.js';
+import { ValidationError, ConflictError } from '../../../../core/auth/errors.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 import { FoodDeliveryWithdrawal } from '../models/foodDeliveryWithdrawal.model.js';
 
@@ -24,6 +24,20 @@ export const registerDeliveryPartner = async (payload, files) => {
         }
         // If rejected, delete the old record so they can start fresh with same phone
         await FoodDeliveryPartner.deleteMany({ phone });
+    }
+
+    const normalizedVehicleNumber = String(vehicleNumber || '').trim().toUpperCase();
+    if (normalizedVehicleNumber) {
+        const vehicleConflict = await FoodDeliveryPartner.findOne({
+            vehicleNumber: normalizedVehicleNumber,
+        })
+            .select('_id phone')
+            .lean();
+        if (vehicleConflict) {
+            throw new ConflictError(
+                `Vehicle number ${normalizedVehicleNumber} is already registered with another delivery partner`,
+            );
+        }
     }
 
     const images = {};

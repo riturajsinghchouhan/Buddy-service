@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   CheckCircle2,
   ChevronRight,
@@ -9,33 +10,94 @@ import {
   IdCard,
   User,
   Camera,
-  ArrowLeft,
   Loader2,
+  UploadCloud,
+  ImagePlus,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { driverOnboardingAPI } from "@food/api";
+import apiClient, {
+  driverOnboardingAPI,
+  getApiErrorMessage,
+  uploadAPI,
+} from "@food/api";
+import { invalidateDriverGuardCache } from "../components/DriverGuard";
 
-const STEPS = [
-  { key: "basics", label: "About You", Icon: User },
-  { key: "kyc", label: "KYC", Icon: IdCard },
-  { key: "bank", label: "Bank", Icon: Banknote },
-  { key: "vehicle", label: "Vehicle", Icon: Car },
-  { key: "selfie", label: "Selfie", Icon: Camera },
-  { key: "services", label: "Services", Icon: CheckCircle2 },
+const buildSteps = (services = []) => {
+  const steps = [{ key: "services", label: "Services", Icon: CheckCircle2 }];
+  if (services.includes("food")) {
+    steps.push({ key: "vehicle_food", label: "Food", Icon: Bike });
+  }
+  if (services.includes("taxi")) {
+    steps.push({ key: "vehicle_taxi", label: "Taxi", Icon: Car });
+  }
+  steps.push(
+    { key: "basics", label: "About You", Icon: User },
+    { key: "kyc", label: "KYC", Icon: IdCard },
+    { key: "bank", label: "Bank", Icon: Banknote },
+    { key: "selfie", label: "Selfie", Icon: Camera },
+  );
+  return steps;
+};
+
+const STEP_META = {
+  services: {
+    title: "What do you want to drive for?",
+    subtitle: "Pick one or both. You can add the other service later from home.",
+  },
+  vehicle_food: {
+    title: "Food delivery vehicle",
+    subtitle: "Choose your two-wheeler and enter the registration number.",
+  },
+  vehicle_taxi: {
+    title: "Your taxi vehicle",
+    subtitle: "Select a vehicle type and enter the plate number.",
+  },
+  basics: {
+    title: "Tell us about yourself",
+    subtitle: "We need your legal name for verification and payouts.",
+  },
+  kyc: {
+    title: "Identity verification",
+    subtitle: "Upload clear photos of your ID documents. All data is encrypted.",
+  },
+  bank: {
+    title: "Payout details",
+    subtitle: "Add a bank account or UPI ID to receive your earnings.",
+  },
+  selfie: {
+    title: "Take a selfie",
+    subtitle: "A quick face photo speeds up approval. Use good lighting.",
+  },
+};
+
+const FOOD_VEHICLE_TYPES = [
+  { value: "bike", label: "Bike", Icon: Bike },
+  { value: "scooter", label: "Scooter", Icon: Bike },
 ];
 
+const UPLOAD_FOLDER = "driver/onboarding";
+
+const resolveStepIndex = (onboardingStep, steps) => {
+  const normalized = String(onboardingStep || "services").toLowerCase();
+  const stepKey = normalized === "capabilities" ? "services" : normalized;
+  if (stepKey === "done") return Math.max(steps.length - 1, 0);
+  const idx = steps.findIndex((s) => s.key === stepKey);
+  return idx >= 0 ? idx : 0;
+};
+
 /* ----------------------------- validators ------------------------------- */
-// Each rule returns "" when valid, otherwise the user-facing error string.
 
 const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const RE_AADHAAR = /^[2-9]\d{11}$/; // 12 digits, can't start with 0 or 1
+const RE_AADHAAR = /^\d{12}$/;
 const RE_PAN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
-const RE_DL = /^[A-Z]{2}[ -]?\d{2}[ -]?\d{4,11}$/i; // permissive Indian DL
+const RE_DL = /^[A-Z]{2}[ -]?\d{2}[ -]?\d{4,11}$/i;
 const RE_IFSC = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const RE_UPI = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
-const RE_VEHICLE = /^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}$/; // MH12AB1234, DL3CAB1234
-const RE_URL = /^https?:\/\/.+/i;
+const RE_VEHICLE = /^[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}$/;
+const RE_URL = /^(https?:\/\/|blob:).+/i;
 
 const required = (label) => (val) => (val && String(val).trim() ? "" : `${label} is required`);
 const minLen = (label, n) => (val) => (String(val || "").trim().length >= n ? "" : `${label} must be at least ${n} characters`);
@@ -52,7 +114,6 @@ const compose = (...rules) => (val, ctx) => {
   return "";
 };
 
-// Validators bucketed by step + field. `ctx` is the whole step's state.
 const VALIDATORS = {
   basics: {
     "basics.name": compose(required("Full name"), minLen("Full name", 2), maxLen("Full name", 80)),
@@ -63,14 +124,20 @@ const VALIDATORS = {
       required("Aadhaar number"),
       matches(RE_AADHAAR, "Aadhaar must be a 12-digit number"),
     ),
-    "kyc.aadhaar.documentUrl": optionalMatches(RE_URL, "Document URL must be a valid http(s) URL"),
+    "kyc.aadhaar.documentUrl": compose(
+      required("Aadhaar front photo"),
+      matches(RE_URL, "Please upload your Aadhaar front photo"),
+    ),
     "kyc.pan.number": optionalMatches(RE_PAN, "PAN must look like ABCDE1234F"),
-    "kyc.pan.documentUrl": optionalMatches(RE_URL, "Document URL must be a valid http(s) URL"),
+    "kyc.pan.documentUrl": optionalMatches(RE_URL, "Please upload your PAN photo"),
     "kyc.drivingLicense.number": compose(
       required("Driving licence number"),
       matches(RE_DL, "Enter a valid driving licence number"),
     ),
-    "kyc.drivingLicense.documentUrl": optionalMatches(RE_URL, "Document URL must be a valid http(s) URL"),
+    "kyc.drivingLicense.documentUrl": compose(
+      required("Driving licence photo"),
+      matches(RE_URL, "Please upload your driving licence photo"),
+    ),
   },
   bank: {
     "bank.mode": (_v, ctx) => {
@@ -93,39 +160,45 @@ const VALIDATORS = {
         : "",
     "bank.upiId": (val) => (val ? matches(RE_UPI, "UPI must look like name@bank")(val) : ""),
   },
-  vehicle: {
-    "vehicle.type": required("Vehicle type"),
-    "vehicle.number": compose(
+  vehicle_food: {
+    "foodVehicle.type": required("Vehicle type"),
+    "foodVehicle.number": compose(
       required("Vehicle number"),
       matches(RE_VEHICLE, "Vehicle number must look like MH12AB1234"),
     ),
-    "vehicle.photoUrl": optionalMatches(RE_URL, "Photo URL must be a valid http(s) URL"),
-    "vehicle.rcUrl": optionalMatches(RE_URL, "RC URL must be a valid http(s) URL"),
-    "vehicle.insuranceUrl": optionalMatches(RE_URL, "Insurance URL must be a valid http(s) URL"),
+    "foodVehicle.make": required("Vehicle Make"),
+    "foodVehicle.model": required("Vehicle Model"),
+  },
+  vehicle_taxi: {
+    "taxiVehicle.type": required("Vehicle type"),
+    "taxiVehicle.number": compose(
+      required("Vehicle number"),
+      matches(RE_VEHICLE, "Vehicle number must look like MH12AB1234"),
+    ),
+    "taxiVehicle.make": required("Vehicle Make"),
+    "taxiVehicle.model": required("Vehicle Model"),
   },
   selfie: {
-    "selfie.selfieUrl": compose(required("Selfie URL"), matches(RE_URL, "Selfie URL must be a valid http(s) URL")),
+    "selfie.selfieUrl": compose(required("Selfie"), matches(RE_URL, "Please take or upload a selfie")),
   },
   services: {
-    "services": (val) => (Array.isArray(val) && val.length > 0 ? "" : "Select at least one service"),
+    onboardingServices: (val) => (Array.isArray(val) && val.length > 0 ? "" : "Select at least one service"),
   },
 };
 
-/**
- * Single onboarding wizard for any new driver. Captures the minimum the
- * backend needs to provision both FoodDeliveryPartner and Driver records
- * if the partner opts in to both.
- *
- * Endpoints used:
- *   PATCH /driver/onboarding/{basics|kyc|bank|vehicle|selfie}
- *   POST  /driver/onboarding/complete  { services: [...] }
- */
 export default function OnboardingWizard() {
   const navigate = useNavigate();
+  const scrollRef = useRef(null);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [furthestIdx, setFurthestIdx] = useState(0);
+  const [bankMode, setBankMode] = useState("bank");
+  const [taxiVehicleTypes, setTaxiVehicleTypes] = useState([]);
+  const [taxiTypesLoading, setTaxiTypesLoading] = useState(false);
 
-  // Schema mirrors backend shapes exactly so we can POST state as-is.
   const [state, setState] = useState({
+    onboardingServices: [],
+    foodVehicle: { type: "bike", number: "", make: "", model: "", color: "", photoUrl: "", rcUrl: "", insuranceUrl: "" },
+    taxiVehicle: { type: "", vehicleTypeId: "", name: "", number: "", make: "", model: "", color: "", photoUrl: "", rcUrl: "", insuranceUrl: "" },
     basics: { name: "", email: "", gender: "", city: "" },
     kyc: {
       aadhaar: { number: "", documentUrl: "", backDocumentUrl: "" },
@@ -141,26 +214,15 @@ export default function OnboardingWizard() {
       upiId: "",
       upiQrCodeUrl: "",
     },
-    vehicle: {
-      type: "bike",
-      make: "",
-      model: "",
-      number: "",
-      color: "",
-      photoUrl: "",
-      rcUrl: "",
-      insuranceUrl: "",
-    },
     selfie: { selfieUrl: "" },
-    services: ["food"],
   });
 
   const [touched, setTouched] = useState({});
   const [errors, setErrors] = useState({});
   const [bootLoading, setBootLoading] = useState(true);
   const [stepLoading, setStepLoading] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState({});
 
-  /* ------------------------- prefill from server ------------------------ */
   useEffect(() => {
     let cancelled = false;
     driverOnboardingAPI
@@ -174,12 +236,54 @@ export default function OnboardingWizard() {
           return;
         }
 
-        const stepKey = String(data?.onboardingStep || "basics").toLowerCase();
-        const idx = Math.max(0, STEPS.findIndex((s) => s.key === stepKey));
-        setActiveIdx(idx === -1 ? 0 : idx);
+        const services = Array.isArray(data?.onboardingServices) ? data.onboardingServices : [];
+        const steps = buildSteps(services);
+        const stepIdx = resolveStepIndex(data?.onboardingStep, steps);
+        setActiveIdx(stepIdx);
+        setFurthestIdx(stepIdx);
+
+        const hasUpi = Boolean(data?.bank?.upiId);
+        const hasBank = Boolean(data?.bank?.accountNumber || data?.bank?.ifscCode);
+        if (hasUpi && !hasBank) setBankMode("upi");
+
+        const legacyVehicle = data?.vehicle || {};
+        const foodVehicle = data?.foodVehicle?.number
+          ? data.foodVehicle
+          : { type: legacyVehicle.type || "bike", number: legacyVehicle.number || "" };
+        const taxiVehicle = data?.taxiVehicle?.number
+          ? data.taxiVehicle
+          : {
+              type: legacyVehicle.type || "",
+              vehicleTypeId: legacyVehicle.model || "",
+              name: legacyVehicle.make || "",
+              number: legacyVehicle.number || "",
+            };
 
         setState((prev) => ({
           ...prev,
+          onboardingServices: services,
+          foodVehicle: {
+            type: foodVehicle.type || "bike",
+            number: foodVehicle.number || "",
+            make: foodVehicle.make || "",
+            model: foodVehicle.model || "",
+            color: foodVehicle.color || "",
+            photoUrl: foodVehicle.photoUrl || "",
+            rcUrl: foodVehicle.rcUrl || "",
+            insuranceUrl: foodVehicle.insuranceUrl || "",
+          },
+          taxiVehicle: {
+            type: taxiVehicle.type || "",
+            vehicleTypeId: taxiVehicle.model || taxiVehicle.vehicleTypeId || "",
+            name: taxiVehicle.make || taxiVehicle.name || "",
+            number: taxiVehicle.number || "",
+            make: taxiVehicle.make || "",
+            model: taxiVehicle.model || "",
+            color: taxiVehicle.color || "",
+            photoUrl: taxiVehicle.photoUrl || "",
+            rcUrl: taxiVehicle.rcUrl || "",
+            insuranceUrl: taxiVehicle.insuranceUrl || "",
+          },
           basics: {
             name: data?.basics?.name || prev.basics.name,
             email: data?.basics?.email || prev.basics.email,
@@ -210,16 +314,6 @@ export default function OnboardingWizard() {
             upiId: data?.bank?.upiId || "",
             upiQrCodeUrl: data?.bank?.upiQrCodeUrl || "",
           },
-          vehicle: {
-            type: data?.vehicle?.type || "bike",
-            make: data?.vehicle?.make || "",
-            model: data?.vehicle?.model || "",
-            number: data?.vehicle?.number || "",
-            color: data?.vehicle?.color || "",
-            photoUrl: data?.vehicle?.photoUrl || "",
-            rcUrl: data?.vehicle?.rcUrl || "",
-            insuranceUrl: data?.vehicle?.insuranceUrl || "",
-          },
           selfie: { selfieUrl: data?.selfieUrl || "" },
         }));
       })
@@ -237,9 +331,61 @@ export default function OnboardingWizard() {
     };
   }, [navigate]);
 
-  const current = STEPS[activeIdx];
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeIdx]);
 
-  /* ---------------------------- validation ------------------------------ */
+  useEffect(() => {
+    if (!state.onboardingServices.includes("taxi")) return;
+    let cancelled = false;
+    setTaxiTypesLoading(true);
+    apiClient
+      .get("/taxi/users/vehicle-types")
+      .then((res) => {
+        if (cancelled) return;
+        const payload = res?.data?.data || res?.data || {};
+        const items = Array.isArray(payload?.results)
+          ? payload.results
+          : Array.isArray(payload)
+            ? payload
+            : [];
+        const active = items.filter((item) => item?.active !== false && Number(item?.status ?? 1) !== 0);
+        setTaxiVehicleTypes(active);
+        if (active.length && !state.taxiVehicle.type) {
+          const first = active[0];
+          setState((prev) => ({
+            ...prev,
+            taxiVehicle: {
+              ...prev.taxiVehicle,
+              type: first.icon_types || first.name || "car",
+              vehicleTypeId: String(first.id || first._id || ""),
+              name: first.name || "",
+            },
+          }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTaxiVehicleTypes([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTaxiTypesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.onboardingServices.includes("taxi")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const steps = useMemo(() => buildSteps(state.onboardingServices), [state.onboardingServices]);
+
+  useEffect(() => {
+    setActiveIdx((idx) => Math.min(idx, Math.max(steps.length - 1, 0)));
+    setFurthestIdx((idx) => Math.min(idx, Math.max(steps.length - 1, 0)));
+  }, [steps.length]);
+
+  const current = steps[activeIdx] || steps[0];
+  const meta = STEP_META[current.key] || STEP_META.services;
+  const progressPct = Math.round(((activeIdx + 1) / steps.length) * 100);
+
   const validateStep = (stepKey) => {
     const rules = VALIDATORS[stepKey] || {};
     const ctx = state[stepKey];
@@ -253,447 +399,678 @@ export default function OnboardingWizard() {
   };
 
   const stepErrors = useMemo(() => validateStep(current.key), [current.key, state]); // eslint-disable-line react-hooks/exhaustive-deps
-  const stepIsValid = Object.keys(stepErrors).length === 0;
 
   const showErr = (path) => (touched[path] ? stepErrors[path] || errors[path] || "" : "");
 
   const markTouched = (path) =>
     setTouched((prev) => ({ ...prev, [path]: true }));
 
-  /* ---------------------------- mutators -------------------------------- */
   const setField = (path, value) => {
     setState((prev) => setByPath(prev, path, value));
   };
 
-  /* ----------------------------- submit --------------------------------- */
+  const goToStep = (idx) => {
+    if (stepLoading || idx < 0 || idx > furthestIdx || idx === activeIdx) return;
+    setActiveIdx(idx);
+  };
+
   const persistAndAdvance = async (apiCall, payload) => {
     setStepLoading(true);
     try {
       await apiCall(payload);
       toast.success("Saved");
-      setActiveIdx((idx) => Math.min(idx + 1, STEPS.length - 1));
+      const nextIdx = Math.min(activeIdx + 1, steps.length - 1);
+      setFurthestIdx((prev) => Math.max(prev, nextIdx));
+      setActiveIdx(nextIdx);
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || "Could not save");
+      toast.error(getApiErrorMessage(err, "Could not save"));
     } finally {
       setStepLoading(false);
     }
   };
 
+  const handleUploadChange = (path, url, file) => {
+    setField(path, url);
+    markTouched(path);
+    if (file) {
+      setPendingUploads((prev) => ({ ...prev, [path]: file }));
+    } else {
+      setPendingUploads((prev) => {
+        const next = { ...prev };
+        delete next[path];
+        return next;
+      });
+    }
+  };
+
   const handleNext = async () => {
-    // Mark all of this step's fields as touched so errors render.
     const rules = VALIDATORS[current.key] || {};
+    const freshErrors = validateStep(current.key);
+
     setTouched((prev) => {
       const next = { ...prev };
       Object.keys(rules).forEach((p) => { next[p] = true; });
       return next;
     });
 
-    if (!stepIsValid) {
-      const firstMsg = Object.values(stepErrors)[0] || "Please fix the highlighted fields";
+    if (Object.keys(freshErrors).length > 0) {
+      const firstMsg = Object.values(freshErrors)[0] || "Please fix the highlighted fields";
       toast.error(firstMsg);
       return;
     }
 
-    if (current.key === "basics") {
-      await persistAndAdvance(driverOnboardingAPI.saveBasics, state.basics);
-    } else if (current.key === "kyc") {
-      await persistAndAdvance(driverOnboardingAPI.saveKyc, {
-        aadhaar: state.kyc.aadhaar,
-        pan: state.kyc.pan.number ? state.kyc.pan : undefined,
-        drivingLicense: state.kyc.drivingLicense,
-      });
-    } else if (current.key === "bank") {
-      await persistAndAdvance(driverOnboardingAPI.saveBank, state.bank);
-    } else if (current.key === "vehicle") {
-      await persistAndAdvance(driverOnboardingAPI.saveVehicle, state.vehicle);
-    } else if (current.key === "selfie") {
-      await persistAndAdvance(driverOnboardingAPI.saveSelfie, state.selfie);
-    } else if (current.key === "services") {
+    let finalState = { ...state };
+    const pathsToUpload = Object.keys(pendingUploads).filter((path) => path.startsWith(`${current.key}.`));
+    
+    if (pathsToUpload.length > 0) {
       setStepLoading(true);
       try {
-        await driverOnboardingAPI.complete(state.services);
+        const uploadPromises = pathsToUpload.map(async (path) => {
+          const file = pendingUploads[path];
+          const url = await uploadDocumentFile(file);
+          return { path, url };
+        });
+        const results = await Promise.all(uploadPromises);
+        
+        const newPending = { ...pendingUploads };
+        results.forEach(({ path, url }) => {
+          finalState = setByPath(finalState, path, url);
+          delete newPending[path];
+        });
+        setState(finalState);
+        setPendingUploads(newPending);
+      } catch (err) {
+        toast.error(err.message || "Failed to upload files. Please try again.");
+        setStepLoading(false);
+        return;
+      }
+      setStepLoading(false);
+    }
+
+    if (current.key === "services") {
+      await persistAndAdvance(driverOnboardingAPI.saveServices, finalState.onboardingServices);
+    } else if (current.key === "vehicle_food") {
+      await persistAndAdvance(driverOnboardingAPI.saveFoodVehicle, {
+        type: finalState.foodVehicle.type,
+        number: finalState.foodVehicle.number,
+        make: finalState.foodVehicle.make,
+        model: finalState.foodVehicle.model,
+      });
+    } else if (current.key === "vehicle_taxi") {
+      await persistAndAdvance(driverOnboardingAPI.saveTaxiVehicle, {
+        type: finalState.taxiVehicle.type,
+        number: finalState.taxiVehicle.number,
+        vehicleTypeId: finalState.taxiVehicle.vehicleTypeId,
+        name: finalState.taxiVehicle.name,
+        make: finalState.taxiVehicle.make,
+        model: finalState.taxiVehicle.model,
+      });
+    } else if (current.key === "basics") {
+      await persistAndAdvance(driverOnboardingAPI.saveBasics, finalState.basics);
+    } else if (current.key === "kyc") {
+      await persistAndAdvance(driverOnboardingAPI.saveKyc, {
+        aadhaar: finalState.kyc.aadhaar,
+        pan: finalState.kyc.pan.number ? finalState.kyc.pan : undefined,
+        drivingLicense: finalState.kyc.drivingLicense,
+      });
+    } else if (current.key === "bank") {
+      await persistAndAdvance(driverOnboardingAPI.saveBank, finalState.bank);
+    } else if (current.key === "selfie") {
+      setStepLoading(true);
+      try {
+        await driverOnboardingAPI.saveSelfie(finalState.selfie);
+        await driverOnboardingAPI.complete();
+        invalidateDriverGuardCache();
         toast.success("Onboarding submitted for approval");
         navigate("/driver/home", { replace: true });
       } catch (err) {
-        toast.error(err?.response?.data?.message || err?.message || "Could not submit");
+        toast.error(getApiErrorMessage(err, "Could not submit"));
       } finally {
         setStepLoading(false);
       }
     }
   };
 
-  const handleBack = () => setActiveIdx((idx) => Math.max(0, idx - 1));
+  const handleBack = () => {
+    if (stepLoading) return;
+    setActiveIdx((idx) => Math.max(0, idx - 1));
+  };
 
   if (bootLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0c1410] text-white">
-        <Loader2 className="w-6 h-6 animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#0c1410] text-white">
+        <Loader2 className="w-7 h-7 animate-spin text-[#88c170]" />
+        <p className="text-sm text-white/50 font-medium">Loading your progress…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1410] text-white font-['Poppins'] flex flex-col sm:items-center sm:justify-center">
-      <div className="w-full max-w-md mx-auto flex flex-col min-h-screen sm:min-h-0 sm:rounded-3xl sm:shadow-2xl sm:overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-br from-[#1f3a23] via-[#2a4e2f] to-[#3a6b41] px-6 pt-6 pb-8 relative">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="absolute top-5 left-5 text-white/70 hover:text-white"
-            aria-label="Back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <p className="uppercase text-[11px] text-[#9bc78a] font-bold tracking-[0.25em] text-center mb-1">
-            Partner Onboarding
-          </p>
-          <h2 className="text-2xl font-black tracking-tight text-center mb-4">
-            Step {activeIdx + 1} of {STEPS.length}: {current.label}
-          </h2>
+    <div className="h-[100dvh] bg-[#0c1410] text-white font-['Poppins'] flex flex-col overflow-hidden sm:items-center sm:justify-center sm:p-4">
+      <div className="w-full max-w-md mx-auto flex flex-col h-full sm:h-[min(90dvh,900px)] sm:rounded-3xl sm:shadow-2xl sm:overflow-hidden sm:border sm:border-white/5">
+        {/* Header — sticky */}
+        <div className="sticky top-0 z-20 shrink-0 bg-gradient-to-br from-[#1f3a23] via-[#2a4e2f] to-[#3a6b41] px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] text-[#9bc78a] font-bold uppercase tracking-[0.2em]">
+              Partner Onboarding
+            </p>
+            <span className="text-[11px] font-bold text-white/60 bg-white/10 px-2.5 py-1 rounded-full">
+              {activeIdx + 1}/{steps.length}
+            </span>
+          </div>
 
-          <div className="flex items-center justify-between gap-1 mt-3">
-            {STEPS.map((s, idx) => {
-              const Icon = s.Icon;
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-4">
+            <motion.div
+              className="h-full bg-[#88c170] rounded-full"
+              initial={false}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+            />
+          </div>
+
+          <div className="flex gap-1 mb-4 overflow-x-auto no-scrollbar pb-0.5">
+            {steps.map((s, idx) => {
               const done = idx < activeIdx;
               const active = idx === activeIdx;
+              const reachable = idx <= furthestIdx;
               return (
-                <div key={s.key} className="flex flex-col items-center flex-1">
-                  <div
-                    className={[
-                      "w-9 h-9 rounded-full flex items-center justify-center transition-all",
-                      done
-                        ? "bg-[#88c170] text-[#0c1410]"
-                        : active
-                        ? "bg-white text-[#0c1410] ring-4 ring-white/20"
-                        : "bg-white/10 text-white/40",
-                    ].join(" ")}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className={["text-[10px] mt-1 text-center", active ? "text-white font-bold" : "text-white/40"].join(" ")}>
-                    {s.label}
-                  </div>
-                </div>
+                <button
+                  key={s.key}
+                  type="button"
+                  disabled={!reachable || stepLoading}
+                  onClick={() => goToStep(idx)}
+                  className={[
+                    "flex-1 min-w-0 py-1.5 px-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all truncate",
+                    active
+                      ? "bg-white text-[#0c1410]"
+                      : done
+                      ? "bg-[#88c170]/20 text-[#cfe3c6] hover:bg-[#88c170]/30"
+                      : reachable
+                      ? "bg-white/10 text-white/60 hover:bg-white/15"
+                      : "bg-white/5 text-white/25 cursor-not-allowed",
+                  ].join(" ")}
+                >
+                  {s.label}
+                </button>
               );
             })}
           </div>
+
+          <h2 className="text-xl font-black tracking-tight">{meta.title}</h2>
+          <p className="text-[13px] text-white/60 mt-1 leading-relaxed">{meta.subtitle}</p>
         </div>
 
-        {/* Step body */}
-        <div className="flex-1 p-6 space-y-4 bg-[#0c1410]">
-          {current.key === "basics" && (
-            <>
-              <Field
-                label="Full Name"
-                value={state.basics.name}
-                onChange={(v) => setField("basics.name", v)}
-                onBlur={() => markTouched("basics.name")}
-                error={showErr("basics.name")}
-                placeholder="As per government ID"
-              />
-              <Field
-                label="Email (optional)"
-                value={state.basics.email}
-                onChange={(v) => setField("basics.email", v)}
-                onBlur={() => markTouched("basics.email")}
-                error={showErr("basics.email")}
-                placeholder="you@example.com"
-                type="email"
-              />
-              <Select
-                label="Gender (optional)"
-                value={state.basics.gender}
-                onChange={(v) => setField("basics.gender", v)}
-                options={[
-                  { value: "", label: "Prefer not to say" },
-                  { value: "male", label: "Male" },
-                  { value: "female", label: "Female" },
-                  { value: "other", label: "Other" },
-                ]}
-              />
-              <Field
-                label="City (optional)"
-                value={state.basics.city}
-                onChange={(v) => setField("basics.city", v)}
-                placeholder="e.g. Indore"
-              />
-            </>
-          )}
-
-          {current.key === "kyc" && (
-            <>
-              <Field
-                label="Aadhaar Number"
-                value={state.kyc.aadhaar.number}
-                onChange={(v) => setField("kyc.aadhaar.number", v.replace(/\D/g, "").slice(0, 12))}
-                onBlur={() => markTouched("kyc.aadhaar.number")}
-                error={showErr("kyc.aadhaar.number")}
-                placeholder="12-digit Aadhaar"
-                inputMode="numeric"
-              />
-              <Field
-                label="Aadhaar Document URL"
-                value={state.kyc.aadhaar.documentUrl}
-                onChange={(v) => setField("kyc.aadhaar.documentUrl", v.trim())}
-                onBlur={() => markTouched("kyc.aadhaar.documentUrl")}
-                error={showErr("kyc.aadhaar.documentUrl")}
-                placeholder="https://… (upload first, paste link)"
-              />
-              <Field
-                label="Driving Licence Number"
-                value={state.kyc.drivingLicense.number}
-                onChange={(v) => setField("kyc.drivingLicense.number", v.toUpperCase())}
-                onBlur={() => markTouched("kyc.drivingLicense.number")}
-                error={showErr("kyc.drivingLicense.number")}
-                placeholder="e.g. MH12 20230012345"
-              />
-              <Field
-                label="DL Document URL"
-                value={state.kyc.drivingLicense.documentUrl}
-                onChange={(v) => setField("kyc.drivingLicense.documentUrl", v.trim())}
-                onBlur={() => markTouched("kyc.drivingLicense.documentUrl")}
-                error={showErr("kyc.drivingLicense.documentUrl")}
-                placeholder="https://…"
-              />
-              <Field
-                label="PAN Number (optional)"
-                value={state.kyc.pan.number}
-                onChange={(v) => setField("kyc.pan.number", v.toUpperCase().replace(/\s+/g, "").slice(0, 10))}
-                onBlur={() => markTouched("kyc.pan.number")}
-                error={showErr("kyc.pan.number")}
-                placeholder="ABCDE1234F"
-              />
-              <Field
-                label="PAN Document URL (optional)"
-                value={state.kyc.pan.documentUrl}
-                onChange={(v) => setField("kyc.pan.documentUrl", v.trim())}
-                onBlur={() => markTouched("kyc.pan.documentUrl")}
-                error={showErr("kyc.pan.documentUrl")}
-                placeholder="https://…"
-              />
-            </>
-          )}
-
-          {current.key === "bank" && (
-            <>
-              <p className="text-[12px] text-white/50 leading-relaxed -mt-1 mb-1">
-                Add either a bank account <span className="text-white/80">or</span> a UPI ID. You can
-                add both later from your profile.
-              </p>
-              {showErr("bank.mode") && (
-                <p className="text-[11px] font-semibold text-red-400 -mt-1">{showErr("bank.mode")}</p>
-              )}
-
-              <Field
-                label="Account Holder Name"
-                value={state.bank.accountHolderName}
-                onChange={(v) => setField("bank.accountHolderName", v)}
-                onBlur={() => markTouched("bank.accountHolderName")}
-                error={showErr("bank.accountHolderName")}
-                placeholder="As per bank passbook"
-              />
-              <Field
-                label="Account Number"
-                value={state.bank.accountNumber}
-                onChange={(v) => setField("bank.accountNumber", v.replace(/\D/g, ""))}
-                onBlur={() => {
-                  markTouched("bank.accountNumber");
-                  markTouched("bank.mode");
-                }}
-                error={showErr("bank.accountNumber")}
-                placeholder="Numbers only"
-                inputMode="numeric"
-              />
-              <Field
-                label="IFSC"
-                value={state.bank.ifscCode}
-                onChange={(v) => setField("bank.ifscCode", v.toUpperCase().replace(/\s+/g, "").slice(0, 11))}
-                onBlur={() => {
-                  markTouched("bank.ifscCode");
-                  markTouched("bank.mode");
-                }}
-                error={showErr("bank.ifscCode")}
-                placeholder="HDFC0001234"
-              />
-              <Field
-                label="Bank Name (optional)"
-                value={state.bank.bankName}
-                onChange={(v) => setField("bank.bankName", v)}
-                placeholder="e.g. HDFC Bank"
-              />
-              <div className="rounded-xl border border-white/10 my-2 relative">
-                <span className="absolute -top-2 left-3 px-2 text-[10px] uppercase tracking-widest text-white/40 bg-[#0c1410]">
-                  or
-                </span>
-                <div className="p-3 pt-4 space-y-3">
-                  <Field
-                    label="UPI ID"
-                    value={state.bank.upiId}
-                    onChange={(v) => setField("bank.upiId", v.trim())}
-                    onBlur={() => {
-                      markTouched("bank.upiId");
-                      markTouched("bank.mode");
+        {/* Step body — scrollable middle */}
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-5 space-y-4 bg-[#0c1410]">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={current.key}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-4"
+            >
+              {current.key === "services" && (
+                <>
+                  <ServiceToggle
+                    checked={state.onboardingServices.includes("food")}
+                    onChange={(checked) => {
+                      markTouched("onboardingServices");
+                      setState((s) => ({
+                        ...s,
+                        onboardingServices: checked
+                          ? Array.from(new Set([...s.onboardingServices, "food"]))
+                          : s.onboardingServices.filter((x) => x !== "food"),
+                      }));
                     }}
-                    error={showErr("bank.upiId")}
-                    placeholder="name@bank"
+                    Icon={Bike}
+                    title="Food Delivery"
+                    subtitle="Deliver restaurant orders nearby"
                   />
-                </div>
-              </div>
-            </>
-          )}
-
-          {current.key === "vehicle" && (
-            <>
-              <Select
-                label="Vehicle Type"
-                value={state.vehicle.type}
-                onChange={(v) => setField("vehicle.type", v)}
-                options={[
-                  { value: "bike", label: "Bike" },
-                  { value: "scooter", label: "Scooter" },
-                  { value: "auto", label: "Auto" },
-                  { value: "car", label: "Car / Mini" },
-                  { value: "sedan", label: "Sedan" },
-                  { value: "suv", label: "SUV" },
-                ]}
-              />
-              <Field
-                label="Vehicle Number"
-                value={state.vehicle.number}
-                onChange={(v) => setField("vehicle.number", v.toUpperCase().replace(/\s+/g, ""))}
-                onBlur={() => markTouched("vehicle.number")}
-                error={showErr("vehicle.number")}
-                placeholder="MH12AB1234"
-              />
-              <Field
-                label="Make (optional)"
-                value={state.vehicle.make}
-                onChange={(v) => setField("vehicle.make", v)}
-                placeholder="e.g. Honda"
-              />
-              <Field
-                label="Model (optional)"
-                value={state.vehicle.model}
-                onChange={(v) => setField("vehicle.model", v)}
-                placeholder="e.g. Activa 6G"
-              />
-              <Field
-                label="Color (optional)"
-                value={state.vehicle.color}
-                onChange={(v) => setField("vehicle.color", v)}
-                placeholder="e.g. Black"
-              />
-              <Field
-                label="RC Document URL (optional)"
-                value={state.vehicle.rcUrl}
-                onChange={(v) => setField("vehicle.rcUrl", v.trim())}
-                onBlur={() => markTouched("vehicle.rcUrl")}
-                error={showErr("vehicle.rcUrl")}
-                placeholder="https://…"
-              />
-              <Field
-                label="Insurance URL (optional)"
-                value={state.vehicle.insuranceUrl}
-                onChange={(v) => setField("vehicle.insuranceUrl", v.trim())}
-                onBlur={() => markTouched("vehicle.insuranceUrl")}
-                error={showErr("vehicle.insuranceUrl")}
-                placeholder="https://…"
-              />
-              <Field
-                label="Vehicle Photo URL (optional)"
-                value={state.vehicle.photoUrl}
-                onChange={(v) => setField("vehicle.photoUrl", v.trim())}
-                onBlur={() => markTouched("vehicle.photoUrl")}
-                error={showErr("vehicle.photoUrl")}
-                placeholder="https://…"
-              />
-            </>
-          )}
-
-          {current.key === "selfie" && (
-            <>
-              <Field
-                label="Selfie URL"
-                value={state.selfie.selfieUrl}
-                onChange={(v) => setField("selfie.selfieUrl", v.trim())}
-                onBlur={() => markTouched("selfie.selfieUrl")}
-                error={showErr("selfie.selfieUrl")}
-                placeholder="https://…"
-              />
-              <p className="text-[12px] text-white/40 leading-relaxed">
-                Take a well-lit selfie holding your ID for fastest approval. We only use it for
-                verification.
-              </p>
-            </>
-          )}
-
-          {current.key === "services" && (
-            <>
-              <p className="text-[13px] text-white/70 font-medium mb-3">
-                Choose which services you want to start with. You can enable the other one anytime
-                later from your profile.
-              </p>
-              <ServiceToggle
-                checked={state.services.includes("food")}
-                onChange={(checked) =>
-                  setState((s) => ({
-                    ...s,
-                    services: checked
-                      ? Array.from(new Set([...s.services, "food"]))
-                      : s.services.filter((x) => x !== "food"),
-                  }))
-                }
-                Icon={Bike}
-                title="Food Delivery"
-                subtitle="Deliver restaurant orders nearby"
-              />
-              <ServiceToggle
-                checked={state.services.includes("taxi")}
-                onChange={(checked) =>
-                  setState((s) => ({
-                    ...s,
-                    services: checked
-                      ? Array.from(new Set([...s.services, "taxi"]))
-                      : s.services.filter((x) => x !== "taxi"),
-                  }))
-                }
-                Icon={Car}
-                title="Taxi & Cab"
-                subtitle="Take ride and parcel requests"
-              />
-              {showErr("services") && (
-                <p className="text-[11px] font-semibold text-red-400 mt-1">{showErr("services")}</p>
+                  <ServiceToggle
+                    checked={state.onboardingServices.includes("taxi")}
+                    onChange={(checked) => {
+                      markTouched("onboardingServices");
+                      setState((s) => ({
+                        ...s,
+                        onboardingServices: checked
+                          ? Array.from(new Set([...s.onboardingServices, "taxi"]))
+                          : s.onboardingServices.filter((x) => x !== "taxi"),
+                      }));
+                    }}
+                    Icon={Car}
+                    title="Taxi & Cab"
+                    subtitle="Take ride and parcel requests"
+                  />
+                  {showErr("onboardingServices") ? (
+                    <p className="text-[11px] font-semibold text-red-400">{showErr("onboardingServices")}</p>
+                  ) : null}
+                  <div className="rounded-2xl bg-white/5 border border-white/10 p-3 text-[11px] text-white/50 leading-relaxed">
+                    You'll only be active on one service at a time. The other pauses while you're on a job.
+                  </div>
+                </>
               )}
-              <div className="rounded-2xl bg-[#88c170]/5 border border-[#88c170]/20 p-3 text-[11px] text-[#cfe3c6] mt-2">
-                You'll only ever be active on ONE service at a time. The other one will be paused
-                while you're on a job.
-              </div>
-            </>
-          )}
+
+              {current.key === "vehicle_food" && (
+                <>
+                  <div>
+                    <label className="text-[11px] text-white/50 font-bold uppercase tracking-widest mb-2 block">
+                      Vehicle Type <span className="text-red-400">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {FOOD_VEHICLE_TYPES.map(({ value, label, Icon }) => {
+                        const selected = state.foodVehicle.type === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setField("foodVehicle.type", value)}
+                            className={[
+                              "flex flex-col items-center gap-1.5 p-4 rounded-xl border transition-all",
+                              selected
+                                ? "bg-[#88c170]/15 border-[#88c170] text-white"
+                                : "bg-white/5 border-white/10 text-white/50 hover:border-white/20",
+                            ].join(" ")}
+                          >
+                            <Icon className={["w-6 h-6", selected ? "text-[#88c170]" : ""].join(" ")} />
+                            <span className="text-[12px] font-bold">{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <Field
+                    label="Vehicle Number"
+                    required
+                    value={state.foodVehicle.number}
+                    onChange={(v) => setField("foodVehicle.number", v.toUpperCase().replace(/\s+/g, ""))}
+                    onBlur={() => markTouched("foodVehicle.number")}
+                    error={showErr("foodVehicle.number")}
+                    placeholder="MH12AB1234"
+                  />
+                  <Field
+                    label="Make / Brand"
+                    required
+                    value={state.foodVehicle.make}
+                    onChange={(v) => setField("foodVehicle.make", v)}
+                    onBlur={() => markTouched("foodVehicle.make")}
+                    error={showErr("foodVehicle.make")}
+                    placeholder="e.g. Honda, Hero"
+                  />
+                  <Field
+                    label="Model"
+                    required
+                    value={state.foodVehicle.model}
+                    onChange={(v) => setField("foodVehicle.model", v)}
+                    onBlur={() => markTouched("foodVehicle.model")}
+                    error={showErr("foodVehicle.model")}
+                    placeholder="e.g. Activa, Splendor"
+                  />
+                </>
+              )}
+
+              {current.key === "vehicle_taxi" && (
+                <>
+                  <div>
+                    <label className="text-[11px] text-white/50 font-bold uppercase tracking-widest mb-2 block">
+                      Vehicle Type <span className="text-red-400">*</span>
+                    </label>
+                    {taxiTypesLoading ? (
+                      <div className="flex items-center justify-center py-8 text-white/40 text-sm gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading vehicle types…
+                      </div>
+                    ) : taxiVehicleTypes.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {taxiVehicleTypes.map((item) => {
+                          const id = String(item.id || item._id || "");
+                          const selected = state.taxiVehicle.vehicleTypeId === id;
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => {
+                                setState((prev) => ({
+                                  ...prev,
+                                  taxiVehicle: {
+                                    ...prev.taxiVehicle,
+                                    type: item.icon_types || item.name || "car",
+                                    vehicleTypeId: id,
+                                    name: item.name || "",
+                                  },
+                                }));
+                                markTouched("taxiVehicle.type");
+                              }}
+                              className={[
+                                "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center",
+                                selected
+                                  ? "bg-[#88c170]/15 border-[#88c170] text-white"
+                                  : "bg-white/5 border-white/10 text-white/50 hover:border-white/20",
+                              ].join(" ")}
+                            >
+                              {item.image || item.map_icon ? (
+                                <img
+                                  src={item.image || item.map_icon}
+                                  alt={item.name}
+                                  className="w-10 h-10 object-contain"
+                                />
+                              ) : (
+                                <Car className={["w-8 h-8", selected ? "text-[#88c170]" : ""].join(" ")} />
+                              )}
+                              <span className="text-[11px] font-bold leading-tight">{item.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: "bike", label: "Bike" },
+                          { value: "auto", label: "Auto" },
+                          { value: "car", label: "Car" },
+                        ].map(({ value, label }) => {
+                          const selected = state.taxiVehicle.type === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => {
+                                setField("taxiVehicle.type", value);
+                                setField("taxiVehicle.name", label);
+                                markTouched("taxiVehicle.type");
+                              }}
+                              className={[
+                                "flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all",
+                                selected
+                                  ? "bg-[#88c170]/15 border-[#88c170] text-white"
+                                  : "bg-white/5 border-white/10 text-white/50 hover:border-white/20",
+                              ].join(" ")}
+                            >
+                              <Car className={["w-5 h-5", selected ? "text-[#88c170]" : ""].join(" ")} />
+                              <span className="text-[10px] font-bold">{label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {showErr("taxiVehicle.type") ? (
+                      <p className="text-[11px] font-semibold text-red-400 mt-2">{showErr("taxiVehicle.type")}</p>
+                    ) : null}
+                  </div>
+                  <Field
+                    label="Vehicle Number"
+                    required
+                    value={state.taxiVehicle.number}
+                    onChange={(v) => setField("taxiVehicle.number", v.toUpperCase().replace(/\s+/g, ""))}
+                    onBlur={() => markTouched("taxiVehicle.number")}
+                    error={showErr("taxiVehicle.number")}
+                    placeholder="MH12AB1234"
+                  />
+                  <Field
+                    label="Make / Brand"
+                    required
+                    value={state.taxiVehicle.make}
+                    onChange={(v) => setField("taxiVehicle.make", v)}
+                    onBlur={() => markTouched("taxiVehicle.make")}
+                    error={showErr("taxiVehicle.make")}
+                    placeholder="e.g. Maruti Suzuki, Tata"
+                  />
+                  <Field
+                    label="Model"
+                    required
+                    value={state.taxiVehicle.model}
+                    onChange={(v) => setField("taxiVehicle.model", v)}
+                    onBlur={() => markTouched("taxiVehicle.model")}
+                    error={showErr("taxiVehicle.model")}
+                    placeholder="e.g. Swift Dzire, Indica"
+                  />
+                </>
+              )}
+
+              {current.key === "basics" && (
+                <>
+                  <Field
+                    label="Full Name"
+                    required
+                    value={state.basics.name}
+                    onChange={(v) => setField("basics.name", v)}
+                    onBlur={() => markTouched("basics.name")}
+                    error={showErr("basics.name")}
+                    placeholder="As per government ID"
+                  />
+                  <Field
+                    label="Email"
+                    value={state.basics.email}
+                    onChange={(v) => setField("basics.email", v)}
+                    onBlur={() => markTouched("basics.email")}
+                    error={showErr("basics.email")}
+                    placeholder="you@example.com (optional)"
+                    type="email"
+                  />
+                  <Select
+                    label="Gender"
+                    value={state.basics.gender}
+                    onChange={(v) => setField("basics.gender", v)}
+                    options={[
+                      { value: "", label: "Prefer not to say" },
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                      { value: "other", label: "Other" },
+                    ]}
+                  />
+                  <Field
+                    label="City"
+                    value={state.basics.city}
+                    onChange={(v) => setField("basics.city", v)}
+                    placeholder="e.g. Indore (optional)"
+                  />
+                </>
+              )}
+
+              {current.key === "kyc" && (
+                <>
+                  <SectionCard title="Aadhaar" required>
+                    <Field
+                      label="Aadhaar Number"
+                      required
+                      value={formatAadhaar(state.kyc.aadhaar.number)}
+                      onChange={(v) => setField("kyc.aadhaar.number", v.replace(/\D/g, "").slice(0, 12))}
+                      onBlur={() => markTouched("kyc.aadhaar.number")}
+                      error={showErr("kyc.aadhaar.number")}
+                      placeholder="XXXX XXXX XXXX"
+                      inputMode="numeric"
+                    />
+                    <DocumentUpload
+                      label="Aadhaar front photo"
+                      hint="Clear photo of the front side"
+                      value={state.kyc.aadhaar.documentUrl}
+                      onChange={(url, file) => handleUploadChange("kyc.aadhaar.documentUrl", url, file)}
+                      error={showErr("kyc.aadhaar.documentUrl")}
+                    />
+                    <DocumentUpload
+                      label="Aadhaar back photo"
+                      hint="Optional but recommended"
+                      value={state.kyc.aadhaar.backDocumentUrl}
+                      onChange={(url, file) => handleUploadChange("kyc.aadhaar.backDocumentUrl", url, file)}
+                      optional
+                    />
+                  </SectionCard>
+
+                  <SectionCard title="Driving Licence" required>
+                    <Field
+                      label="Licence Number"
+                      required
+                      value={state.kyc.drivingLicense.number}
+                      onChange={(v) => setField("kyc.drivingLicense.number", v.toUpperCase())}
+                      onBlur={() => markTouched("kyc.drivingLicense.number")}
+                      error={showErr("kyc.drivingLicense.number")}
+                      placeholder="e.g. MH12 20230012345"
+                    />
+                    <DocumentUpload
+                      label="Licence photo"
+                      hint="Front side of your driving licence"
+                      value={state.kyc.drivingLicense.documentUrl}
+                      onChange={(url, file) => handleUploadChange("kyc.drivingLicense.documentUrl", url, file)}
+                      error={showErr("kyc.drivingLicense.documentUrl")}
+                    />
+                  </SectionCard>
+
+                  <SectionCard title="PAN Card" optional>
+                    <Field
+                      label="PAN Number"
+                      value={state.kyc.pan.number}
+                      onChange={(v) => setField("kyc.pan.number", v.toUpperCase().replace(/\s+/g, "").slice(0, 10))}
+                      onBlur={() => markTouched("kyc.pan.number")}
+                      error={showErr("kyc.pan.number")}
+                      placeholder="ABCDE1234F"
+                    />
+                    <DocumentUpload
+                      label="PAN photo"
+                      value={state.kyc.pan.documentUrl}
+                      onChange={(url, file) => handleUploadChange("kyc.pan.documentUrl", url, file)}
+                      error={showErr("kyc.pan.documentUrl")}
+                      optional
+                    />
+                  </SectionCard>
+                </>
+              )}
+
+              {current.key === "bank" && (
+                <>
+                  <div className="flex rounded-xl bg-white/5 p-1 border border-white/10">
+                    {[
+                      { key: "bank", label: "Bank Account" },
+                      { key: "upi", label: "UPI ID" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setBankMode(tab.key)}
+                        className={[
+                          "flex-1 py-2.5 rounded-lg text-[12px] font-bold transition-all",
+                          bankMode === tab.key
+                            ? "bg-[#88c170] text-[#0c1410] shadow-sm"
+                            : "text-white/50 hover:text-white/70",
+                        ].join(" ")}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {showErr("bank.mode") && (
+                    <div className="flex items-center gap-2 text-[12px] font-semibold text-red-400 bg-red-400/10 border border-red-400/20 rounded-xl px-3 py-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {showErr("bank.mode")}
+                    </div>
+                  )}
+
+                  {bankMode === "bank" ? (
+                    <SectionCard title="Bank account details">
+                      <Field
+                        label="Account Holder Name"
+                        value={state.bank.accountHolderName}
+                        onChange={(v) => setField("bank.accountHolderName", v)}
+                        onBlur={() => markTouched("bank.accountHolderName")}
+                        error={showErr("bank.accountHolderName")}
+                        placeholder="As per bank passbook"
+                      />
+                      <Field
+                        label="Account Number"
+                        value={state.bank.accountNumber}
+                        onChange={(v) => setField("bank.accountNumber", v.replace(/\D/g, ""))}
+                        onBlur={() => {
+                          markTouched("bank.accountNumber");
+                          markTouched("bank.mode");
+                        }}
+                        error={showErr("bank.accountNumber")}
+                        placeholder="Numbers only"
+                        inputMode="numeric"
+                      />
+                      <Field
+                        label="IFSC Code"
+                        value={state.bank.ifscCode}
+                        onChange={(v) => setField("bank.ifscCode", v.toUpperCase().replace(/\s+/g, "").slice(0, 11))}
+                        onBlur={() => {
+                          markTouched("bank.ifscCode");
+                          markTouched("bank.mode");
+                        }}
+                        error={showErr("bank.ifscCode")}
+                        placeholder="HDFC0001234"
+                      />
+                      <Field
+                        label="Bank Name"
+                        value={state.bank.bankName}
+                        onChange={(v) => setField("bank.bankName", v)}
+                        placeholder="e.g. HDFC Bank (optional)"
+                      />
+                    </SectionCard>
+                  ) : (
+                    <SectionCard title="UPI details">
+                      <Field
+                        label="UPI ID"
+                        value={state.bank.upiId}
+                        onChange={(v) => setField("bank.upiId", v.trim())}
+                        onBlur={() => {
+                          markTouched("bank.upiId");
+                          markTouched("bank.mode");
+                        }}
+                        error={showErr("bank.upiId")}
+                        placeholder="yourname@bank"
+                      />
+                      <p className="text-[11px] text-white/40 leading-relaxed">
+                        Earnings will be sent to this UPI ID. Make sure it is active.
+                      </p>
+                    </SectionCard>
+                  )}
+                </>
+              )}
+
+              {current.key === "selfie" && (
+                <>
+                  <DocumentUpload
+                    label="Your selfie"
+                    hint="Face the camera in good lighting. Hold your ID if possible."
+                    value={state.selfie.selfieUrl}
+                    onChange={(url, file) => handleUploadChange("selfie.selfieUrl", url, file)}
+                    error={showErr("selfie.selfieUrl")}
+                    capture="user"
+                    variant="selfie"
+                  />
+                  <div className="flex items-start gap-2.5 rounded-xl bg-[#88c170]/5 border border-[#88c170]/20 p-3">
+                    <ShieldCheck className="w-4 h-4 text-[#88c170] shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-[#cfe3c6] leading-relaxed">
+                      Your photo is only used for identity verification and is never shared publicly.
+                    </p>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
-        {/* Footer actions */}
-        <div className="p-5 pt-3 bg-[#0c1410] border-t border-white/5 flex gap-3">
+        {/* Footer actions — sticky */}
+        <div className="sticky bottom-0 z-20 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-[#0c1410] border-t border-white/5 flex gap-3 shrink-0">
           <button
             type="button"
             onClick={handleBack}
             disabled={activeIdx === 0 || stepLoading}
-            className="flex-1 h-12 rounded-2xl bg-white/5 border border-white/10 text-white/80 disabled:text-white/30 font-bold disabled:bg-white/0"
+            className="flex-1 h-12 rounded-2xl bg-white/5 border border-white/10 text-white/80 disabled:text-white/25 font-bold disabled:bg-transparent transition-colors"
           >
             Back
           </button>
           <button
             type="button"
             onClick={handleNext}
-            disabled={stepLoading}
-            className="flex-[2] h-12 rounded-2xl bg-[#88c170] hover:bg-[#7eb463] disabled:bg-white/10 disabled:text-white/30 text-[#0c1410] font-extrabold flex items-center justify-center gap-2"
+            disabled={stepLoading || Object.keys(stepErrors).length > 0}
+            className="flex-[2] h-12 rounded-2xl bg-[#88c170] hover:bg-[#7eb463] disabled:bg-white/10 disabled:text-white/30 text-[#0c1410] font-extrabold flex items-center justify-center gap-2 transition-colors active:scale-[0.98]"
           >
             {stepLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <span>{activeIdx === STEPS.length - 1 ? "Submit for Approval" : "Save & Continue"}</span>
+                <span>{activeIdx === steps.length - 1 ? "Submit for Approval" : "Save & Continue"}</span>
                 <ChevronRight className="w-5 h-5" />
               </>
             )}
@@ -705,6 +1082,11 @@ export default function OnboardingWizard() {
 }
 
 /* ------------------------------- helpers -------------------------------- */
+
+function formatAadhaar(digits) {
+  const clean = String(digits || "").replace(/\D/g, "");
+  return clean.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
 
 function getByPath(obj, path) {
   return path.split(".").reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
@@ -724,12 +1106,23 @@ function setByPath(obj, path, value) {
   return clone;
 }
 
-function Field({ label, value, onChange, onBlur, placeholder, type = "text", inputMode, error }) {
+async function uploadDocumentFile(file) {
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("Image too large. Max 5 MB.");
+  }
+  const response = await uploadAPI.uploadMedia(file, { folder: UPLOAD_FOLDER });
+  const url = response?.data?.data?.url || response?.data?.url || "";
+  if (!url) throw new Error("Upload failed. Please try again.");
+  return url;
+}
+
+function Field({ label, value, onChange, onBlur, placeholder, type = "text", inputMode, error, required: isRequired }) {
   const invalid = Boolean(error);
   return (
     <div>
       <label className="text-[11px] text-white/50 font-bold uppercase tracking-widest mb-1.5 block">
         {label}
+        {isRequired && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       <input
         type={type}
@@ -774,33 +1167,183 @@ function Select({ label, value, onChange, options }) {
   );
 }
 
+function SectionCard({ title, required: isRequired, optional, children }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[13px] font-bold text-white">{title}</h3>
+        {isRequired && <span className="text-[9px] font-bold uppercase tracking-wider text-[#88c170] bg-[#88c170]/10 px-1.5 py-0.5 rounded">Required</span>}
+        {optional && <span className="text-[9px] font-bold uppercase tracking-wider text-white/30">Optional</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DocumentUpload({
+  label,
+  hint,
+  value,
+  onChange,
+  error,
+  optional,
+  capture,
+  variant = "document",
+}) {
+  const inputRef = useRef(null);
+  const cameraRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const invalid = Boolean(error);
+  const isSelfie = variant === "selfie";
+
+  const handleFile = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    onChange(url, file);
+  };
+
+  return (
+    <div>
+      <label className="text-[11px] text-white/50 font-bold uppercase tracking-widest mb-1.5 block">
+        {label}
+        {!optional && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+
+      {value ? (
+        <div className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5">
+          <img
+            src={value}
+            alt={label}
+            className={["w-full object-cover", isSelfie ? "h-52" : "h-36"].join(" ")}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-3 flex gap-2">
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => (capture ? cameraRef : inputRef).current?.click()}
+              className="flex-1 h-9 rounded-lg bg-white/20 backdrop-blur text-white text-[11px] font-bold hover:bg-white/30 transition-colors"
+            >
+              Retake
+            </button>
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => onChange("", null)}
+              className="h-9 px-3 rounded-lg bg-red-500/80 backdrop-blur text-white text-[11px] font-bold hover:bg-red-500 transition-colors"
+            >
+              Remove
+            </button>
+          </div>
+          <div className="absolute top-2 right-2 bg-[#88c170] text-[#0c1410] rounded-full p-1">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => (capture ? cameraRef : inputRef).current?.click()}
+          className={[
+            "w-full rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-2",
+            isSelfie ? "h-44" : "h-28",
+            invalid
+              ? "border-red-400/50 bg-red-400/5"
+              : "border-white/15 bg-white/[0.02] hover:border-[#88c170]/50 hover:bg-[#88c170]/5",
+            uploading ? "opacity-60" : "",
+          ].join(" ")}
+        >
+          {uploading ? (
+            <Loader2 className="w-6 h-6 animate-spin text-[#88c170]" />
+          ) : isSelfie ? (
+            <>
+              <div className="w-14 h-14 rounded-full bg-[#88c170]/15 flex items-center justify-center">
+                <Camera className="w-7 h-7 text-[#88c170]" />
+              </div>
+              <span className="text-[12px] font-bold text-white/70">Tap to take selfie</span>
+            </>
+          ) : (
+            <>
+              <UploadCloud className="w-6 h-6 text-white/40" />
+              <span className="text-[11px] font-bold text-white/50">Tap to upload photo</span>
+            </>
+          )}
+          {hint && !uploading && (
+            <span className="text-[10px] text-white/30 px-4 text-center">{hint}</span>
+          )}
+        </button>
+      )}
+
+      {!value && !isSelfie && (
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => cameraRef.current?.click()}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold text-[#88c170] hover:text-[#9ed086]"
+        >
+          <ImagePlus className="w-3.5 h-3.5" />
+          Use camera instead
+        </button>
+      )}
+
+      {invalid && <p className="text-[11px] font-semibold text-red-400 mt-1.5">{error}</p>}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          handleFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture={capture || "environment"}
+        className="hidden"
+        onChange={(e) => {
+          handleFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
 function ServiceToggle({ checked, onChange, Icon, title, subtitle }) {
   return (
     <button
       type="button"
       onClick={() => onChange(!checked)}
       className={[
-        "w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-3",
+        "w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-3 active:scale-[0.99]",
         checked
           ? "bg-[#88c170]/10 border-[#88c170] shadow-[0_0_0_2px_rgba(136,193,112,0.15)]"
-          : "bg-white/5 border-white/10",
+          : "bg-white/5 border-white/10 hover:border-white/20",
       ].join(" ")}
     >
       <div
         className={[
-          "w-11 h-11 rounded-xl flex items-center justify-center",
+          "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
           checked ? "bg-[#88c170] text-[#0c1410]" : "bg-white/10 text-white/60",
         ].join(" ")}
       >
         <Icon className="w-5 h-5" />
       </div>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <div className="text-white font-bold">{title}</div>
         <div className="text-[12px] text-white/50">{subtitle}</div>
       </div>
       <div
         className={[
-          "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+          "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0",
           checked ? "border-[#88c170] bg-[#88c170] text-[#0c1410]" : "border-white/20",
         ].join(" ")}
       >

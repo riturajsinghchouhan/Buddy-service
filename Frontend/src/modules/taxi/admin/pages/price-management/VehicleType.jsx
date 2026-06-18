@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../../../shared/api/axiosInstance';
+import { uploadAPI } from '@food/api';
 import { useTaxiTransportTypes } from '../../../../shared/hooks/useTaxiTransportTypes';
 
 import CarIcon from '../../../../assets/icons/car.png';
@@ -305,13 +306,14 @@ const normalizeVehicle = (item = {}) => ({
   id: String(item?._id || item?.id || ''),
 });
 
-const fileToDataUrl = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+const uploadVehicleTypeImage = async (file) => {
+  const response = await uploadAPI.uploadMedia(file, { folder: 'taxi/vehicle-types' });
+  const url = response?.data?.data?.url || response?.data?.url || '';
+  if (!url) {
+    throw new Error('Image upload failed');
+  }
+  return url;
+};
 
 const StatusToggle = ({ active, onToggle }) => (
   <button
@@ -565,9 +567,14 @@ const VehicleType = ({ mode: propMode }) => {
     if (!file) {
       return;
     }
-    const dataUrl = await fileToDataUrl(file);
-    updateForm(field, dataUrl);
-    event.target.value = '';
+    try {
+      const url = await uploadVehicleTypeImage(file);
+      updateForm(field, url);
+    } catch (error) {
+      setErrorMessage(error?.message || 'Could not upload image.');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const handleSave = async () => {
@@ -629,7 +636,7 @@ const VehicleType = ({ mode: propMode }) => {
         await api.post('/admin/types/vehicle-types', payload);
       }
 
-      navigate('/admin/pricing/vehicle-type');
+      navigate('/taxi/admin/price-management/vehicle-types');
     } catch (error) {
       setErrorMessage(error?.response?.data?.message || error.message || 'Could not save vehicle type.');
     } finally {
@@ -665,7 +672,7 @@ const VehicleType = ({ mode: propMode }) => {
               <p className="mt-1 text-sm text-slate-500">Manage the ride and delivery vehicle catalog.</p>
             </div>
             <button
-              onClick={() => navigate('/admin/pricing/vehicle-type/create')}
+              onClick={() => navigate('/taxi/admin/price-management/vehicle-types/create')}
               className="inline-flex items-center gap-2 rounded-xl bg-[#ff6b4a] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-200 transition hover:bg-[#f55a37]"
             >
               <Plus size={18} />
@@ -768,7 +775,7 @@ const VehicleType = ({ mode: propMode }) => {
                     <td className="px-6 py-5">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => navigate(`/admin/pricing/vehicle-type/edit/${vehicle.id}`)}
+                          onClick={() => navigate(`/taxi/admin/price-management/vehicle-types/edit/${vehicle.id}`)}
                           className="rounded-xl p-2 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
                         >
                           <Edit2 size={15} />
@@ -806,7 +813,7 @@ const VehicleType = ({ mode: propMode }) => {
           <p className="mt-1 text-sm text-slate-500">Update the live vehicle catalog with real transport, icon, dispatch, and compatibility data.</p>
         </div>
         <button
-          onClick={() => navigate('/admin/pricing/vehicle-type')}
+          onClick={() => navigate('/taxi/admin/price-management/vehicle-types')}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
         >
           <ArrowLeft size={16} />
@@ -1327,7 +1334,7 @@ const VehicleType = ({ mode: propMode }) => {
               {isSaving ? 'Saving...' : id ? 'Update' : 'Create'}
             </button>
             <button
-              onClick={() => navigate('/admin/pricing/vehicle-type')}
+              onClick={() => navigate('/taxi/admin/price-management/vehicle-types')}
               className="text-sm font-medium text-slate-500 transition hover:text-slate-700"
             >
               Cancel

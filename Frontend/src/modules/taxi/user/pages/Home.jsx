@@ -262,7 +262,7 @@ const Home = () => {
   useEffect(() => {
     const token = localStorage.getItem('userToken') || localStorage.getItem('token');
     if (!token) {
-      navigate('/taxi/user/login', { replace: true });
+      navigate('/user/auth/login', { replace: true });
     }
   }, [navigate]);
 

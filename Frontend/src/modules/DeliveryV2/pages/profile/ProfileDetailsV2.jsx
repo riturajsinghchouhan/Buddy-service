@@ -123,7 +123,7 @@ export const ProfileDetailsV2 = () => {
         if (error.response?.status === 401) {
           toast.error("Session expired. Please login again.")
           setTimeout(() => {
-            navigate("/food/delivery/login", { replace: true })
+            navigate("/driver/login", { replace: true })
           }, 2000)
         } else {
           toast.error(error?.response?.data?.message || "Failed to load profile data")

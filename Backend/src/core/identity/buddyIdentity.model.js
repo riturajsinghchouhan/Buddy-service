@@ -130,8 +130,24 @@ const buddyIdentitySchema = new mongoose.Schema(
     },
     onboardingStep: {
       type: String,
-      enum: ['basics', 'kyc', 'bank', 'vehicle', 'selfie', 'capabilities', 'done'],
-      default: 'basics',
+      enum: [
+        'services',
+        'vehicle_food',
+        'vehicle_taxi',
+        'basics',
+        'kyc',
+        'bank',
+        'vehicle',
+        'selfie',
+        'capabilities',
+        'done',
+      ],
+      default: 'services',
+    },
+    onboardingServices: {
+      type: [String],
+      enum: ['food', 'taxi'],
+      default: [],
     },
     kyc: {
       aadhaar: { type: kycDocSchema, default: () => ({}) },
@@ -140,6 +156,8 @@ const buddyIdentitySchema = new mongoose.Schema(
     },
     bank: { type: bankDetailsSchema, default: () => ({}) },
     vehicle: { type: vehicleSchema, default: () => ({}) },
+    foodVehicle: { type: vehicleSchema, default: () => ({}) },
+    taxiVehicle: { type: vehicleSchema, default: () => ({}) },
     onboardingSelfieUrl: {
       type: String,
       default: '',

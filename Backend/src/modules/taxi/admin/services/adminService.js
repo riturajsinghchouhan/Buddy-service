@@ -5173,7 +5173,9 @@ export const getDriverById = async (id, currentAdmin = null) => {
 };
 
 export const getDriverProfile = async (id) => {
-  const driver = await Driver.findById(id).lean();
+  const isMongoId = mongoose.isValidObjectId(id);
+  const query = isMongoId ? { $or: [{ _id: id }, { identityId: id }] } : { _id: id };
+  const driver = await Driver.findOne(query).lean();
   if (!driver) {
     throw new ApiError(404, 'Driver not found');
   }

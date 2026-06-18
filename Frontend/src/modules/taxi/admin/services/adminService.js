@@ -46,6 +46,7 @@ export const adminService = {
 
   bulkImportDrivers: (payload) => api.post('/admin/drivers/bulk-import', payload),
   getDriver: (id) => api.get(`/admin/drivers/${id}`),
+  getDriverProfile: (id) => api.get(`/admin/drivers/${id}/profile`),
   createDriver: (driverData) => api.post('/admin/drivers', driverData),
   updateDriverStatus: (id, data) => api.patch(`/admin/drivers/${id}`, data),
   updateDriverPassword: (id, password) => api.patch(`/admin/drivers/update-password/${id}`, { password }),

@@ -18,6 +18,9 @@ import { setAuthData } from "@food/utils/auth";
 
 const DRIVER_ROUTES = {
   ONBOARDING: "/driver/onboarding",
+  ONBOARDING_SERVICES: "/driver/onboarding/services",
+  ONBOARDING_VEHICLE_FOOD: "/driver/onboarding/vehicle-food",
+  ONBOARDING_VEHICLE_TAXI: "/driver/onboarding/vehicle-taxi",
   ONBOARDING_BASICS: "/driver/onboarding/basics",
   ONBOARDING_KYC: "/driver/onboarding/kyc",
   ONBOARDING_BANK: "/driver/onboarding/bank",
@@ -135,6 +138,38 @@ export function clearIdentitySession() {
   }
 }
 
+const decodeJwtPayload = (token) => {
+  if (!token || typeof token !== "string") return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padding = (4 - (normalized.length % 4)) % 4;
+    return JSON.parse(atob(normalized + "=".repeat(padding)));
+  } catch {
+    return null;
+  }
+};
+
+/** True when the current session was issued by unified BuddyIdentity driver auth. */
+export function isUnifiedIdentityDriverSession() {
+  const token =
+    localStorage.getItem("driver_accessToken") ||
+    localStorage.getItem("delivery_accessToken") ||
+    localStorage.getItem("driverToken");
+  const payload = decodeJwtPayload(token);
+  return String(payload?.role || "").toUpperCase() === "DRIVER" && Boolean(payload?.identityId);
+}
+
+export function getApiErrorMessage(err, fallback = "Something went wrong") {
+  return (
+    err?.response?.data?.error ||
+    err?.response?.data?.message ||
+    err?.message ||
+    fallback
+  );
+}
+
 /* -------------------------- thin OTP wrappers --------------------------- */
 
 export const identityAPI = {
@@ -146,6 +181,16 @@ export const identityAPI = {
 
 export const driverOnboardingAPI = {
   getState: () => apiClient.get(DRIVER_ROUTES.ONBOARDING, { contextModule: "driver" }),
+  saveServices: (services) =>
+    apiClient.patch(
+      DRIVER_ROUTES.ONBOARDING_SERVICES,
+      { services: Array.isArray(services) ? services : [services].filter(Boolean) },
+      { contextModule: "driver" },
+    ),
+  saveFoodVehicle: (payload) =>
+    apiClient.patch(DRIVER_ROUTES.ONBOARDING_VEHICLE_FOOD, payload, { contextModule: "driver" }),
+  saveTaxiVehicle: (payload) =>
+    apiClient.patch(DRIVER_ROUTES.ONBOARDING_VEHICLE_TAXI, payload, { contextModule: "driver" }),
   saveBasics: (payload) => apiClient.patch(DRIVER_ROUTES.ONBOARDING_BASICS, payload, { contextModule: "driver" }),
   saveKyc: (payload) => apiClient.patch(DRIVER_ROUTES.ONBOARDING_KYC, payload, { contextModule: "driver" }),
   saveBank: (payload) => apiClient.patch(DRIVER_ROUTES.ONBOARDING_BANK, payload, { contextModule: "driver" }),
@@ -154,7 +199,9 @@ export const driverOnboardingAPI = {
   complete: (services) =>
     apiClient.post(
       DRIVER_ROUTES.ONBOARDING_COMPLETE,
-      { services: Array.isArray(services) ? services : [services].filter(Boolean) },
+      services
+        ? { services: Array.isArray(services) ? services : [services].filter(Boolean) }
+        : {},
       { contextModule: "driver" },
     ),
   enableCapability: (service) =>
@@ -184,4 +231,6 @@ export default {
   persistUserIdentitySession,
   persistDriverIdentitySession,
   clearIdentitySession,
+  isUnifiedIdentityDriverSession,
+  getApiErrorMessage,
 };

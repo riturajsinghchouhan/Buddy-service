@@ -202,7 +202,7 @@ const DriverEntryRedirect = () => {
               ? '/food/delivery/taxi/bus-home'
               : role === 'pooling_driver'
                 ? '/food/delivery/taxi/pooling'
-                : '/food/delivery/taxi/home'
+                : '/driver/home'
       }
       replace
     />
@@ -262,13 +262,13 @@ const DeliveryV2Router = () => {
           <Route path="terms" element={<LegalPage />} />
           <Route path="privacy" element={<LegalPage />} />
           <Route path="otp-verify" element={<Navigate to="/driver/login" replace />} />
-          <Route path="select-role" element={<RoleSelection />} />
-          <Route path="step-personal" element={<StepPersonal />} />
-          <Route path="role-signup" element={<RoleSpecificOnboarding />} />
-          <Route path="step-referral" element={<StepReferral />} />
-          <Route path="step-vehicle" element={<StepVehicle />} />
-          <Route path="step-documents" element={<StepDocuments />} />
-          <Route path="registration-status" element={<RegistrationStatus />} />
+          <Route path="select-role" element={<Navigate to="/driver/onboarding" replace />} />
+          <Route path="step-personal" element={<Navigate to="/driver/onboarding" replace />} />
+          <Route path="role-signup" element={<Navigate to="/driver/onboarding" replace />} />
+          <Route path="step-referral" element={<Navigate to="/driver/onboarding" replace />} />
+          <Route path="step-vehicle" element={<Navigate to="/driver/onboarding" replace />} />
+          <Route path="step-documents" element={<Navigate to="/driver/onboarding" replace />} />
+          <Route path="registration-status" element={<Navigate to="/driver/home" replace />} />
           <Route path="status" element={<ApplicationStatus />} />
           <Route path="home" element={<DriverHome />} />
           <Route path="bus-home" element={<BusDriverHome />} />
