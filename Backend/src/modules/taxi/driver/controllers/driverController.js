@@ -63,7 +63,6 @@ import {
   createBusService,
   deleteBusService,
   deleteRentalVehicleType,
-  ensureThirdPartySettings,
   listDriverNeededDocuments,
   listDriverVehicleFieldTemplates,
   listBusServices,

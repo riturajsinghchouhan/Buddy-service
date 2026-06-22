@@ -204,11 +204,6 @@ export default function AdminRouter() {
         <Route path="settings/app/wallet" element={<Navigate to="/taxi/admin/settings/wallet" replace />} />
         <Route path="settings/app/tip" element={<Navigate to="/taxi/admin/settings/tip" replace />} />
         <Route path="settings/app/onboard" element={<Navigate to="/taxi/admin/settings/onboarding" replace />} />
-        <Route path="settings/third-party/payment" element={<Navigate to="/taxi/admin/settings/payment-gateways" replace />} />
-        <Route path="settings/third-party/sms" element={<Navigate to="/taxi/admin/settings/sms-gateways" replace />} />
-        <Route path="settings/third-party/firebase" element={<Navigate to="/taxi/admin/settings/firebase" replace />} />
-        <Route path="settings/third-party/map-apis" element={<Navigate to="/taxi/admin/settings/map" replace />} />
-        <Route path="settings/third-party/mail" element={<Navigate to="/taxi/admin/settings/mail" replace />} />
         
         <Route path="settings/cms/header-footer" element={<Navigate to="/taxi/admin/cms/header-footer" replace />} />
         <Route path="settings/cms/home" element={<Navigate to="/taxi/admin/cms/builder" replace />} />

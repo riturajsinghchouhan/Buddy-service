@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Admin } from '../admin/models/Admin.js';
+import { Admin } from '../../../core/admin/admin.model.js';
 import { Owner } from '../admin/models/Owner.js';
 import { ServiceStore } from '../admin/models/ServiceStore.js';
 import { ServiceCenterStaff } from '../admin/models/ServiceCenterStaff.js';
@@ -10,7 +10,6 @@ import { PoolingVehicle } from '../admin/models/PoolingVehicle.js';
 import { User } from '../user/models/User.js';
 import { verifyAccessToken } from '../services/tokenService.js';
 import { FoodUser } from '../../../core/users/user.model.js';
-import { FoodAdmin } from '../../../core/admin/admin.model.js';
 import { FoodDeliveryPartner } from '../../food/delivery/models/deliveryPartner.model.js';
 import {
   normalizeAdminPermissions,
@@ -155,14 +154,6 @@ export const authenticate = (allowedRoles = [], options = {}) => async (req, _re
     const userId = payload.sub || payload.userId || payload.id;
     let entity = await Model.findById(userId);
 
-    if (!entity && normalizedRole === 'admin') {
-      try {
-        entity = await FoodAdmin.findById(userId);
-      } catch (err) {
-        // Fallback failed
-      }
-    }
-
     if (!entity && normalizedRole === 'user') {
       try {
         entity = await FoodUser.findById(userId);
@@ -250,7 +241,6 @@ export const authenticate = (allowedRoles = [], options = {}) => async (req, _re
     req.auth.entity = entity;
 
     if (normalizedRole === 'admin') {
-      const isFoodAdmin = !entity.hasOwnProperty('admin_type') && entity.hasOwnProperty('isActive');
       const fallbackPermissions = (entity.role === 'ADMIN' || entity.role === 'superadmin' || entity.role === 'super-admin') ? ['*'] : [];
       
       req.auth.admin = {

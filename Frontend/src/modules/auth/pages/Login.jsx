@@ -180,7 +180,12 @@ export default function UnifiedOTPFastLogin() {
         String(msg),
       )
       if (nameRequired) {
-        setPendingVerify({ phone: phoneNumber, otp: otpDigits, fcmToken, platform })
+        setPendingVerify({
+          phone: normalizedPhone() || phoneNumber,
+          otp: otpDigits,
+          fcmToken,
+          platform,
+        })
         setShowNameModal(true)
         return
       }
@@ -249,8 +254,23 @@ export default function UnifiedOTPFastLogin() {
       toast.success(`Welcome, ${newName.trim()}!`)
       setShowNameModal(false)
       navigate("/user/auth/portal", { replace: true })
-    } catch {
-      toast.error("Failed to update name. You can skip this for now or try again.")
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to complete signup."
+
+      if (/otp not found|otp expired|invalid or expired code/i.test(String(msg))) {
+        toast.error("OTP expired. Please request a new code and try again.")
+        setShowNameModal(false)
+        setPendingVerify(null)
+        setStep(2)
+        setOtp("")
+        return
+      }
+
+      toast.error(msg)
     } finally {
       setIsUpdatingName(false)
     }

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import ms from "ms";
 import { FoodUser } from "../users/user.model.js";
-import { FoodAdmin } from "../admin/admin.model.js";
+import { Admin } from '../admin/admin.model.js';
 import { AdminResetOtp } from "../admin/adminResetOtp.model.js";
 import { FoodRestaurant } from "../../modules/food/restaurant/models/restaurant.model.js";
 import { FoodDeliveryPartner } from "../../modules/food/delivery/models/deliveryPartner.model.js";
@@ -307,9 +307,18 @@ export const adminLogin = async (email, password) => {
     throw new ValidationError("Email and password are required");
   }
 
-  const admin = await FoodAdmin.findOne({ email });
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const admin = await Admin.findOne({ email: normalizedEmail }).select("+password");
   if (!admin) {
     throw new AuthError("Invalid credentials");
+  }
+
+  if (
+    admin.isActive === false ||
+    admin.active === false ||
+    String(admin.status || "").toLowerCase() === "inactive"
+  ) {
+    throw new AuthError("Admin account is inactive");
   }
 
   const isMatch = await admin.comparePassword(password);
@@ -317,7 +326,12 @@ export const adminLogin = async (email, password) => {
     throw new AuthError("Invalid credentials");
   }
 
-  const payload = { userId: admin._id.toString(), role: admin.role };
+  const payload = {
+    userId: admin._id.toString(),
+    role: admin.role,
+    sub: admin._id.toString(),
+    id: admin._id.toString(),
+  };
 
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
@@ -544,7 +558,7 @@ export const logout = async (refreshToken, fcmToken, platform) => {
     // We try to remove the token from all 4 possible models regardless of the user ID, 
     // ensuring no stale connections are left across any role or app the user was logged into.
     const field = platform === "mobile" ? "fcmTokenMobile" : "fcmTokens";
-    const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
+    const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, Admin];
     
     try {
       await Promise.all(
@@ -578,7 +592,7 @@ export const getProfile = async (userId, role) => {
       profile = await FoodUser.findById(id).lean();
       break;
     case ROLES.ADMIN:
-      profile = await FoodAdmin.findById(id).select("-password").lean();
+      profile = await Admin.findById(id).select("-password").lean();
       break;
     case ROLES.RESTAURANT:
       {
@@ -728,7 +742,7 @@ export const updateAdminProfile = async (userId, body) => {
   if (!userId) {
     throw new AuthError("Invalid token payload");
   }
-  const admin = await FoodAdmin.findById(userId);
+  const admin = await Admin.findById(userId);
   if (!admin) {
     throw new AuthError("Profile not found");
   }
@@ -741,7 +755,7 @@ export const updateAdminProfile = async (userId, body) => {
       throw new ValidationError("Email is required");
     }
     if (normalizedEmail !== admin.email) {
-      const duplicateAdmin = await FoodAdmin.findOne({
+      const duplicateAdmin = await Admin.findOne({
         _id: { $ne: admin._id },
         email: normalizedEmail,
       })
@@ -780,7 +794,7 @@ export const changeAdminPassword = async (
   if (!userId) {
     throw new AuthError("Invalid token payload");
   }
-  const admin = await FoodAdmin.findById(userId);
+  const admin = await Admin.findById(userId).select("+password");
   if (!admin) {
     throw new AuthError("Profile not found");
   }
@@ -821,7 +835,7 @@ export const requestAdminForgotPasswordOtp = async (email) => {
     throw new ValidationError("Email is required");
   }
 
-  const admin = await FoodAdmin.findOne({ email: normalizedEmail });
+  const admin = await Admin.findOne({ email: normalizedEmail });
   if (!admin) {
     throw new AuthError("This email is not registered as an admin account.");
   }
@@ -885,7 +899,7 @@ export const resetAdminPasswordWithOtp = async (email, otp, newPassword) => {
     throw new AuthError("Invalid OTP.");
   }
 
-  const admin = await FoodAdmin.findOne({ email: normalizedEmail });
+  const admin = await Admin.findOne({ email: normalizedEmail });
   if (!admin) {
     await record.deleteOne();
     throw new AuthError("Account not found.");

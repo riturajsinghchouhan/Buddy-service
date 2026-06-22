@@ -134,7 +134,6 @@ const routePayload = (pathname, method) => {
     pathname.includes('/permissions') ||
     pathname.includes('/app-modules') ||
     pathname.includes('/notification-channels') ||
-    pathname.includes('/integration-settings') ||
     pathname.includes('/on-boarding') ||
     pathname.includes('/notifications') ||
     pathname.includes('/banners') ||

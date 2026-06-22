@@ -9,7 +9,7 @@ import { EMAIL_REGEX } from "@/shared/utils/emailValidation";
 const AUTH = {
   USER_REQUEST_OTP: "/food/auth/user/request-otp",
   USER_VERIFY_OTP: "/food/auth/user/verify-otp",
-  ADMIN_LOGIN: "/food/auth/admin/login",
+  ADMIN_LOGIN: "/auth/admin/login",
   RESTAURANT_REQUEST_OTP: "/food/auth/restaurant/request-otp",
   RESTAURANT_VERIFY_OTP: "/food/auth/restaurant/verify-otp",
   DELIVERY_REQUEST_OTP: "/food/auth/delivery/request-otp",

@@ -1,19 +1,22 @@
 import nodemailer from 'nodemailer';
+import { env } from '../../../config/env.js';
 
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT || '587'),
-  secure: process.env.EMAIL_PORT === '465',
+  host: env.emailHost,
+  port: env.emailPort,
+  secure: env.emailPort === 465,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: env.emailUser,
+    pass: env.emailPass,
   },
 });
 
 export const sendEmail = async ({ to, subject, text, html }) => {
   try {
+    const fromName = env.emailFromName || 'Appzeto';
+    const fromAddress = env.emailFrom || env.emailUser || 'noreply@example.com';
     const mailOptions = {
-      from: process.env.EMAIL_FROM || '"Appzeto" <noreply@example.com>',
+      from: `"${fromName}" <${fromAddress}>`,
       to,
       subject,
       text,

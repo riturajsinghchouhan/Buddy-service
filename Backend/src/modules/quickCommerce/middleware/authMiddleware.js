@@ -1,5 +1,8 @@
 import jwt from "jsonwebtoken";
 import handleResponse from "../utils/helper.js";
+import { config } from "../../../config/env.js";
+
+const jwtSecret = () => config.jwtAccessSecret || process.env.JWT_SECRET;
 import Seller from "../models/seller.js";
 
 function extractJwtFromHeaders(req) {
@@ -36,7 +39,7 @@ export const verifyToken = (req, res, next) => {
       return handleResponse(res, 401, "Unauthorized, token missing");
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret());
 
     req.user = { ...decoded };
     if (decoded.userId && !decoded.id) {
@@ -59,7 +62,7 @@ export const optionalVerifyToken = (req, res, next) => {
 
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, jwtSecret());
         req.user = { ...decoded };
         if (decoded.userId && !decoded.id) {
           req.user.id = decoded.userId;

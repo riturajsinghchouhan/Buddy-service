@@ -1,5 +1,5 @@
-import Admin from "../models/admin.js";
-import jwt from "jsonwebtoken";
+import { Admin } from "../../../core/admin/admin.model.js";
+import { unifiedAdminLogin, toQcLoginResponse } from "../../../core/admin/adminAuth.adapter.js";
 import handleResponse from "../utils/helper.js";
 import {
   bootstrapAdminSchema,
@@ -16,13 +16,6 @@ function sanitizeAdmin(adminDoc) {
   delete admin.__v;
   return admin;
 }
-
-const generateToken = (admin) =>
-  jwt.sign(
-    { id: admin._id, role: "admin" },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" },
-  );
 
 function readBootstrapSecret(req) {
   return String(
@@ -59,15 +52,18 @@ export const bootstrapAdmin = async (req, res) => {
       name: payload.name,
       email: payload.email,
       password: payload.password,
-      role: "admin",
+      role: "ADMIN",
+      admin_type: "superadmin",
+      permissions: ["*"],
+      isActive: true,
+      active: true,
+      status: "active",
       isVerified: true,
+      servicesAccess: ["food", "quickCommerce", "taxi"],
     });
 
-    const token = generateToken(admin);
-    return handleResponse(res, 201, "Admin bootstrapped successfully", {
-      token,
-      admin: sanitizeAdmin(admin),
-    });
+    const loginResult = await unifiedAdminLogin(payload.email, payload.password);
+    return handleResponse(res, 201, "Admin bootstrapped successfully", toQcLoginResponse(loginResult));
   } catch (error) {
     return handleResponse(res, error.statusCode || 500, error.message);
   }
@@ -89,19 +85,22 @@ export const signupAdmin = async (req, res) => {
     }
 
     const payload = validateSchema(bootstrapAdminSchema, req.body || {});
-    const admin = await Admin.create({
+    await Admin.create({
       name: payload.name,
       email: payload.email,
       password: payload.password,
-      role: "admin",
+      role: "ADMIN",
+      admin_type: "superadmin",
+      permissions: ["*"],
+      isActive: true,
+      active: true,
+      status: "active",
       isVerified: true,
+      servicesAccess: ["food", "quickCommerce", "taxi"],
     });
 
-    const token = generateToken(admin);
-    return handleResponse(res, 201, "Admin registered successfully", {
-      token,
-      admin: sanitizeAdmin(admin),
-    });
+    const loginResult = await unifiedAdminLogin(payload.email, payload.password);
+    return handleResponse(res, 201, "Admin registered successfully", toQcLoginResponse(loginResult));
   } catch (error) {
     return handleResponse(res, error.statusCode || 500, error.message);
   }
@@ -110,26 +109,10 @@ export const signupAdmin = async (req, res) => {
 export const loginAdmin = async (req, res) => {
   try {
     const payload = validateSchema(loginAdminSchema, req.body || {});
-
-    const admin = await Admin.findOne({ email: payload.email }).select("+password");
-    if (!admin) {
-      return handleResponse(res, 401, "Invalid credentials");
-    }
-
-    const isMatch = await admin.comparePassword(payload.password);
-    if (!isMatch) {
-      return handleResponse(res, 401, "Invalid credentials");
-    }
-
-    admin.lastLogin = new Date();
-    await admin.save();
-
-    const token = generateToken(admin);
-    return handleResponse(res, 200, "Login successful", {
-      token,
-      admin: sanitizeAdmin(admin),
-    });
+    const loginResult = await unifiedAdminLogin(payload.email, payload.password);
+    return handleResponse(res, 200, "Login successful", toQcLoginResponse(loginResult));
   } catch (error) {
-    return handleResponse(res, error.statusCode || 500, error.message);
+    const status = error.statusCode || (error.name === "AuthError" ? 401 : 500);
+    return handleResponse(res, status, error.message || "Login failed");
   }
 };

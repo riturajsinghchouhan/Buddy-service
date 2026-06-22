@@ -1,5 +1,5 @@
 import { ApiError } from '../../../../utils/ApiError.js';
-import { Admin } from '../../admin/models/Admin.js';
+import { Admin } from '../../../../core/admin/admin.model.js';
 import { Owner } from '../../admin/models/Owner.js';
 import { Driver } from '../../driver/models/Driver.js';
 import { User } from '../../user/models/User.js';

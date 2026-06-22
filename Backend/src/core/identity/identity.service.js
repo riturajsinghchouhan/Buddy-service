@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { ValidationError, AuthError } from '../auth/errors.js';
 import { signAccessToken, signRefreshToken } from '../auth/token.util.js';
 import { FoodRefreshToken } from '../refreshTokens/refreshToken.model.js';
-import { createOrUpdateOtp, verifyOtp } from '../otp/otp.service.js';
+import { createOrUpdateOtp, verifyOtp, consumeOtp } from '../otp/otp.service.js';
 
 import { BuddyIdentity } from './buddyIdentity.model.js';
 import { normalizeOnboardingStepForClient } from './driverOnboarding.service.js';
@@ -68,7 +68,7 @@ const ensureFoodUserForIdentity = async (identity, { name } = {}) => {
     phone: identity.phone,
     countryCode: identity.countryCode || '+91',
     name: name || identity.name || '',
-    email: identity.email || '',
+    ...(identity.email ? { email: identity.email } : {}),
     isVerified: true,
   });
 };
@@ -239,15 +239,16 @@ export const verifyOtpUnified = async ({
   // this is a brand-new signup that requires a name.
   const preIdentity = await BuddyIdentity.findOne({ phone: phoneLast10 });
   const isNewIdentity = !preIdentity;
-  if (
+  const needsName =
     normalizedRole === ROLE_USER &&
-    isNewIdentity &&
-    !trimmedName
-  ) {
+    !trimmedName &&
+    (isNewIdentity || !String(preIdentity?.name || '').trim());
+
+  if (needsName) {
     throw new ValidationError('Name is required for first-time signup');
   }
 
-  const otpResult = await verifyOtp(phoneLast10, otp);
+  const otpResult = await verifyOtp(phoneLast10, otp, { consume: false });
   if (!otpResult.valid) {
     throw new AuthError(otpResult.reason || 'OTP verification failed');
   }
@@ -288,6 +289,7 @@ export const verifyOtpUnified = async ({
     });
     const { accessToken, refreshToken } = await issueTokens(tokenPayload);
 
+    await consumeOtp(phoneLast10);
     return {
       accessToken,
       refreshToken,
@@ -324,6 +326,7 @@ export const verifyOtpUnified = async ({
         capabilities: { food: 'not_enabled', taxi: 'not_enabled' },
       });
       const { accessToken, refreshToken } = await issueTokens(tokenPayload);
+      await consumeOtp(phoneLast10);
       return {
         accessToken,
         refreshToken,
@@ -362,6 +365,7 @@ export const verifyOtpUnified = async ({
     if (partner) services.push('food');
     if (driver) services.push('taxi');
 
+    await consumeOtp(phoneLast10);
     return {
       accessToken,
       refreshToken,

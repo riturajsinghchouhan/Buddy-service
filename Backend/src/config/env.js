@@ -30,6 +30,7 @@ export const config = {
 
     // SMS India Hub
     smsIndiaHubUsername: process.env.SMS_INDIA_HUB_USERNAME,
+    smsIndiaHubPassword: process.env.SMS_INDIA_HUB_PASSWORD,
     smsApiKey: process.env.SMS_INDIA_HUB_API_KEY,
     smsSenderId: process.env.SMS_INDIA_HUB_SENDER_ID,
     smsDltTemplateId: process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID,
@@ -76,16 +77,30 @@ export const config = {
     socketCorsOrigin: process.env.SOCKET_CORS_ORIGIN || '*',
 
     // Razorpay (payments)
+    razorpayEnvironment: (process.env.RAZORPAY_ENVIRONMENT || 'test').toLowerCase(),
+    razorpayTestApiKey: process.env.RAZORPAY_TEST_API_KEY || process.env.RAZORPAY_KEY_ID,
+    razorpayTestSecretKey: process.env.RAZORPAY_TEST_SECRET_KEY || process.env.RAZORPAY_KEY_SECRET,
+    razorpayLiveApiKey: process.env.RAZORPAY_LIVE_API_KEY,
+    razorpayLiveSecretKey: process.env.RAZORPAY_LIVE_SECRET_KEY,
     razorpayKeyId: process.env.RAZORPAY_KEY_ID,
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
-    razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET, // ✅ NEW
+    razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
 
     // Email (SMTP) – for admin forgot password OTP etc.
-    emailHost: process.env.EMAIL_HOST,
-    emailPort: Number(process.env.EMAIL_PORT) || 587,
-    emailUser: process.env.EMAIL_USER,
-    emailPass: process.env.EMAIL_PASS ? String(process.env.EMAIL_PASS).replace(/\s/g, '') : '',
-    emailFrom: process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@example.com'
+    emailHost: process.env.MAIL_HOST || process.env.EMAIL_HOST,
+    emailPort: Number(process.env.MAIL_PORT || process.env.EMAIL_PORT) || 587,
+    emailUser: process.env.MAIL_USERNAME || process.env.EMAIL_USER,
+    emailPass: (process.env.MAIL_PASSWORD || process.env.EMAIL_PASS)
+        ? String(process.env.MAIL_PASSWORD || process.env.EMAIL_PASS).replace(/\s/g, '')
+        : '',
+    emailEncryption: process.env.MAIL_ENCRYPTION || process.env.EMAIL_ENCRYPTION || 'tls',
+    emailFrom:
+        process.env.MAIL_FROM_ADDRESS ||
+        process.env.EMAIL_FROM ||
+        process.env.MAIL_USERNAME ||
+        process.env.EMAIL_USER ||
+        'noreply@example.com',
+    emailFromName: process.env.MAIL_FROM_NAME || process.env.EMAIL_FROM_NAME || 'Appzeto',
 };
 
 export const env = config;

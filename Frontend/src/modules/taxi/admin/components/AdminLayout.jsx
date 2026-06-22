@@ -148,11 +148,6 @@ const routeTranslationMap = {
   '/admin/settings/app/wallet': '/admin/settings/wallet',
   '/admin/settings/app/tip': '/admin/settings/tip',
   '/admin/settings/app/onboard': '/admin/settings/onboarding',
-  '/admin/settings/third-party/payment': '/admin/settings/payment-gateways',
-  '/admin/settings/third-party/sms': '/admin/settings/sms-gateways',
-  '/admin/settings/third-party/firebase': '/admin/settings/firebase',
-  '/admin/settings/third-party/map-apis': '/admin/settings/map',
-  '/admin/settings/third-party/mail': '/admin/settings/mail',
   '/admin/settings/cms/header-footer': '/admin/cms/header-footer',
   '/admin/settings/cms/home': '/admin/cms/builder',
   '/admin/settings/cms/about': '/admin/cms/builder',
@@ -1034,19 +1029,6 @@ const AdminLayout = () => {
               { label: 'Mobile App Landing/Onboard Screens Settings', path: '/admin/settings/app/onboard', permission: 'settings.view' },
             ],
           },
-          {
-            icon: Settings2,
-            label: 'Third-party Settings',
-            permission: 'settings.view',
-            subItems: [
-              { label: 'Payment Gateway Settings', path: '/admin/settings/third-party/payment', permission: 'settings.view' },
-              { label: 'SMS Gateway Settings', path: '/admin/settings/third-party/sms', permission: 'settings.view' },
-              { label: 'Firebase Settings', path: '/admin/settings/third-party/firebase', permission: 'settings.view' },
-              { label: 'Map and Map APIs Settings', path: '/admin/settings/third-party/map-apis', permission: 'settings.view' },
-              { label: 'Mail Configuration', path: '/admin/settings/third-party/mail', permission: 'settings.view' },
-              // { label: 'Notification Channel', path: '/admin/settings/third-party/notification-channel' },
-            ],
-          },
           // {
           //   icon: PlusCircle,
           //   label: 'Addons',
@@ -1389,7 +1371,7 @@ const AdminLayout = () => {
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token && !window.location.pathname.includes('/admin/login')) {
-      navigate('/taxi/admin/login');
+      navigate('/admin/login');
       return undefined;
     }
 
@@ -1470,7 +1452,7 @@ const AdminLayout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminInfo');
     setIsUserMenuOpen(false);
-    navigate('/taxi/admin/login');
+    navigate('/admin/login');
   };
 
   return (

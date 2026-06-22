@@ -51,17 +51,12 @@ const maskSecret = (value) => {
 };
 
 const getSmsIndiaHubConfig = () => {
-  const user = readValue(env.sms?.indiaHub?.username, process.env.SMS_INDIA_HUB_USERNAME);
-  const password = readValue(env.sms?.indiaHub?.password, process.env.SMS_INDIA_HUB_PASSWORD);
-  const apiKey = readValue(
-    env.sms?.indiaHub?.apiKeyOverride,
-    env.sms?.indiaHub?.apiKey,
-    process.env.SMS_INDIA_HUB_API_KEY_OVERRIDE,
-    process.env.SMS_INDIA_HUB_API_KEY,
-  );
-  const senderId = readValue(env.sms?.indiaHub?.senderId, process.env.SMS_INDIA_HUB_SENDER_ID);
+  const user = readValue(env.smsIndiaHubUsername, process.env.SMS_INDIA_HUB_USERNAME);
+  const password = readValue(env.smsIndiaHubPassword, process.env.SMS_INDIA_HUB_PASSWORD);
+  const apiKey = readValue(env.smsApiKey, process.env.SMS_INDIA_HUB_API_KEY);
+  const senderId = readValue(env.smsSenderId, process.env.SMS_INDIA_HUB_SENDER_ID);
   const templateId = readValue(
-    env.sms?.indiaHub?.dltTemplateId,
+    env.smsDltTemplateId,
     process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID,
     '1007801291964877107',
   );
@@ -197,7 +192,7 @@ const buildSmsPayload = ({ phone, otp, appName, authMode = 'apiKey' }) => {
 };
 
 export const sendOtpSms = async ({ phone, otp, purpose = 'otp' }) => {
-  if (isTruthy(env.sms?.useDefaultOtp || env.useDefaultOtp)) {
+  if (isTruthy(env.useDefaultOtp)) {
     return {
       mode: 'debug',
       message: 'Default OTP mode enabled',

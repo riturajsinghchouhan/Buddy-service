@@ -179,7 +179,7 @@ const AddDriver = lazy(() => import('./driver/pages/settings/AddDriver'));
 
 // Admin Module Pages
 const AdminLayout = lazy(() => import('./admin/components/AdminLayout'));
-const AdminLogin = lazy(() => import('./admin/pages/auth/AdminLogin'));
+
 const AdminDashboard = lazy(() => import('./admin/pages/dashboard/MainDashboard'));
 const AdminEarnings = lazy(() => import('./admin/pages/dashboard/AdminEarnings'));
 const AdminChat = lazy(() => import('./admin/pages/operations/Chat'));
@@ -296,11 +296,6 @@ const AdminWalletSettings = lazy(() => import('./admin/pages/settings/WalletSett
 const AdminTipSettings = lazy(() => import('./admin/pages/settings/TipSettings'));
 const AdminAppModules = lazy(() => import('./admin/pages/settings/AppModules'));
 const AdminOnboardingScreens = lazy(() => import('./admin/pages/settings/OnboardingScreens'));
-const AdminPaymentGateways = lazy(() => import('./admin/pages/settings/PaymentGateways'));
-const AdminSMSGateways = lazy(() => import('./admin/pages/settings/SMSGateways'));
-const AdminFirebaseSettings = lazy(() => import('./admin/pages/settings/FirebaseSettings'));
-const AdminMapSettings = lazy(() => import('./admin/pages/settings/MapSettings'));
-const AdminMailSettings = lazy(() => import('./admin/pages/settings/MailSettings'));
 const AdminNotificationChannels = lazy(() => import('./admin/pages/settings/NotificationChannels'));
 const AdminDispatcherAddons = lazy(() => import('./admin/pages/settings/DispatcherAddons'));
 const AdminCountryManagement = lazy(() => import('./admin/pages/masters/CountryManagement'));
@@ -418,7 +413,7 @@ const UserAccountInvalidationListener = () => {
 
       if (event.detail?.role === 'admin' && (!staleToken || staleToken === currentAdminToken)) {
         socketService.disconnect();
-        navigate('/taxi/admin/login');
+        navigate('/admin/login');
       }
     };
 
@@ -638,7 +633,7 @@ export default function TaxiApp() {
               <Route path="user/pooling/list" element={<UserPoolingList />} />
               <Route path="user/pooling/seats/:id" element={<UserPoolingSeats />} />
               <Route path="user/pooling/confirm" element={<UserPoolingConfirm />} />
-              
+
               <Route path="user/rental" element={<BikeRentalHome />} />
               <Route path="user/rental/vehicle" element={<RentalVehicleDetail />} />
               <Route path="user/rental/schedule" element={<RentalSchedule />} />
@@ -799,7 +794,7 @@ export default function TaxiApp() {
             </Route>
 
             {/* Admin Portal Routes */}
-            <Route path="admin/login" element={<AdminLogin />} />
+            <Route path="admin/login" element={<Navigate to="/admin/login" replace />} />
             <Route path="admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
@@ -925,11 +920,6 @@ export default function TaxiApp() {
               <Route path="settings/app-modules/edit/:id" element={<AdminAppModules />} />
               <Route path="settings/app-modules" element={<AdminAppModules />} />
               <Route path="settings/onboarding" element={<AdminOnboardingScreens />} />
-              <Route path="settings/payment-gateways" element={<AdminPaymentGateways />} />
-              <Route path="settings/sms-gateways" element={<AdminSMSGateways />} />
-              <Route path="settings/firebase" element={<AdminFirebaseSettings />} />
-              <Route path="settings/map" element={<AdminMapSettings />} />
-              <Route path="settings/mail" element={<AdminMailSettings />} />
               <Route path="settings/notifications" element={<AdminNotificationChannels />} />
               <Route path="settings/dispatcher" element={<AdminDispatcherAddons />} />
               <Route path="masters/countries" element={<AdminCountryManagement />} />

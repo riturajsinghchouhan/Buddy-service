@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import { ApiError } from '../../../../utils/ApiError.js';
 import { createDefaultAdminState } from '../data/defaultAdminState.js';
-import { Admin } from '../models/Admin.js';
+import { Admin } from '../../../../core/admin/admin.model.js';
+import { unifiedAdminLogin, toTaxiLoginResponse } from '../../../../core/admin/adminAuth.adapter.js';
 import { User } from '../../user/models/User.js';
 import { UserWallet } from '../../user/models/UserWallet.js';
 import { WalletTransaction } from '../../driver/models/WalletTransaction.js';
@@ -19,8 +20,6 @@ import { OwnerBooking } from '../models/OwnerBooking.js';
 import { Owner } from '../models/Owner.js';
 import { FleetVehicle } from '../models/FleetVehicle.js';
 import { ReferralTranslation } from '../models/ReferralTranslation.js';
-import { AdminThirdPartySetting } from '../models/AdminThirdPartySetting.js';
-import { createDefaultThirdPartySettings } from '../data/defaultThirdPartySettings.js';
 import { RentalPackageType } from '../models/RentalPackageType.js';
 import { RentalBookingRequest } from '../models/RentalBookingRequest.js';
 import { PoolingRoute } from '../models/PoolingRoute.js';
@@ -62,7 +61,6 @@ import {
 } from '../../services/dispatchService.js';
 import { buildRentalTrackingSnapshot, listActiveRentalTrackingBookings } from '../../services/rentalTrackingService.js';
 import { sendEmail } from '../../services/mailService.js';
-import { getActivePaymentGateway, normalizePaymentSettingsPayload } from '../../services/paymentGatewayService.js';
 import { signAccessToken } from '../../services/tokenService.js';
 import {
   ADMIN_PERMISSIONS,
@@ -2704,38 +2702,26 @@ const syncSettingRows = (rows, payload) =>
   });
 
 const DEFAULT_ADMIN_EMAIL = 'admin@gmail.com';
-const DEFAULT_ADMIN_PASSWORD = '12345';
 const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$/;
 
 const syncDefaultAdminRecord = async () => {
-  const now = new Date();
   const existingAdmin = await Admin.findOne({ email: DEFAULT_ADMIN_EMAIL }).select('+password');
-  const nextPassword =
-    !existingAdmin || !BCRYPT_HASH_PATTERN.test(existingAdmin.password || '')
-      ? await hashPassword(DEFAULT_ADMIN_PASSWORD)
-      : undefined;
-
-  await Admin.collection.updateOne(
-    { email: DEFAULT_ADMIN_EMAIL },
-    {
-      $set: {
-        name: 'Super Admin',
-        email: DEFAULT_ADMIN_EMAIL,
-        phone: '9999999999',
-        role: 'superadmin',
-        admin_type: 'superadmin',
-        permissions: ['*'],
-        active: true,
-        status: 'active',
-        ...(nextPassword ? { password: nextPassword } : {}),
-        updatedAt: now,
-      },
-      $setOnInsert: {
-        createdAt: now,
-      },
-    },
-    { upsert: true },
-  );
+  if (existingAdmin) {
+    const updates = {};
+    if (!existingAdmin.admin_type) updates.admin_type = 'superadmin';
+    if (!Array.isArray(existingAdmin.permissions) || existingAdmin.permissions.length === 0) {
+      updates.permissions = ['*'];
+    }
+    if (existingAdmin.isActive === undefined) updates.isActive = true;
+    if (existingAdmin.isVerified === undefined) updates.isVerified = true;
+    if (!Array.isArray(existingAdmin.servicesAccess) || existingAdmin.servicesAccess.length === 0) {
+      updates.servicesAccess = ['food', 'quickCommerce', 'taxi'];
+    }
+    if (Object.keys(updates).length > 0) {
+      await Admin.updateOne({ _id: existingAdmin._id }, { $set: updates });
+    }
+    return;
+  }
 };
 
 const LEGACY_OWNER_SERVICE_LOCATION = {
@@ -3129,30 +3115,8 @@ export const getAdminModuleInfo = async () => {
 };
 
 export const loginAdmin = async ({ email, password }) => {
-  const admin = await Admin.findOne({ email: email?.trim().toLowerCase() }).select('+password');
-
-  if (!admin) {
-    throw new ApiError(401, 'Invalid admin credentials');
-  }
-
-  const passwordMatches = BCRYPT_HASH_PATTERN.test(admin.password || '')
-    ? await comparePassword(password, admin.password)
-    : admin.password === password;
-
-  if (!passwordMatches) {
-    throw new ApiError(401, 'Invalid admin credentials');
-  }
-
-  if (admin.active === false || String(admin.status || '').toLowerCase() === 'inactive') {
-    throw new ApiError(403, 'Admin account is inactive');
-  }
-
-  const [serializedAdmin] = await enrichAdminSummaries([admin]);
-
-  return {
-    token: signAccessToken({ sub: String(admin._id), role: 'admin' }),
-    admin: serializedAdmin,
-  };
+  const result = await unifiedAdminLogin(email, password);
+  return toTaxiLoginResponse(result, enrichAdminSummaries);
 };
 
 export const listAdminPermissions = async () =>
@@ -10065,82 +10029,6 @@ export const deletePaymentMethod = async (id) => {
   return true;
 };
 
-export const getPaymentSettings = async () => {
-  const settings = await ensureThirdPartySettings();
-  const activeGateway = await getActivePaymentGateway();
-  return { settings: settings.payment || {}, active_gateway: activeGateway };
-};
-
-export const updatePaymentSettings = async (payload) => {
-  const settings = await ensureThirdPartySettings();
-  settings.payment = normalizePaymentSettingsPayload(
-    settings.payment || {},
-    deepMerge(settings.payment || {}, payload),
-  );
-  settings.markModified('payment');
-  await settings.save();
-  const activeGateway = await getActivePaymentGateway();
-  return { settings: settings.payment, active_gateway: activeGateway };
-};
-
-export const getSMSSettings = async () => {
-  const settings = await ensureThirdPartySettings();
-  return { settings: settings.sms || {} };
-};
-
-export const updateSMSSettings = async (payload) => {
-  const settings = await ensureThirdPartySettings();
-  settings.sms = deepMerge(settings.sms || {}, payload);
-  settings.markModified('sms');
-  await settings.save();
-  return { settings: settings.sms };
-};
-
-export const getFirebaseSettings = async () => {
-  const settings = await ensureThirdPartySettings();
-  return { settings: settings.firebase || {} };
-};
-
-export const updateFirebaseSettings = async (payload) => {
-  const settings = await ensureThirdPartySettings();
-  settings.firebase = {
-    ...settings.firebase,
-    ...payload,
-    firebase_json_name: payload.firebase_json_name || settings.firebase.firebase_json_name,
-  };
-  settings.markModified('firebase');
-  await settings.save();
-  return { settings: settings.firebase };
-};
-
-export const getMapSettings = async () => {
-  const settings = await ensureThirdPartySettings();
-  return { settings: settings.map_apis || {} };
-};
-
-export const updateMapSettings = async (payload) => {
-  const settings = await ensureThirdPartySettings();
-  settings.map_apis = { ...settings.map_apis, ...payload };
-  settings.markModified('map_apis');
-  await settings.save();
-  return { settings: settings.map_apis };
-};
-
-export const getMailSettings = async () => {
-  const settings = await ensureThirdPartySettings();
-  return { settings: settings.mail || {} };
-};
-
-export const updateMailSettings = async (payload) => {
-  const settings = await ensureThirdPartySettings();
-  settings.mail = { ...settings.mail, ...payload };
-  settings.markModified('mail');
-  await settings.save();
-  return { settings: settings.mail };
-};
-
-
-
 const buildDateFilter = (date_option, from_date, to_date) => {
   const filter = {};
   const now = new Date();
@@ -10433,17 +10321,6 @@ export const ensureBusinessSettings = async () => {
   let settings = await AdminBusinessSetting.findOne({ scope: 'default' });
   if (!settings) {
     settings = await AdminBusinessSetting.create(createDefaultBusinessSettings());
-  }
-  return settings;
-};
-
-/**
- * Ensures a default third-party settings document exists.
- */
-export const ensureThirdPartySettings = async () => {
-  let settings = await AdminThirdPartySetting.findOne({ scope: 'default' });
-  if (!settings) {
-    settings = await AdminThirdPartySetting.create(createDefaultThirdPartySettings());
   }
   return settings;
 };
