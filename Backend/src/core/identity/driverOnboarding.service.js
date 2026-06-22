@@ -1,24 +1,87 @@
-import { ValidationError, NotFoundError } from '../auth/errors.js';
+import { ValidationError, NotFoundError, ConflictError } from '../auth/errors.js';
 import { BuddyIdentity } from './buddyIdentity.model.js';
 import { FoodDeliveryPartner } from '../../modules/food/delivery/models/deliveryPartner.model.js';
 import { Driver } from '../../modules/taxi/driver/models/Driver.js';
 import { hashPassword } from '../../modules/taxi/driver/services/authService.js';
 import { VEHICLE_TYPES } from '../../modules/taxi/constants/index.js';
 
-const NEXT_STEP = {
-  basics: 'kyc',
-  kyc: 'bank',
-  bank: 'vehicle',
-  vehicle: 'selfie',
-  selfie: 'capabilities',
-  capabilities: 'done',
+const FOOD_VEHICLE_TYPES = ['bike', 'scooter'];
+
+const getSelectedServices = (identity) => {
+  const services = Array.isArray(identity?.onboardingServices) ? identity.onboardingServices : [];
+  return services.filter((svc) => svc === 'food' || svc === 'taxi');
+};
+
+const getNextStep = (identity, currentStep) => {
+  const services = getSelectedServices(identity);
+  const hasFood = services.includes('food');
+  const hasTaxi = services.includes('taxi');
+
+  switch (String(currentStep || '').toLowerCase()) {
+    case 'services':
+      if (hasFood) return 'vehicle_food';
+      if (hasTaxi) return 'vehicle_taxi';
+      return 'basics';
+    case 'vehicle_food':
+      if (hasTaxi) return 'vehicle_taxi';
+      return 'basics';
+    case 'vehicle_taxi':
+      return 'basics';
+    case 'basics':
+      return 'kyc';
+    case 'kyc':
+      return 'bank';
+    case 'bank':
+      return 'selfie';
+    case 'selfie':
+      return 'done';
+  // Legacy flow support
+    case 'vehicle':
+      return 'selfie';
+    case 'capabilities':
+    case 'services':
+      return 'done';
+    default:
+      return identity.onboardingStep || 'services';
+  }
+};
+
+/** Map stored step names to the wizard step the client understands. */
+export const normalizeOnboardingStepForClient = (step, identity = null) => {
+  const normalized = String(step || 'services').toLowerCase();
+  if (normalized === 'capabilities') return 'services';
+  if (normalized === 'services') {
+    // Legacy: final service picker before submit (profile already filled).
+    if (identity?.name && identity?.kyc?.aadhaar?.number) {
+      return 'selfie';
+    }
+    return 'services';
+  }
+  if (normalized === 'vehicle') {
+    if (identity?.vehicle?.number && !identity?.foodVehicle?.number && !identity?.taxiVehicle?.number) {
+      return 'selfie';
+    }
+    const services = getSelectedServices(identity);
+    const effective = services.length ? services : ['food'];
+    if (effective.includes('food') && !identity?.foodVehicle?.number) return 'vehicle_food';
+    if (effective.includes('taxi') && !identity?.taxiVehicle?.number) return 'vehicle_taxi';
+    return 'basics';
+  }
+  if (normalized === 'done') return 'done';
+  if (
+    !getSelectedServices(identity).length &&
+    !['services', 'vehicle_food', 'vehicle_taxi'].includes(normalized)
+  ) {
+    return 'services';
+  }
+  return normalized;
 };
 
 const sanitize = (val) =>
   typeof val === 'string' ? val.trim() : val === undefined ? undefined : val;
 
 const advanceStep = async (identity, currentStep) => {
-  identity.onboardingStep = NEXT_STEP[currentStep] || identity.onboardingStep;
+  identity.onboardingStep = getNextStep(identity, currentStep);
   await identity.save();
 };
 
@@ -28,6 +91,160 @@ const normalizeVehicleType = (value = '') => {
   if (v.includes('auto') || v.includes('rickshaw')) return 'auto';
   if (VEHICLE_TYPES.includes(v)) return v;
   return 'bike';
+};
+
+const normalizeVehicleNumber = (value = '') => String(value || '').trim().toUpperCase();
+
+const excludeExistingDoc = (existingDoc) =>
+  existingDoc?._id ? { _id: { $ne: existingDoc._id } } : {};
+
+const assertUniqueVehicleNumber = async (identity, vehicleNumber) => {
+  const normalized = normalizeVehicleNumber(vehicleNumber);
+  if (!normalized) return;
+
+  const existingPartner = await FoodDeliveryPartner.findOne({
+    $or: [{ identityId: identity._id }, { phone: identity.phone }],
+  })
+    .select('_id phone')
+    .lean();
+
+  const partnerConflict = await FoodDeliveryPartner.findOne({
+    vehicleNumber: normalized,
+    ...excludeExistingDoc(existingPartner),
+  })
+    .select('phone name')
+    .lean();
+
+  if (partnerConflict) {
+    throw new ConflictError(
+      `Vehicle number ${normalized} is already registered with another delivery partner`,
+    );
+  }
+
+  const existingDriver = await Driver.findOne({
+    $or: [{ identityId: identity._id }, { phone: identity.phone }],
+  })
+    .select('_id phone')
+    .lean();
+
+  const driverConflict = await Driver.findOne({
+    vehicleNumber: normalized,
+    ...excludeExistingDoc(existingDriver),
+  })
+    .select('phone name')
+    .lean();
+
+  if (driverConflict && String(driverConflict.phone) !== String(identity.phone)) {
+    throw new ConflictError(
+      `Vehicle number ${normalized} is already registered with another driver`,
+    );
+  }
+};
+
+const assertUniquePhoneForProfiles = async (identity, { food = false, taxi = false } = {}) => {
+  const phone = String(identity.phone || '').trim();
+  if (!phone) return;
+
+  if (food) {
+    const partnerConflict = await FoodDeliveryPartner.findOne({
+      phone,
+      identityId: { $ne: identity._id },
+    })
+      .select('_id')
+      .lean();
+    if (partnerConflict) {
+      throw new ConflictError('This phone number is already registered as a delivery partner');
+    }
+  }
+
+  if (taxi) {
+    const driverConflict = await Driver.findOne({
+      phone,
+      identityId: { $ne: identity._id },
+    })
+      .select('_id')
+      .lean();
+    if (driverConflict) {
+      throw new ConflictError('This phone number is already registered as a taxi driver');
+    }
+  }
+};
+
+const normalizeFoodVehicleType = (value = '') => {
+  const v = String(value || '').trim().toLowerCase();
+  if (v.includes('scooter')) return 'scooter';
+  return 'bike';
+};
+
+const assertCreatableProfiles = async (identity, services = []) => {
+  const normalizedServices = Array.isArray(services) ? services : [];
+  if (normalizedServices.includes('food')) {
+    await assertUniquePhoneForProfiles(identity, { food: true });
+    const foodNumber = identity.foodVehicle?.number || identity.vehicle?.number;
+    await assertUniqueVehicleNumber(identity, foodNumber);
+  }
+  if (normalizedServices.includes('taxi')) {
+    await assertUniquePhoneForProfiles(identity, { taxi: true });
+    const taxiNumber = identity.taxiVehicle?.number || identity.vehicle?.number;
+    if (taxiNumber) {
+      await assertUniqueVehicleNumber(identity, taxiNumber);
+    }
+  }
+};
+
+export const updateServices = async (identity, body) => {
+  const services = Array.isArray(body?.services)
+    ? body.services.filter((svc) => svc === 'food' || svc === 'taxi')
+    : [];
+  if (services.length === 0) {
+    throw new ValidationError('Select at least one service to drive for');
+  }
+  identity.onboardingServices = services;
+  identity.markModified('onboardingServices');
+  await advanceStep(identity, 'services');
+  return identity;
+};
+
+export const updateFoodVehicle = async (identity, body) => {
+  const { type, number, make, model, color, photoUrl, rcUrl, insuranceUrl } = body || {};
+  if (!type || !number) {
+    throw new ValidationError('Vehicle type and number are required');
+  }
+  identity.foodVehicle = {
+    type: normalizeFoodVehicleType(type),
+    make: sanitize(make) || '',
+    model: sanitize(model) || '',
+    number: normalizeVehicleNumber(number),
+    color: sanitize(color) || '',
+    photoUrl: sanitize(photoUrl) || '',
+    rcUrl: sanitize(rcUrl) || '',
+    insuranceUrl: sanitize(insuranceUrl) || '',
+  };
+  await assertUniqueVehicleNumber(identity, identity.foodVehicle.number);
+  identity.markModified('foodVehicle');
+  await advanceStep(identity, 'vehicle_food');
+  return identity;
+};
+
+export const updateTaxiVehicle = async (identity, body) => {
+  const { type, number, vehicleTypeId, name, make, model, color, photoUrl, rcUrl, insuranceUrl } = body || {};
+  if (!type || !number) {
+    throw new ValidationError('Vehicle type and number are required');
+  }
+  identity.taxiVehicle = {
+    type: normalizeVehicleType(type),
+    make: sanitize(make) || sanitize(name) || '',
+    model: sanitize(model) || sanitize(vehicleTypeId) || '',
+    number: normalizeVehicleNumber(number),
+    color: sanitize(color) || '',
+    photoUrl: sanitize(photoUrl) || '',
+    rcUrl: sanitize(rcUrl) || '',
+    insuranceUrl: sanitize(insuranceUrl) || '',
+  };
+  await assertUniqueVehicleNumber(identity, identity.taxiVehicle.number);
+  identity.markModified('taxiVehicle');
+  await advanceStep(identity, 'vehicle_taxi');
+  return identity;
 };
 
 export const updateBasics = async (identity, body) => {
@@ -129,6 +346,7 @@ export const updateVehicle = async (identity, body) => {
     rcUrl: sanitize(rcUrl) || '',
     insuranceUrl: sanitize(insuranceUrl) || '',
   };
+  await assertUniqueVehicleNumber(identity, identity.vehicle.number);
   identity.markModified('vehicle');
   await advanceStep(identity, 'vehicle');
   return identity;
@@ -151,14 +369,39 @@ export const updateSelfie = async (identity, body) => {
  * driver doesn't re-enter anything.
  */
 export const completeOnboarding = async (identity, body) => {
-  const services = Array.isArray(body?.services) ? body.services : [];
+  const services = getSelectedServices(identity).length
+    ? getSelectedServices(identity)
+    : Array.isArray(body?.services)
+      ? body.services.filter((svc) => svc === 'food' || svc === 'taxi')
+      : [];
   if (services.length === 0) {
     throw new ValidationError('Select at least one service to drive for');
   }
 
-  if (!identity.name || !identity.kyc?.aadhaar?.number || !identity.vehicle?.number) {
+  if (!identity.name || !identity.kyc?.aadhaar?.number || !identity.onboardingSelfieUrl) {
     throw new ValidationError('Complete all onboarding steps before submitting');
   }
+
+  if (services.includes('food')) {
+    const foodNumber = identity.foodVehicle?.number || identity.vehicle?.number;
+    if (!foodNumber) {
+      throw new ValidationError('Add your food delivery vehicle details');
+    }
+  }
+
+  if (services.includes('taxi')) {
+    const taxiNumber = identity.taxiVehicle?.number || identity.vehicle?.number;
+    if (!taxiNumber) {
+      throw new ValidationError('Add your taxi vehicle details');
+    }
+  }
+
+  if (!identity.onboardingServices?.length) {
+    identity.onboardingServices = services;
+    identity.markModified('onboardingServices');
+  }
+
+  await assertCreatableProfiles(identity, services);
 
   const createdPartner = services.includes('food')
     ? await ensureFoodPartner(identity)
@@ -209,9 +452,14 @@ const ensureFoodPartner = async (identity) => {
     email: identity.email || '',
     countryCode: identity.countryCode || '+91',
     city: identity.city || '',
-    vehicleType: identity.vehicle?.type || '',
-    vehicleName: identity.vehicle?.make || identity.vehicle?.model || '',
-    vehicleNumber: identity.vehicle?.number || '',
+    vehicleType: identity.foodVehicle?.type || identity.vehicle?.type || '',
+    vehicleName:
+      identity.foodVehicle?.make ||
+      identity.foodVehicle?.model ||
+      identity.vehicle?.make ||
+      identity.vehicle?.model ||
+      '',
+    vehicleNumber: identity.foodVehicle?.number || identity.vehicle?.number || '',
     aadharNumber: identity.kyc?.aadhaar?.number || '',
     aadharPhoto: identity.kyc?.aadhaar?.documentUrl || '',
     panNumber: identity.kyc?.pan?.number || '',
@@ -247,12 +495,12 @@ const ensureTaxiDriver = async (identity) => {
     phone: identity.phone,
     email: identity.email || '',
     password: await hashPassword(String(identity.phone || '')),
-    vehicleType: identity.vehicle?.type || 'bike',
-    vehicleNumber: identity.vehicle?.number || '',
-    vehicleMake: identity.vehicle?.make || '',
-    vehicleModel: identity.vehicle?.model || '',
-    vehicleColor: identity.vehicle?.color || '',
-    vehicleImage: identity.vehicle?.photoUrl || '',
+    vehicleType: identity.taxiVehicle?.type || identity.vehicle?.type || 'bike',
+    vehicleNumber: identity.taxiVehicle?.number || identity.vehicle?.number || '',
+    vehicleMake: identity.taxiVehicle?.make || identity.vehicle?.make || '',
+    vehicleModel: identity.taxiVehicle?.model || identity.vehicle?.model || '',
+    vehicleColor: identity.taxiVehicle?.color || identity.vehicle?.color || '',
+    vehicleImage: identity.taxiVehicle?.photoUrl || identity.vehicle?.photoUrl || '',
     profile_picture: identity.profileImage || '',
     profileImage: identity.profileImage || '',
     gender: identity.gender || '',
@@ -287,9 +535,11 @@ export const enableCapability = async (identity, service) => {
     throw new ValidationError('service must be either "food" or "taxi"');
   }
   if (svc === 'food') {
+    await assertCreatableProfiles(identity, ['food']);
     const partner = await ensureFoodPartner(identity);
     return { service: 'food', status: partner.status || 'pending' };
   }
+  await assertCreatableProfiles(identity, ['taxi']);
   const driver = await ensureTaxiDriver(identity);
   return { service: 'taxi', status: driver.status || 'pending' };
 };
@@ -310,7 +560,8 @@ export const getOnboardingState = async (identity) => {
     updatedAt: identity.updatedAt || null,
 
     onboardingComplete: identity.onboardingComplete,
-    onboardingStep: identity.onboardingStep,
+    onboardingStep: normalizeOnboardingStepForClient(identity.onboardingStep, identity),
+    onboardingServices: getSelectedServices(identity),
     basics: {
       name: identity.name,
       email: identity.email,
@@ -321,6 +572,8 @@ export const getOnboardingState = async (identity) => {
     kyc: identity.kyc || {},
     bank: identity.bank || {},
     vehicle: identity.vehicle || {},
+    foodVehicle: identity.foodVehicle || {},
+    taxiVehicle: identity.taxiVehicle || {},
     selfieUrl: identity.onboardingSelfieUrl || '',
   };
 };

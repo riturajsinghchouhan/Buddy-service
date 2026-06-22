@@ -80,7 +80,7 @@ export default function DriverRoutes() {
           path="taxi"
           element={(
             <DriverGuard requireOnboardingComplete>
-              <Navigate to="/taxi/driver/home" replace />
+              <Navigate to="/driver/home" replace />
             </DriverGuard>
           )}
         />

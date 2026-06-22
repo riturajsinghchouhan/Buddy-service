@@ -1,7 +1,31 @@
 import axiosInstance from '@core/api/axios';
 
+import { adminLogin as unifiedAdminLoginRequest } from '@/services/api/auth';
+import { setAuthData } from '@food/utils/auth';
+
 export const adminApi = {
-    login: (data) => axiosInstance.post('/admin/login', data),
+    login: async (data) => {
+        const response = await unifiedAdminLoginRequest(data.email, data.password);
+        const payload = response?.data?.data || response?.data || {};
+        const accessToken = payload.accessToken;
+        const refreshToken = payload.refreshToken;
+        const adminUser = payload.user || payload.admin;
+
+        if (accessToken && adminUser) {
+            setAuthData('admin', accessToken, adminUser, refreshToken);
+        }
+
+        return {
+            data: {
+                result: {
+                    token: accessToken,
+                    admin: adminUser,
+                    accessToken,
+                    refreshToken,
+                },
+            },
+        };
+    },
     signup: (data) => axiosInstance.post('/admin/signup', data),
     getStats: () => axiosInstance.get('/admin/stats'),
     getUsers: (params) => axiosInstance.get('/admin/users', { params }),

@@ -24,6 +24,8 @@ const ACTION_MENU_WIDTH = 238;
 const ACTION_MENU_GAP = 8;
 const ACTION_MENU_MAX_HEIGHT = 300;
 
+const TAXI_ADMIN_PREFIX = '/taxi/admin';
+
 const PendingDrivers = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,11 +80,11 @@ const PendingDrivers = () => {
     if (action !== 'view' && action !== 'edit' && action !== 'password' && !window.confirm(confirmMsg)) return;
 
     if (action === 'view') {
-      navigate(`/admin/drivers/${driverId}`, { state: { from: '/admin/drivers/pending' } });
+      navigate(`${TAXI_ADMIN_PREFIX}/drivers/${driverId}`, { state: { from: `${TAXI_ADMIN_PREFIX}/drivers/pending` } });
       return;
     }
     if (action === 'edit') {
-      navigate(`/admin/drivers/edit/${driverId}`, { state: { from: '/admin/drivers/pending' } });
+      navigate(`${TAXI_ADMIN_PREFIX}/drivers/edit/${driverId}`, { state: { from: `${TAXI_ADMIN_PREFIX}/drivers/pending` } });
       return;
     }
 
@@ -242,7 +244,7 @@ const PendingDrivers = () => {
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold text-gray-900">Pending Drivers</h1>
           <button
-            onClick={() => navigate('/admin/drivers/create')}
+            onClick={() => navigate(`${TAXI_ADMIN_PREFIX}/drivers/create`)}
             className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <Plus size={16} /> Add Drivers
@@ -323,7 +325,7 @@ const PendingDrivers = () => {
                     <td className="px-4 py-4">{driver.transport}</td>
                     <td className="px-4 py-4 text-center">
                       <button
-                        onClick={() => navigate(`/admin/drivers/${driver.id}?tab=Documents`, { state: { from: '/admin/drivers/pending' } })}
+                        onClick={() => navigate(`${TAXI_ADMIN_PREFIX}/drivers/${driver.id}?tab=Documents`, { state: { from: `${TAXI_ADMIN_PREFIX}/drivers/pending` } })}
                         className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
                       >
                         <FileText size={16} />

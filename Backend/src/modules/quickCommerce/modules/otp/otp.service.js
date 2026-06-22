@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import OtpSession from "./otp.model.js";
-import Admin from "../../models/admin.js";
+import { Admin } from "../../../../core/admin/admin.model.js";
 import Seller from "../../models/seller.js";
 import Customer from "../../models/customer.js";
 import Delivery from "../../models/delivery.js";

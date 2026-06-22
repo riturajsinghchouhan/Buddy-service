@@ -82,7 +82,7 @@ const Profile = () => {
     const token = getLocalUserToken();
 
     if (!token) {
-      navigate('/taxi/user/login', { replace: true });
+      navigate('/user/auth/login', { replace: true });
       return;
     }
 
@@ -182,7 +182,7 @@ const Profile = () => {
     clearCurrentRide();
     socketService.disconnect();
     clearLocalUserSession();
-    navigate('/taxi/user/login', { replace: true });
+    navigate('/user/auth/login', { replace: true });
   };
 
   const initials = (profile.name || 'User')

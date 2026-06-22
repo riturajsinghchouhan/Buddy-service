@@ -46,6 +46,7 @@ export const adminService = {
 
   bulkImportDrivers: (payload) => api.post('/admin/drivers/bulk-import', payload),
   getDriver: (id) => api.get(`/admin/drivers/${id}`),
+  getDriverProfile: (id) => api.get(`/admin/drivers/${id}/profile`),
   createDriver: (driverData) => api.post('/admin/drivers', driverData),
   updateDriverStatus: (id, data) => api.patch(`/admin/drivers/${id}`, data),
   updateDriverPassword: (id, password) => api.patch(`/admin/drivers/update-password/${id}`, { password }),
@@ -322,22 +323,6 @@ export const adminService = {
   updateNotificationChannel: (id, data) => api.patch(`/admin/notification-channels/${id}`, data),
   toggleChannelPush: (id, active) => api.patch(`/admin/notification-channels/${id}/push`, { push_notification: active ? 1 : 0 }),
   toggleChannelMail: (id, active) => api.patch(`/admin/notification-channels/${id}/mail`, { mail: active ? 1 : 0 }),
-
-  /**
-   * Integration Settings
-   */
-  getPaymentGateways: (params) => api.get('/admin/integration-settings/payment-gateways', { params }),
-  updatePaymentGateway: (id, data) => api.patch(`/admin/integration-settings/payment-gateways/${id}`, data),
-  getPaymentSettings: () => api.get('/admin/integration-settings/payment-settings'),
-  updatePaymentSettings: (data) => api.patch('/admin/integration-settings/payment-settings', data),
-  getSMSSettings: () => api.get('/admin/integration-settings/sms'),
-  updateSMSSettings: (data) => api.patch('/admin/integration-settings/sms', data),
-  getFirebaseSettings: () => api.get('/admin/integration-settings/firebase'),
-  updateFirebaseSettings: (data) => api.patch('/admin/integration-settings/firebase', data),
-  getMapSettings: () => api.get('/admin/integration-settings/map'),
-  updateMapSettings: (data) => api.patch('/admin/integration-settings/map', data),
-  getMailSettings: () => api.get('/admin/integration-settings/mail'),
-  updateMailSettings: (data) => api.patch('/admin/integration-settings/mail', data),
 
   /**
    * Onboarding Screens Management

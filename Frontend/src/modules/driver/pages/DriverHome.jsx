@@ -3,13 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Bike,
   Car,
-  Power,
-  ChevronRight,
-  Wallet,
-  History,
   Loader2,
   LogOut,
   Sparkles,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,39 +14,56 @@ import {
   driverModeAPI,
   driverOnboardingAPI,
   clearIdentitySession,
+  getApiErrorMessage,
 } from "@food/api";
 import { clearModuleAuth } from "@food/utils/auth";
-
-const MODES = [
-  {
-    key: "off",
-    label: "Offline",
-    description: "Not accepting any jobs",
-    accent: "from-white/5 to-white/0",
-    Icon: Power,
-  },
-  {
-    key: "food",
-    label: "Food & Quick Commerce",
-    description: "Take restaurant orders + quick-commerce deliveries",
-    accent: "from-orange-500/20 to-orange-500/0",
-    Icon: Bike,
-  },
-  {
-    key: "taxi",
-    label: "Taxi Mode",
-    description: "Take rides, parcels, intercity (no food/quick orders)",
-    accent: "from-sky-500/20 to-sky-500/0",
-    Icon: Car,
-  },
-];
 
 const OFF_VALUES = new Set(["off", "none", "offline", "", null, undefined]);
 const normalizeMode = (raw) => (OFF_VALUES.has(raw) ? "off" : raw);
 
+const SERVICE_TOGGLES = [
+  {
+    key: "food",
+    label: "Food & Quick Commerce",
+    description: "Restaurant orders and quick-commerce deliveries",
+    Icon: Bike,
+    accent: "text-orange-400",
+  },
+  {
+    key: "taxi",
+    label: "Taxi Mode",
+    description: "Rides, parcels, and intercity trips",
+    Icon: Car,
+    accent: "text-sky-400",
+  },
+];
+
+const APPLY_FOR_SERVICE = {
+  food: {
+    service: "food",
+    label: "Food & Quick Commerce",
+    title: "Apply for Food & Quick Commerce",
+    description:
+      "Use your existing verified profile to start delivering restaurant orders and quick-commerce packages.",
+    Icon: Bike,
+    accent: "from-orange-500/20 to-orange-500/5 border-orange-500/25",
+    btnClass: "bg-orange-500 hover:bg-orange-600",
+  },
+  taxi: {
+    service: "taxi",
+    label: "Taxi Driving",
+    title: "Apply for Taxi Driving",
+    description:
+      "Use your existing verified profile to accept rides, parcels, and intercity trips.",
+    Icon: Car,
+    accent: "from-sky-500/20 to-sky-500/5 border-sky-500/25",
+    btnClass: "bg-sky-500 hover:bg-sky-600",
+  },
+};
+
 /**
- * Single home for a driver. Shows the mutually-exclusive mode selector
- * and quick links into the existing food-delivery and taxi-driver portals.
+ * Single home for a driver. Mutually-exclusive service toggles (food vs taxi)
+ * plus quick links into the food-delivery and taxi-driver portals.
  */
 export default function DriverHome() {
   const navigate = useNavigate();
@@ -58,6 +72,7 @@ export default function DriverHome() {
   const [identity, setIdentity] = useState(null);
   const [bootLoading, setBootLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  const [enrollingService, setEnrollingService] = useState(null);
   const [latLng, setLatLng] = useState(null);
 
   useEffect(() => {
@@ -109,71 +124,98 @@ export default function DriverHome() {
     food: "/food/delivery",
   };
 
-  const switchMode = async (next) => {
-    // Capability never enrolled — point the driver to onboarding instead of
-    // silently doing nothing.
-    if (next === "taxi" && capabilities?.taxi === "not_enabled") {
-      toast.error("Taxi capability isn't enabled yet. Add it from onboarding.");
-      navigate("/driver/onboarding");
-      return;
-    }
-    if (next === "food" && capabilities?.food === "not_enabled") {
-      toast.error("Food capability isn't enabled yet. Add it from onboarding.");
-      navigate("/driver/onboarding");
-      return;
-    }
+  const foodEnabled = capabilities?.food && capabilities.food !== "not_enabled";
+  const taxiEnabled = capabilities?.taxi && capabilities.taxi !== "not_enabled";
+  const foodApproved = capabilities?.food === "approved" || capabilities?.food === "enabled" || capabilities?.food === "active";
+  const taxiApproved = capabilities?.taxi === "approved" || capabilities?.taxi === "enabled" || capabilities?.taxi === "active";
+  const missingServiceKey = foodEnabled && !taxiEnabled ? "taxi" : taxiEnabled && !foodEnabled ? "food" : null;
+  const applyCta = missingServiceKey ? APPLY_FOR_SERVICE[missingServiceKey] : null;
 
-    if (next === mode && next !== "off") {
-      // Already in this mode — jump straight into the portal anyway so the
-      // user gets to where they want to go.
-      if (PORTAL_TARGETS[next]) navigate(PORTAL_TARGETS[next]);
-      return;
+  const refreshCapabilities = async () => {
+    const [stateRes, modeRes] = await Promise.all([
+      driverOnboardingAPI.getState().catch(() => null),
+      driverModeAPI.get().catch(() => null),
+    ]);
+    const onboardingState = stateRes?.data?.data || stateRes?.data || {};
+    const modeState = modeRes?.data?.data || modeRes?.data || {};
+    if (onboardingState?.capabilities) {
+      setCapabilities(onboardingState.capabilities);
     }
+    if (modeState?.capabilities) {
+      setCapabilities((prev) => ({ ...prev, ...modeState.capabilities }));
+    }
+  };
+
+  const handleApplyForService = async (service) => {
+    if (enrollingService) return;
+    setEnrollingService(service);
+    try {
+      const res = await driverOnboardingAPI.enableCapability(service);
+      const data = res?.data?.data || res?.data || {};
+      const status = data?.status || "pending";
+      setCapabilities((prev) => ({ ...prev, [service]: status }));
+      await refreshCapabilities();
+      toast.success(
+        service === "food"
+          ? "Food & Quick Commerce application submitted — pending admin approval"
+          : "Taxi application submitted — pending admin approval",
+      );
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not submit application"));
+    } finally {
+      setEnrollingService(null);
+    }
+  };
+
+  const applyMode = async (next) => {
     setSwitching(true);
-
-    // For taxi / food, navigate immediately and run the mode-change in the
-    // background. The destination module's own guard (DriverLayout for taxi,
-    // delivery layout for food) shows either the home, a pending-approval
-    // status page, or an onboarding step — whichever applies. This avoids
-    // the user being stuck on /driver/home when something on the API side
-    // is still pending.
-    if (next !== "off" && PORTAL_TARGETS[next]) {
-      try {
-        const promise = driverModeAPI.set(next, latLng || {});
-        toast.success(
-          next === "taxi"
-            ? "Opening Taxi driver portal"
-            : "Opening Food & Quick Commerce portal",
-        );
-        navigate(PORTAL_TARGETS[next]);
-        promise
-          .then((res) => {
-            const data = res?.data?.data || res?.data || {};
-            if (data?.activeService) setMode(normalizeMode(data.activeService));
-            if (data?.capabilities) setCapabilities(data.capabilities);
-          })
-          .catch((err) => {
-            const msg = err?.response?.data?.message || err?.message;
-            if (msg) toast.error(msg);
-          });
-      } finally {
-        setSwitching(false);
-      }
-      return;
-    }
-
-    // Going off-duty — stay on this page and just persist.
     try {
       const res = await driverModeAPI.set(next, latLng || {});
       const data = res?.data?.data || res?.data || {};
       setMode(normalizeMode(data?.activeService) || "off");
       if (data?.capabilities) setCapabilities(data.capabilities);
-      toast.success("You're offline");
+      if (next === "off") {
+        toast.success("You're offline — not receiving jobs");
+      } else if (next === "food") {
+        toast.success("Food & Quick Commerce is now active");
+      } else if (next === "taxi") {
+        toast.success("Taxi mode is now active");
+      }
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message;
-      toast.error(msg || "Could not switch mode — finish your current job first");
+      const msg = getApiErrorMessage(err, "Could not switch mode — finish your current job first");
+      toast.error(msg);
     } finally {
       setSwitching(false);
+    }
+  };
+
+  const toggleService = async (serviceKey, turningOn) => {
+    if (switching) return;
+
+    if (serviceKey === "taxi" && !taxiEnabled) {
+      toast.error("Apply for Taxi below to enable this service.");
+      return;
+    }
+    if (serviceKey === "food" && !foodEnabled) {
+      toast.error("Apply for Food & Quick Commerce below to enable this service.");
+      return;
+    }
+    if (serviceKey === "taxi" && taxiEnabled && !taxiApproved) {
+      toast.info("Taxi profile is pending admin approval.");
+      return;
+    }
+    if (serviceKey === "food" && foodEnabled && !foodApproved) {
+      toast.info("Food profile is pending admin approval.");
+      return;
+    }
+
+    if (turningOn) {
+      await applyMode(serviceKey);
+      return;
+    }
+
+    if (mode === serviceKey) {
+      await applyMode("off");
     }
   };
 
@@ -195,10 +237,9 @@ export default function DriverHome() {
     );
   }
 
-  const foodEnabled = capabilities?.food && capabilities.food !== "not_enabled";
-  const taxiEnabled = capabilities?.taxi && capabilities.taxi !== "not_enabled";
-  const foodApproved = capabilities?.food === "approved" || capabilities?.food === "enabled" || capabilities?.food === "active";
-  const taxiApproved = capabilities?.taxi === "approved" || capabilities?.taxi === "enabled" || capabilities?.taxi === "active";
+  const isOffline = mode === "off";
+  const foodActive = mode === "food";
+  const taxiActive = mode === "taxi";
 
   return (
     <div className="min-h-screen bg-[#0c1410] text-white font-['Poppins']">
@@ -224,100 +265,163 @@ export default function DriverHome() {
           </button>
         </div>
 
-        {/* Mode selector */}
+        {/* Service toggles */}
         <div className="rounded-3xl bg-white/[0.04] border border-white/10 p-5 mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-4 h-4 text-[#88c170]" />
-            <span className="text-[12px] uppercase tracking-widest font-bold text-[#9bc78a]">
-              Service Mode
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#88c170]" />
+              <span className="text-[12px] uppercase tracking-widest font-bold text-[#9bc78a]">
+                Service Mode
+              </span>
+            </div>
+            <span
+              className={[
+                "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full",
+                isOffline
+                  ? "bg-white/10 text-white/50"
+                  : "bg-[#88c170]/20 text-[#88c170]",
+              ].join(" ")}
+            >
+              {isOffline ? "Offline" : foodActive ? "Food Active" : "Taxi Active"}
             </span>
           </div>
           <p className="text-[13px] text-white/60 mb-4 leading-relaxed">
-            Pick what you want to receive right now. You can only be active on one service
-            at a time — switching is instant.
+            Turn on one service at a time. If both are off, you won't receive any jobs.
           </p>
 
-          <div className="space-y-2.5">
-            {MODES.map(({ key, label, description, accent, Icon }) => {
-              const active = mode === key;
-              const disabled = (key === "food" && !foodEnabled) || (key === "taxi" && !taxiEnabled);
-              const pending =
-                (key === "food" && foodEnabled && !foodApproved) ||
-                (key === "taxi" && taxiEnabled && !taxiApproved);
+          <div className="space-y-3">
+            {SERVICE_TOGGLES.map(({ key, label, description, Icon, accent }) => {
+              const enabled = key === "food" ? foodEnabled : taxiEnabled;
+              const approved = key === "food" ? foodApproved : taxiApproved;
+              const pending = enabled && !approved;
+              const active = key === "food" ? foodActive : taxiActive;
+              const disabled = !enabled || pending || switching;
 
               return (
-                <button
-                  type="button"
+                <div
                   key={key}
-                  onClick={() => !switching && switchMode(key)}
-                  disabled={switching}
                   className={[
-                    "w-full text-left rounded-2xl border p-3.5 flex items-center gap-3 transition-all",
-                    active
-                      ? "bg-[#88c170] border-[#88c170] text-[#0c1410]"
-                      : "bg-white/5 border-white/10 text-white",
-                    disabled ? "opacity-60" : "hover:border-[#88c170]/40",
+                    "rounded-2xl border p-4 flex items-center gap-3 transition-all",
+                    active ? "bg-[#88c170]/10 border-[#88c170]/40" : "bg-white/5 border-white/10",
+                    !enabled ? "opacity-60" : "",
                   ].join(" ")}
                 >
-                  <div
-                    className={[
-                      "w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br",
-                      accent,
-                      active ? "bg-[#0c1410]/10" : "",
-                    ].join(" ")}
-                  >
-                    <Icon className={["w-5 h-5", active ? "text-[#0c1410]" : "text-[#88c170]"].join(" ")} />
+                  <div className={["w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center shrink-0", accent].join(" ")}>
+                    <Icon className="w-5 h-5" />
                   </div>
-                  <div className="flex-1">
-                    <div className="font-bold">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-[14px] flex items-center gap-2 flex-wrap">
                       {label}
                       {pending && (
-                        <span className="ml-2 text-[10px] uppercase tracking-widest text-amber-400">
-                          Pending
-                        </span>
+                        <span className="text-[10px] uppercase tracking-widest text-amber-400">Pending</span>
                       )}
-                      {disabled && (
-                        <span className="ml-2 text-[10px] uppercase tracking-widest text-white/40">
-                          Not Enrolled
-                        </span>
+                      {!enabled && (
+                        <span className="text-[10px] uppercase tracking-widest text-white/40">Not Enrolled</span>
                       )}
                     </div>
-                    <div className={active ? "text-[#0c1410]/70 text-[12px]" : "text-white/50 text-[12px]"}>
-                      {description}
-                    </div>
+                    <div className="text-white/50 text-[12px] mt-0.5">{description}</div>
                   </div>
-                  {switching && active && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {active && !switching && <span className="text-[12px] font-bold">ACTIVE</span>}
-                </button>
+                  <label className="relative inline-flex items-center shrink-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={active}
+                      disabled={disabled}
+                      onChange={(e) => toggleService(key, e.target.checked)}
+                    />
+                    <div
+                      className={[
+                        "w-12 h-7 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#88c170]/40",
+                        disabled ? "bg-white/10 cursor-not-allowed" : "bg-white/15 peer-checked:bg-[#88c170]",
+                      ].join(" ")}
+                    />
+                    <div
+                      className={[
+                        "absolute left-0.5 top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform",
+                        active ? "translate-x-5" : "translate-x-0",
+                        switching ? "opacity-60" : "",
+                      ].join(" ")}
+                    />
+                  </label>
+                </div>
               );
             })}
           </div>
+
+          {switching && (
+            <div className="flex items-center justify-center gap-2 mt-4 text-[12px] text-white/50">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Updating service mode…
+            </div>
+          )}
         </div>
 
-        {/* Capability cards */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        {applyCta && (
+          <ApplyForServiceCard
+            cta={applyCta}
+            loading={enrollingService === applyCta.service}
+            onApply={() => handleApplyForService(applyCta.service)}
+          />
+        )}
+
+        {/* Capability cards — open portals */}
+        <div className="grid grid-cols-2 gap-3">
           <CapabilityCard
             Icon={Bike}
             title="Food & Quick"
             status={capabilities.food}
             enabled={foodEnabled}
-            href="/food/delivery"
+            href={PORTAL_TARGETS.food}
           />
           <CapabilityCard
             Icon={Car}
             title="Taxi Driving"
             status={capabilities.taxi}
             enabled={taxiEnabled}
-            href="/taxi/driver/home"
+            href={PORTAL_TARGETS.taxi}
           />
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Footer quick links */}
-        <div className="rounded-3xl bg-white/[0.04] border border-white/10 divide-y divide-white/5 overflow-hidden">
-          <QuickLink Icon={Wallet} title="Wallet & Earnings" href="/food/delivery/pocket" />
-          <QuickLink Icon={History} title="History" href="/food/delivery/history" />
+function ApplyForServiceCard({ cta, loading, onApply }) {
+  const { Icon, title, description, btnClass } = cta;
+  return (
+    <div
+      className={[
+        "rounded-3xl border bg-gradient-to-br p-5 mb-5",
+        cta.accent,
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h3 className="text-white font-bold text-[15px] leading-snug">{title}</h3>
+          <p className="text-[12px] text-white/60 mt-1 leading-relaxed">{description}</p>
         </div>
       </div>
+      <button
+        type="button"
+        onClick={onApply}
+        disabled={loading}
+        className={[
+          "w-full h-12 rounded-2xl text-white font-extrabold text-[14px] flex items-center justify-center gap-2 transition-colors active:scale-[0.98] disabled:opacity-60",
+          btnClass,
+        ].join(" ")}
+      >
+        {loading ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <>
+            <Plus className="w-5 h-5" />
+            <span>{title}</span>
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -325,35 +429,33 @@ export default function DriverHome() {
 function CapabilityCard({ Icon, title, status, enabled, href }) {
   const label = enabled ? String(status || "active").replace(/_/g, " ") : "Not enrolled";
   const isReady = enabled && (status === "approved" || status === "enabled" || status === "active");
-  return (
-    <Link
-      to={enabled ? href : "/driver/onboarding"}
-      className={[
-        "block rounded-2xl border p-4 transition-all",
-        isReady ? "bg-[#88c170]/10 border-[#88c170]/30" : "bg-white/5 border-white/10",
-      ].join(" ")}
-    >
+  const isPending = enabled && !isReady;
+  const target = !enabled ? null : isPending ? "/driver/home" : href;
+
+  const className = [
+    "block rounded-2xl border p-4 transition-all",
+    isReady ? "bg-[#88c170]/10 border-[#88c170]/30" : "bg-white/5 border-white/10",
+    !enabled ? "opacity-70" : "",
+  ].join(" ");
+
+  const content = (
+    <>
       <Icon className={[
         "w-5 h-5 mb-2",
         isReady ? "text-[#88c170]" : "text-white/40",
       ].join(" ")} />
       <div className="text-white font-bold text-[13px]">{title}</div>
       <div className="text-[11px] text-white/40 mt-1 capitalize">{label}</div>
-    </Link>
+    </>
   );
-}
 
-function QuickLink({ Icon, title, href }) {
+  if (!target) {
+    return <div className={className}>{content}</div>;
+  }
+
   return (
-    <Link
-      to={href}
-      className="w-full flex items-center gap-3 p-4 hover:bg-white/[0.04] transition-colors"
-    >
-      <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-[#88c170]">
-        <Icon className="w-4 h-4" />
-      </div>
-      <span className="flex-1 text-white font-semibold text-[14px]">{title}</span>
-      <ChevronRight className="w-4 h-4 text-white/30" />
+    <Link to={target} className={className}>
+      {content}
     </Link>
   );
 }

@@ -54,7 +54,7 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
   const [saving, setSaving] = useState(false);
   const [enablePeakZoneGlobal, setEnablePeakZoneGlobal] = useState(true);
   const [editingId, setEditingId] = useState(id || null);
-  const [mapCenter, setMapCenter] = useState({ lat: 21.1458, lng: 79.0882 }); 
+  const [mapCenter, setMapCenter] = useState({ lat: 21.1458, lng: 79.0882 });
   const [autocomplete, setAutocomplete] = useState(null);
   const [countryBoundaryPaths, setCountryBoundaryPaths] = useState([]);
   const [boundaryLoading, setBoundaryLoading] = useState(false);
@@ -242,9 +242,9 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
     const radius = circle.getRadius();
     const nextCenter = center
       ? {
-          lat: center.lat(),
-          lng: center.lng(),
-        }
+        lat: center.lat(),
+        lng: center.lng(),
+      }
       : circleCenter;
     const nextRadiusMeters = Number.isFinite(radius)
       ? String(Math.round(radius))
@@ -311,7 +311,7 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
         circle_radius_meters: boundaryMode === 'circle' ? Number(effectiveCircleRadiusMeters) : undefined,
         name: formData.name.English
       };
-      const res = editingId 
+      const res = editingId
         ? await adminService.updateZone(editingId, payload)
         : await adminService.createZone(payload);
       if (res.success) {
@@ -413,9 +413,9 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
     setCircleCenter(
       zone.circle_center && Number.isFinite(Number(zone.circle_center?.lat)) && Number.isFinite(Number(zone.circle_center?.lng))
         ? {
-            lat: Number(zone.circle_center.lat),
-            lng: Number(zone.circle_center.lng),
-          }
+          lat: Number(zone.circle_center.lat),
+          lng: Number(zone.circle_center.lng),
+        }
         : null,
     );
     setCircleRadiusMeters(
@@ -462,7 +462,7 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8 animate-in fade-in duration-500">
       <AnimatePresence mode="wait">
         {view === 'list' ? (
-          <motion.div 
+          <motion.div
             key="list" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="max-w-7xl mx-auto space-y-6"
           >
@@ -477,7 +477,7 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
                   <h1 className="text-xl font-semibold text-gray-900">Zone Management</h1>
                   <p className="text-xs text-gray-400 mt-1">Configure geofenced boundaries for operational control.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => navigate("create")}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
                 >
@@ -487,32 +487,32 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 p-6 flex items-center justify-between shadow-sm">
-               <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${enablePeakZoneGlobal ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-300'}`}>
-                     <Zap size={20} className={enablePeakZoneGlobal ? 'animate-pulse' : ''} />
-                  </div>
-                  <div>
-                     <h3 className="text-sm font-semibold text-gray-900">Dynamic Peak Pricing</h3>
-                     <p className="text-[11px] text-gray-400">Toggle surge modifiers across all zones globally</p>
-                  </div>
-               </div>
-               <button 
-                 onClick={() => setEnablePeakZoneGlobal(!enablePeakZoneGlobal)}
-                 className={`relative w-11 h-6 rounded-full transition-colors ${enablePeakZoneGlobal ? 'bg-indigo-600' : 'bg-gray-200'}`}
-               >
-                 <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${enablePeakZoneGlobal ? 'translate-x-5' : ''}`} />
-               </button>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${enablePeakZoneGlobal ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-300'}`}>
+                  <Zap size={20} className={enablePeakZoneGlobal ? 'animate-pulse' : ''} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Dynamic Peak Pricing</h3>
+                  <p className="text-[11px] text-gray-400">Toggle surge modifiers across all zones globally</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEnablePeakZoneGlobal(!enablePeakZoneGlobal)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${enablePeakZoneGlobal ? 'bg-indigo-600' : 'bg-gray-200'}`}
+              >
+                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${enablePeakZoneGlobal ? 'translate-x-5' : ''}`} />
+              </button>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                 <div className="relative w-full max-w-sm">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search zones..." 
+                    placeholder="Search zones..."
                     className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium"
                   />
                 </div>
@@ -547,24 +547,24 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <button 
-                               onClick={() => handleStatusToggle(zone._id || zone.id, zone.active)} 
-                               className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${zone.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-50 text-gray-400 border border-gray-200'}`}
+                            <button
+                              onClick={() => handleStatusToggle(zone._id || zone.id, zone.active)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${zone.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-50 text-gray-400 border border-gray-200'}`}
                             >
-                               {zone.active ? 'Active' : 'Inactive'}
+                              {zone.active ? 'Active' : 'Inactive'}
                             </button>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-2">
-                               <button onClick={() => navigate(`edit/${zone._id || zone.id}`)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit2 size={14} /></button>
-                               <button onClick={() => handleDelete(zone._id || zone.id)} className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                               <button
-                                 onClick={() => handleExplore(zone)}
-                                 title="Explore Zone"
-                                 className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                               >
-                                 <Globe size={14} />
-                               </button>
+                              <button onClick={() => navigate(`edit/${zone._id || zone.id}`)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Edit2 size={14} /></button>
+                              <button onClick={() => handleDelete(zone._id || zone.id)} className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                              <button
+                                onClick={() => handleExplore(zone)}
+                                title="Explore Zone"
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              >
+                                <Globe size={14} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -623,7 +623,7 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
             </div>
           </motion.div>
         ) : (
-          <motion.div 
+          <motion.div
             key="form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
             className="max-w-7xl mx-auto space-y-6 pb-20"
           >
@@ -637,7 +637,7 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
               </div>
               <div className="flex items-center justify-between">
                 <h1 className="text-xl font-semibold text-gray-900">{editingId ? 'Edit Market Zone' : 'Add Market Zone'}</h1>
-                <button 
+                <button
                   onClick={() => navigate("/admin/pricing/zone")}
                   className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
                 >
@@ -650,300 +650,299 @@ const ZoneManagement = ({ mode: initialMode = "list" }) => {
               {/* Form Section */}
               <div className="xl:col-span-4 space-y-6">
                 <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                   <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                        <Tag size={18} />
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Tag size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Zone Identity</h3>
+                      <p className="text-xs text-gray-400">Basic identification settings</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div>
+                      <label className={labelClass}>Service Location</label>
+                      <select
+                        value={formData.service_location_id}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setFormData({ ...formData, service_location_id: nextId });
+                          const loc = serviceLocations.find(l => String(l._id || l.id) === String(nextId));
+                          if (loc?.latitude) {
+                            const center = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+                            setMapCenter(center);
+                            mapRef.current?.panTo(center);
+                          }
+                        }}
+                        className={inputClass}
+                      >
+                        <option value="">Select Service Location</option>
+                        {serviceLocations.map(sl => (
+                          <option key={sl._id || sl.id} value={sl._id || sl.id}>{sl.name || sl.service_location_name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1 border-b border-gray-100 mb-4">
+                        {ADMIN_LANGUAGE_OPTIONS.map(lang => (
+                          <button
+                            key={lang}
+                            onClick={() => setActiveTab(lang)}
+                            className={`px-4 py-2 text-xs font-medium transition-colors relative ${activeTab === lang ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                          >
+                            {lang}
+                            {activeTab === lang && (
+                              <motion.div layoutId="activeTab" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-indigo-600" />
+                            )}
+                          </button>
+                        ))}
                       </div>
+
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Zone Identity</h3>
-                        <p className="text-xs text-gray-400">Basic identification settings</p>
-                      </div>
-                   </div>
-                   
-                   <div className="space-y-5">
-                      <div>
-                        <label className={labelClass}>Service Location</label>
-                        <select 
-                          value={formData.service_location_id}
-                          onChange={(e) => {
-                            const nextId = e.target.value;
-                            setFormData({...formData, service_location_id: nextId});
-                            const loc = serviceLocations.find(l => String(l._id || l.id) === String(nextId));
-                            if (loc?.latitude) {
-                              const center = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
-                              setMapCenter(center);
-                              mapRef.current?.panTo(center);
-                            }
-                          }}
+                        <label className={labelClass}>Zone Name *</label>
+                        <input
+                          type="text"
+                          value={formData.name[activeTab] || ''}
+                          onChange={(e) => setFormData({ ...formData, name: { ...formData.name, [activeTab]: e.target.value } })}
+                          placeholder={`Name in ${activeTab}`}
                           className={inputClass}
-                        >
-                          <option value="">Select Service Location</option>
-                          {serviceLocations.map(sl => (
-                            <option key={sl._id || sl.id} value={sl._id || sl.id}>{sl.name || sl.service_location_name}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
+                    </div>
 
-                      <div>
-                        <div className="flex items-center gap-1 border-b border-gray-100 mb-4">
-                          {ADMIN_LANGUAGE_OPTIONS.map(lang => (
-                            <button
-                              key={lang}
-                              onClick={() => setActiveTab(lang)}
-                              className={`px-4 py-2 text-xs font-medium transition-colors relative ${activeTab === lang ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
-                            >
-                              {lang}
-                              {activeTab === lang && (
-                                <motion.div layoutId="activeTab" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-indigo-600" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                        
-                        <div>
-                          <label className={labelClass}>Zone Name *</label>
-                          <input 
-                            type="text" 
-                            value={formData.name[activeTab] || ''}
-                            onChange={(e) => setFormData({...formData, name: { ...formData.name, [activeTab]: e.target.value }})}
-                            placeholder={`Name in ${activeTab}`}
-                            className={inputClass}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>Boundary Shape</label>
-                        <div className="grid grid-cols-2 gap-3">
-                          {[
-                            { id: 'polygon', label: 'Polygon Boundary' },
-                            { id: 'circle', label: 'Circle Radius' },
-                          ].map((option) => (
-                            <button
-                              key={option.id}
-                              type="button"
-                              onClick={() => setBoundaryMode(option.id)}
-                              className={`rounded-lg border px-4 py-3 text-sm font-semibold transition-colors ${
-                                boundaryMode === option.id
-                                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                    <div>
+                      <label className={labelClass}>Boundary Shape</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { id: 'polygon', label: 'Polygon Boundary' },
+                          { id: 'circle', label: 'Circle Radius' },
+                        ].map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setBoundaryMode(option.id)}
+                            className={`rounded-lg border px-4 py-3 text-sm font-semibold transition-colors ${boundaryMode === option.id
+                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
                               }`}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
+                          >
+                            {option.label}
+                          </button>
+                        ))}
                       </div>
+                    </div>
 
-                      {boundaryMode === 'circle' ? (
-                        <div>
-                          <label className={labelClass}>Circle Boundary Radius (meters)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={circleRadiusMeters}
-                            onChange={(e) => setCircleRadiusMeters(e.target.value)}
-                            placeholder="Enter circle radius in meters"
-                            className={inputClass}
-                          />
-                        </div>
-                      ) : null}
+                    {boundaryMode === 'circle' ? (
+                      <div>
+                        <label className={labelClass}>Circle Boundary Radius (meters)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={circleRadiusMeters}
+                          onChange={(e) => setCircleRadiusMeters(e.target.value)}
+                          placeholder="Enter circle radius in meters"
+                          className={inputClass}
+                        />
+                      </div>
+                    ) : null}
 
-                   </div>
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3 shadow-sm">
-                   <button 
-                     disabled={saving} onClick={handleSave}
-                     className="w-full py-3 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
-                   >
-                     {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                     {editingId ? 'Update Zone' : 'Save'}
-                   </button>
-                   <button 
-                     onClick={() => navigate("/admin/pricing/zone")}
-                     className="w-full py-3 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
-                   >
-                     Cancel
-                   </button>
+                  <button
+                    disabled={saving} onClick={handleSave}
+                    className="w-full py-3 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    {editingId ? 'Update Zone' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => navigate("/admin/pricing/zone")}
+                    className="w-full py-3 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
 
               {/* Map Section */}
               <div className="xl:col-span-8 space-y-6">
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                   <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
-                      <div className="w-full md:max-w-md">
-                        <div className="flex h-12 w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 shadow-sm">
-                           <Search className="text-gray-400" size={18} />
-                           {isLoaded ? (
-                             <Autocomplete
-                               onLoad={a => setAutocomplete(a)}
-                               onPlaceChanged={onPlaceChanged}
-                               className="flex-1"
-                             >
-                               <input
-                                 type="text"
-                                 placeholder="Search for a city or zone"
-                                 className="w-full bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-400"
-                               />
-                             </Autocomplete>
-                           ) : (
-                             <input
-                               type="text"
-                               placeholder={loadError ? "Google Maps failed to load" : "Loading map search..."}
-                               disabled
-                               className="w-full bg-transparent text-sm font-semibold text-gray-400 outline-none placeholder:text-gray-400"
-                             />
-                           )}
-                        </div>
+                  <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                    <div className="w-full md:max-w-md">
+                      <div className="flex h-12 w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 shadow-sm">
+                        <Search className="text-gray-400" size={18} />
+                        {isLoaded ? (
+                          <Autocomplete
+                            onLoad={a => setAutocomplete(a)}
+                            onPlaceChanged={onPlaceChanged}
+                            className="flex-1"
+                          >
+                            <input
+                              type="text"
+                              placeholder="Search for a city or zone"
+                              className="w-full bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-400"
+                            />
+                          </Autocomplete>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder={loadError ? "Google Maps failed to load" : "Loading map search..."}
+                            disabled
+                            className="w-full bg-transparent text-sm font-semibold text-gray-400 outline-none placeholder:text-gray-400"
+                          />
+                        )}
                       </div>
+                    </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-3 md:justify-end">
-                        <div className="rounded-full bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
-                          State and city labels remain visible while you draw zone boundaries.
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setPolygonCoords([]);
-                            setCircleCenter(null);
-                            setCircleRadiusMeters('');
+                    <div className="flex flex-wrap items-center justify-between gap-3 md:justify-end">
+                      <div className="rounded-full bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
+                        State and city labels remain visible while you draw zone boundaries.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPolygonCoords([]);
+                          setCircleCenter(null);
+                          setCircleRadiusMeters('');
+                        }}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-600 shadow-sm transition-all border border-gray-200 hover:bg-rose-50 active:scale-95"
+                      >
+                        <X size={14} />
+                        Clear Map
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="h-[620px] p-2">
+                    {isLoaded ? (
+                      <div className="w-full h-full rounded-lg overflow-hidden relative">
+                        <GoogleMap
+                          mapContainerStyle={{ width: '100%', height: '100%' }}
+                          center={mapCenter} zoom={12}
+                          onLoad={m => { mapRef.current = m; }}
+                          options={{
+                            mapTypeId: 'roadmap',
+                            disableDefaultUI: false,
+                            zoomControl: true,
+                            mapTypeControl: true,
+                            streetViewControl: false,
+                            fullscreenControl: true
                           }}
-                          className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-600 shadow-sm transition-all border border-gray-200 hover:bg-rose-50 active:scale-95"
                         >
-                          <X size={14} />
-                          Clear Map
-                        </button>
+                          <DrawingManager
+                            onPolygonComplete={onPolygonComplete}
+                            options={{
+                              drawingControl: true,
+                              drawingControlOptions: {
+                                position: window.google.maps.ControlPosition.TOP_RIGHT,
+                                drawingModes: [
+                                  window.google.maps.drawing.OverlayType.POLYGON,
+                                  window.google.maps.drawing.OverlayType.CIRCLE,
+                                ],
+                              },
+                              polygonOptions: {
+                                fillColor: '#4f46e5',
+                                fillOpacity: 0.15,
+                                strokeColor: '#4f46e5',
+                                strokeWeight: 2,
+                                editable: true,
+                              },
+                              circleOptions: {
+                                fillColor: '#0f766e',
+                                fillOpacity: 0.12,
+                                strokeColor: '#0f766e',
+                                strokeWeight: 2,
+                                editable: true,
+                              },
+                            }}
+                            onCircleComplete={onCircleComplete}
+                          />
+                          {boundaryMode === 'polygon' && polygonCoords.length > 0 && (
+                            <Polygon
+                              paths={polygonCoords}
+                              options={{ fillColor: '#4f46e5', strokeColor: '#4f46e5', strokeWeight: 2, fillOpacity: 0.25, editable: true, draggable: true }}
+                              onLoad={(polygon) => {
+                                polygonListenersRef.current.forEach((listener) => listener?.remove?.());
+                                polygonListenersRef.current = [];
+                                polygonRef.current = polygon;
+                                const path = polygon.getPath();
+                                polygonListenersRef.current = [
+                                  path.addListener('set_at', syncPolygonState),
+                                  path.addListener('insert_at', syncPolygonState),
+                                  path.addListener('remove_at', syncPolygonState),
+                                  polygon.addListener('dragend', syncPolygonState),
+                                  polygon.addListener('mouseup', syncPolygonState),
+                                ];
+                              }}
+                              onUnmount={() => {
+                                polygonListenersRef.current.forEach((listener) => listener?.remove?.());
+                                polygonListenersRef.current = [];
+                                polygonRef.current = null;
+                              }}
+                            />
+                          )}
+                          {boundaryMode === 'circle' && circleCenter && Number(circleRadiusMeters) > 0 ? (
+                            <Circle
+                              center={circleCenter}
+                              radius={Number(circleRadiusMeters)}
+                              options={{
+                                fillColor: '#0f766e',
+                                strokeColor: '#0f766e',
+                                strokeWeight: 2,
+                                fillOpacity: 0.18,
+                                editable: true,
+                                draggable: true,
+                              }}
+                              onLoad={(circle) => {
+                                circleListenersRef.current.forEach((listener) => listener?.remove?.());
+                                circleListenersRef.current = [];
+                                circleRef.current = circle;
+                                circleListenersRef.current = [
+                                  circle.addListener('dragend', syncCircleState),
+                                  circle.addListener('radius_changed', syncCircleState),
+                                  circle.addListener('mouseup', syncCircleState),
+                                ];
+                              }}
+                              onUnmount={() => {
+                                circleListenersRef.current.forEach((listener) => listener?.remove?.());
+                                circleListenersRef.current = [];
+                                circleRef.current = null;
+                              }}
+                            />
+                          ) : null}
+                          {countryBoundaryPaths.map((path, index) => (
+                            <Polygon
+                              key={index} paths={path}
+                              options={{ strokeColor: '#f43f5e', fillOpacity: 0.05, fillColor: '#f43f5e', strokeWeight: 1.5, strokeDasharray: '5,5', clickable: false }}
+                            />
+                          ))}
+                        </GoogleMap>
                       </div>
-                   </div>
-
-                   <div className="h-[620px] p-2">
-                     {isLoaded ? (
-                       <div className="w-full h-full rounded-lg overflow-hidden relative">
-                         <GoogleMap
-                           mapContainerStyle={{ width: '100%', height: '100%' }}
-                           center={mapCenter} zoom={12}
-                           onLoad={m => { mapRef.current = m; }}
-                           options={{
-                              mapTypeId: 'roadmap',
-                              disableDefaultUI: false,
-                              zoomControl: true,
-                              mapTypeControl: true,
-                              streetViewControl: false,
-                              fullscreenControl: true
-                           }}
-                         >
-                           <DrawingManager
-                             onPolygonComplete={onPolygonComplete}
-                             options={{
-                               drawingControl: true,
-                               drawingControlOptions: {
-                                 position: window.google.maps.ControlPosition.TOP_RIGHT,
-                                 drawingModes: [
-                                   window.google.maps.drawing.OverlayType.POLYGON,
-                                   window.google.maps.drawing.OverlayType.CIRCLE,
-                                 ],
-                               },
-                               polygonOptions: {
-                                 fillColor: '#4f46e5',
-                                 fillOpacity: 0.15,
-                                 strokeColor: '#4f46e5',
-                                 strokeWeight: 2,
-                                 editable: true,
-                               },
-                               circleOptions: {
-                                 fillColor: '#0f766e',
-                                 fillOpacity: 0.12,
-                                 strokeColor: '#0f766e',
-                                 strokeWeight: 2,
-                                 editable: true,
-                               },
-                             }}
-                             onCircleComplete={onCircleComplete}
-                           />
-                           {boundaryMode === 'polygon' && polygonCoords.length > 0 && (
-                             <Polygon
-                               paths={polygonCoords}
-                               options={{ fillColor: '#4f46e5', strokeColor: '#4f46e5', strokeWeight: 2, fillOpacity: 0.25, editable: true, draggable: true }}
-                               onLoad={(polygon) => {
-                                 polygonListenersRef.current.forEach((listener) => listener?.remove?.());
-                                 polygonListenersRef.current = [];
-                                 polygonRef.current = polygon;
-                                 const path = polygon.getPath();
-                                 polygonListenersRef.current = [
-                                   path.addListener('set_at', syncPolygonState),
-                                   path.addListener('insert_at', syncPolygonState),
-                                   path.addListener('remove_at', syncPolygonState),
-                                   polygon.addListener('dragend', syncPolygonState),
-                                   polygon.addListener('mouseup', syncPolygonState),
-                                 ];
-                               }}
-                               onUnmount={() => {
-                                 polygonListenersRef.current.forEach((listener) => listener?.remove?.());
-                                 polygonListenersRef.current = [];
-                                 polygonRef.current = null;
-                               }}
-                             />
-                           )}
-                           {boundaryMode === 'circle' && circleCenter && Number(circleRadiusMeters) > 0 ? (
-                             <Circle
-                               center={circleCenter}
-                               radius={Number(circleRadiusMeters)}
-                               options={{
-                                 fillColor: '#0f766e',
-                                 strokeColor: '#0f766e',
-                                 strokeWeight: 2,
-                                 fillOpacity: 0.18,
-                                 editable: true,
-                                 draggable: true,
-                               }}
-                               onLoad={(circle) => {
-                                 circleListenersRef.current.forEach((listener) => listener?.remove?.());
-                                 circleListenersRef.current = [];
-                                 circleRef.current = circle;
-                                 circleListenersRef.current = [
-                                   circle.addListener('dragend', syncCircleState),
-                                   circle.addListener('radius_changed', syncCircleState),
-                                   circle.addListener('mouseup', syncCircleState),
-                                 ];
-                               }}
-                               onUnmount={() => {
-                                 circleListenersRef.current.forEach((listener) => listener?.remove?.());
-                                 circleListenersRef.current = [];
-                                 circleRef.current = null;
-                               }}
-                             />
-                           ) : null}
-                           {countryBoundaryPaths.map((path, index) => (
-                              <Polygon
-                                key={index} paths={path}
-                                options={{ strokeColor: '#f43f5e', fillOpacity: 0.05, fillColor: '#f43f5e', strokeWeight: 1.5, strokeDasharray: '5,5', clickable: false }}
-                              />
-                           ))}
-                         </GoogleMap>
-                       </div>
-                     ) : (
-                       <div className="flex h-full items-center justify-center bg-gray-50 rounded-lg">
-                          <Loader2 className="animate-spin text-gray-300" size={32} />
-                       </div>
-                     )}
-                   </div>
+                    ) : (
+                      <div className="flex h-full items-center justify-center bg-gray-50 rounded-lg">
+                        <Loader2 className="animate-spin text-gray-300" size={32} />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-amber-800 flex items-start gap-3 shadow-sm">
-                   <Info size={18} className="text-amber-500 shrink-0 mt-0.5" />
-                   <p className="text-sm font-medium">
-                     Avoid drawing multiple zones that overlap with each other.
-                   </p>
+                  <Info size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-sm font-medium">
+                    Avoid drawing multiple zones that overlap with each other.
+                  </p>
                 </div>
 
                 <div className="bg-indigo-900 rounded-xl p-6 text-white overflow-hidden relative shadow-md">
-                    <Maximize2 className="absolute -right-4 -bottom-4 text-white/10" size={120} />
-                    <h4 className="text-sm font-semibold mb-2">Instructions</h4>
-                    <p className="text-xs text-indigo-100 leading-relaxed">
-                      Use the polygon or circle tool at the top of the map to define your zone boundary. Click to place polygon vertices and close the shape, or drop a circle and adjust its radius for a radial market boundary. The red dashed line represents the country boundary for reference.
-                    </p>
+                  <Maximize2 className="absolute -right-4 -bottom-4 text-white/10" size={120} />
+                  <h4 className="text-sm font-semibold mb-2">Instructions</h4>
+                  <p className="text-xs text-indigo-100 leading-relaxed">
+                    Use the polygon or circle tool at the top of the map to define your zone boundary. Click to place polygon vertices and close the shape, or drop a circle and adjust its radius for a radial market boundary. The red dashed line represents the country boundary for reference.
+                  </p>
                 </div>
               </div>
             </div>

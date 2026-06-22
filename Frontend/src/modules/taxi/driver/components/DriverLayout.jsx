@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { isUnifiedIdentityDriverSession } from '@food/api';
 import {
     getAuthenticatedDriverRole,
     getCurrentDriver,
@@ -82,7 +83,7 @@ const softEntryRoutes = new Set([
 ]);
 
 const redirectToDriverLogin = (navigate) => {
-    navigate('/taxi/driver/login', { replace: true });
+    navigate('/driver/login', { replace: true });
 };
 
 const getStoredRole = () => String(getStoredDriverRole() || 'driver').toLowerCase();
@@ -100,10 +101,15 @@ const getAuthenticatedDriverHome = (pathname = '', role = '') => {
             ? '/taxi/driver/bus-home'
         : activeRole === 'pooling_driver'
             ? '/taxi/driver/pooling'
-            : '/taxi/driver/home';
+            : isUnifiedIdentityDriverSession()
+                ? '/driver/home'
+                : '/taxi/driver/home';
 };
 
-const getPendingDriverRoute = (pathname = '') => `${getPortalPrefix(pathname)}/registration-status`;
+const getPendingDriverRoute = (pathname = '') =>
+    isUnifiedIdentityDriverSession()
+        ? '/driver/home'
+        : `${getPortalPrefix(pathname)}/registration-status`;
 const getPendingRouteForRole = (pathname = '', role = '') =>
     String(role || '').toLowerCase() === 'pooling_driver'
         ? '/taxi/driver/pooling/status'

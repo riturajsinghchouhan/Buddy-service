@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ValidationError } from '../../core/auth/errors.js';
 
 const schema = z.object({
-    email: z.string().email('Invalid email'),
+    email: z.string().email('Invalid email').transform((v) => v.trim().toLowerCase()),
     password: z.string().min(6, 'Password must be at least 6 characters')
 });
 

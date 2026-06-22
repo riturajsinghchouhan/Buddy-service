@@ -6,6 +6,9 @@ import {
   updateKyc,
   updateBank,
   updateVehicle,
+  updateServices,
+  updateFoodVehicle,
+  updateTaxiVehicle,
   updateSelfie,
   completeOnboarding,
   enableCapability,
@@ -53,6 +56,40 @@ router.patch('/bank', driverOnly, async (req, res, next) => {
   try {
     const updated = await updateBank(req.identity, req.body);
     return sendResponse(res, 200, 'Bank details saved', {
+      onboardingStep: updated.onboardingStep,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/services', driverOnly, async (req, res, next) => {
+  try {
+    const updated = await updateServices(req.identity, req.body);
+    return sendResponse(res, 200, 'Services saved', {
+      onboardingStep: updated.onboardingStep,
+      onboardingServices: updated.onboardingServices,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/vehicle-food', driverOnly, async (req, res, next) => {
+  try {
+    const updated = await updateFoodVehicle(req.identity, req.body);
+    return sendResponse(res, 200, 'Food vehicle saved', {
+      onboardingStep: updated.onboardingStep,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/vehicle-taxi', driverOnly, async (req, res, next) => {
+  try {
+    const updated = await updateTaxiVehicle(req.identity, req.body);
+    return sendResponse(res, 200, 'Taxi vehicle saved', {
       onboardingStep: updated.onboardingStep,
     });
   } catch (err) {

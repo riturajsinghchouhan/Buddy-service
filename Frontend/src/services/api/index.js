@@ -14,6 +14,8 @@ export {
   persistUserIdentitySession,
   persistDriverIdentitySession,
   clearIdentitySession,
+  isUnifiedIdentityDriverSession,
+  getApiErrorMessage,
 } from "./identity.js";
 
 const stub = () =>

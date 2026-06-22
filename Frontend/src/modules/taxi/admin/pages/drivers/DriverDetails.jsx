@@ -220,6 +220,8 @@ const normalizeDocumentEntry = (doc = {}, fallbackKey = '') => {
   };
 };
 
+const TAXI_ADMIN_PREFIX = '/taxi/admin';
+
 const DriverDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -248,28 +250,20 @@ const DriverDetails = () => {
     setError('');
     setAvatarFailed(false);
     try {
-      const token = localStorage.getItem('adminToken');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const [res, walletRes] = await Promise.all([
-        fetch(
-          `${globalThis.__LEGACY_BACKEND_ORIGIN__}/api/v1/admin/drivers/${id}/profile?t=${Date.now()}`,
-          {
-            headers,
-            cache: 'no-store',
-          },
-        ),
+      const [profileRes, walletRes] = await Promise.all([
+        adminService.getDriverProfile(id),
         adminService.getDriverWalletHistory(id).catch(() => null),
       ]);
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setProfile(data.data);
-        const walletPayload = walletRes?.data?.data || walletRes?.data || walletRes || {};
-        setWalletHistory(Array.isArray(walletPayload?.results) ? walletPayload.results : []);
-      } else {
-        setError(data.message || 'Unable to load driver profile');
+      const profilePayload = profileRes?.data?.data || profileRes?.data || profileRes;
+      if (!profilePayload || typeof profilePayload !== 'object') {
+        setError('Unable to load driver profile');
+        return;
       }
+      setProfile(profilePayload);
+      const walletPayload = walletRes?.data?.data || walletRes?.data || walletRes || {};
+      setWalletHistory(Array.isArray(walletPayload?.results) ? walletPayload.results : []);
     } catch (err) {
-      setError('Unable to load driver profile');
+      setError(err?.message || 'Unable to load driver profile');
     } finally {
       setIsLoading(false);
     }
@@ -314,7 +308,7 @@ const DriverDetails = () => {
   const wallet = profile?.wallet || {};
   const requests = profile?.requests || [];
   const withdrawals = profile?.withdrawals || [];
-  const backRoute = location.state?.from || '/admin/drivers';
+  const backRoute = location.state?.from || `${TAXI_ADMIN_PREFIX}/drivers`;
   const onboardingVehicle = profile?.onboarding?.vehicle || {};
   const vehicleFieldSummary = useMemo(() => ([
     {
@@ -693,25 +687,15 @@ const DriverDetails = () => {
                     onClick={async () => {
                       setWalletForm((prev) => ({ ...prev, isSubmitting: true }));
                       try {
-                        const token = localStorage.getItem('adminToken');
-                        await fetch(
-                          `${globalThis.__LEGACY_BACKEND_ORIGIN__}/api/v1/admin/wallet/drivers/${id}/adjust`,
-                          {
-                            method: 'POST',
-                            headers: {
-                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                              'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                              amount: Number(walletForm.amount),
-                              operation: walletForm.operation,
-                            }),
-                          },
-                        );
+                        await adminService.adjustDriverWallet(id, {
+                          amount: Number(walletForm.amount),
+                          operation: walletForm.operation,
+                        });
                         setWalletForm({ amount: '', operation: 'credit', isSubmitting: false });
                         await fetchProfile();
                       } catch (err) {
                         setWalletForm((prev) => ({ ...prev, isSubmitting: false }));
+                        window.alert(err?.message || 'Unable to adjust wallet');
                       }
                     }}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
@@ -814,7 +798,7 @@ const DriverDetails = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate(`/admin/drivers/edit/${id}`, { state: { from: location.pathname + location.search } })}
+                    onClick={() => navigate(`${TAXI_ADMIN_PREFIX}/drivers/edit/${id}`, { state: { from: location.pathname + location.search } })}
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                   >
                     <PencilLine size={15} />
@@ -925,7 +909,6 @@ const DriverDetails = () => {
 
                                   try {
                                     setDocumentActionKey(`${doc.sourceKey}:approve`);
-                                    const token = localStorage.getItem('adminToken');
                                     const nextDocuments = {
                                       ...(profile?.documents || {}),
                                       [doc.sourceKey]: {
@@ -950,19 +933,7 @@ const DriverDetails = () => {
                                       },
                                     };
 
-                                    const response = await fetch(
-                                      `${globalThis.__LEGACY_BACKEND_ORIGIN__}/api/v1/admin/drivers/${id}`,
-                                      {
-                                        method: 'PATCH',
-                                        headers: {
-                                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                                          'Content-Type': 'application/json',
-                                        },
-                                        body: JSON.stringify({ documents: nextDocuments }),
-                                      },
-                                    );
-                                    const data = await response.json();
-                                    if (!response.ok || !data?.success) throw new Error(data?.message || 'Unable to approve');
+                                    await adminService.updateDriverStatus(id, { documents: nextDocuments });
                                     await fetchProfile();
                                   } catch (err) {
                                     window.alert(err?.message || 'Unable to approve');
@@ -994,7 +965,6 @@ const DriverDetails = () => {
 
                                   try {
                                     setDocumentActionKey(`${doc.sourceKey}:reject`);
-                                    const token = localStorage.getItem('adminToken');
                                     const nextDocuments = {
                                       ...(profile?.documents || {}),
                                       [doc.sourceKey]: {
@@ -1019,23 +989,7 @@ const DriverDetails = () => {
                                       },
                                     };
 
-                                    const response = await fetch(
-                                      `${globalThis.__LEGACY_BACKEND_ORIGIN__}/api/v1/admin/drivers/${id}`,
-                                      {
-                                        method: 'PATCH',
-                                        headers: {
-                                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                                          'Content-Type': 'application/json',
-                                        },
-                                        body: JSON.stringify({ documents: nextDocuments }),
-                                      },
-                                    );
-                                    const data = await response.json();
-
-                                    if (!response.ok || !data?.success) {
-                                      throw new Error(data?.message || 'Unable to reject document');
-                                    }
-
+                                    await adminService.updateDriverStatus(id, { documents: nextDocuments });
                                     await fetchProfile();
                                   } catch (err) {
                                     window.alert(err?.message || 'Unable to reject document');

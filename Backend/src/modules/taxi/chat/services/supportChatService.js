@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { ApiError } from '../../../../utils/ApiError.js';
-import { Admin } from '../../admin/models/Admin.js';
+import { Admin } from '../../../../core/admin/admin.model.js';
 import { Driver } from '../../driver/models/Driver.js';
 import { User } from '../../user/models/User.js';
 import { SupportChatMessage } from '../models/SupportChatMessage.js';

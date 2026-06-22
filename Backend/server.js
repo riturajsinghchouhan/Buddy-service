@@ -8,6 +8,7 @@ import { connectRedis, closeRedis } from './src/config/redis.js';
 import { initSocket } from './src/config/socket.js';
 import { initializeQueues, closeBullMQConnection } from './src/queues/index.js';
 import { expireExpiredOffers } from './src/modules/food/admin/services/admin.service.js';
+import { seedDefaultAdmin } from './src/modules/quickCommerce/seeds/seedAdmin.js';
 import { syncExpiredFssaiNotifications } from './src/modules/food/restaurant/services/fssaiExpiry.service.js';
 
 import { logger } from './src/utils/logger.js';
@@ -53,6 +54,9 @@ const startServer = async () => {
 
         // 1. Connect to Database (MongoDB)
         await connectDB();
+
+        // Seed default admin for unified admin panel (first startup only)
+        await seedDefaultAdmin();
 
         // Restore scheduled dispatches for Taxi
         try {

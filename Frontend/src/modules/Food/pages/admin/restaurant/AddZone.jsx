@@ -24,14 +24,14 @@ export default function AddZone() {
   const [drawingToolsReady, setDrawingToolsReady] = useState(false)
   const [mapError, setMapError] = useState("")
   const [loading, setLoading] = useState(false)
-  
+
   // Form state
   const [formData, setFormData] = useState({
     country: "India",
     zoneName: "",
     unit: "kilometer",
   })
-  
+
   const [coordinates, setCoordinates] = useState([])
   const [isDrawing, setIsDrawing] = useState(false)
   const [draftPointCount, setDraftPointCount] = useState(0)
@@ -172,7 +172,7 @@ export default function AddZone() {
       const response = await adminAPI.getZones({ limit: 1000 })
       if (response.data?.success && response.data.data?.zones) {
         // Filter out the current zone if in edit mode
-        const zones = isEditMode && id 
+        const zones = isEditMode && id
           ? response.data.data.zones.filter(zone => zone._id !== id)
           : response.data.data.zones
         setExistingZones(zones)
@@ -194,7 +194,7 @@ export default function AddZone() {
           zoneName: zoneData.name || zoneData.zoneName || "",
           unit: zoneData.unit || "kilometer",
         })
-        
+
         if (zoneData.coordinates && zoneData.coordinates.length > 0) {
           setCoordinates(zoneData.coordinates)
         }
@@ -433,7 +433,7 @@ export default function AddZone() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!formData.zoneName) {
       alert("Please enter a zone name")
       return
@@ -451,7 +451,7 @@ export default function AddZone() {
 
     try {
       setLoading(true)
-      
+
       // Validate coordinates format
       if (!coordinates || coordinates.length < 3) {
         alert("Please draw at least 3 points on the map")
@@ -495,27 +495,27 @@ export default function AddZone() {
       navigate("/admin/food/zone-setup")
     } catch (error) {
       debugError("Error creating zone:", error)
-      
+
       // Handle different types of errors
       let errorMessage = "Failed to create zone. Please try again."
-      
+
       if (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !error.response) {
         // Network error - backend not running or CORS issue
         errorMessage = "Cannot connect to server. Please make sure the backend server is running."
         debugError("Network error: Backend server might not be running")
       } else if (error.response) {
         // API error with response
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error || 
-                      error.message || 
-                      `Server error: ${error.response.status}`
+        errorMessage = error.response.data?.message ||
+          error.response.data?.error ||
+          error.message ||
+          `Server error: ${error.response.status}`
         debugError("API error:", error.response.data)
         debugError("Error status:", error.response.status)
       } else {
         // Other errors
         errorMessage = error.message || errorMessage
       }
-      
+
       alert(errorMessage)
     } finally {
       setLoading(false)
@@ -554,7 +554,7 @@ export default function AddZone() {
             <div className="space-y-6">
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
                 <h2 className="text-lg font-semibold text-slate-900 mb-4">Zone Details</h2>
-                
+
                 <div className="space-y-4">
                   {/* Country Selection */}
                   <div>
@@ -682,7 +682,7 @@ export default function AddZone() {
 
               <div className="relative" style={{ height: "600px" }}>
                 <div ref={mapRef} className="w-full h-full rounded-lg" />
-                
+
                 {mapLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-100 rounded-lg">
                     <div className="text-center">

@@ -1,8 +1,17 @@
 import { Suspense, lazy } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminLayout from "./AdminLayout";
 import Loader from "@food/components/Loader";
+
+/** Legacy `/admin/drivers/*` URLs → integrated taxi admin module. */
+function TaxiAdminLegacyRedirect() {
+  const { pathname, search } = useLocation();
+  const target = pathname.startsWith("/admin/")
+    ? `/taxi${pathname}${search || ""}`
+    : `/taxi/admin${search || ""}`;
+  return <Navigate to={target} replace />;
+}
 
 const AdminHome = lazy(() => import("@food/pages/admin/AdminHome"));
 const PointOfSale = lazy(() => import("@food/pages/admin/PointOfSale"));
@@ -168,6 +177,9 @@ export default function AdminRouter() {
         <Route path="drivers/wallet/withdrawals" element={<Navigate to="/taxi/admin/drivers/withdrawals" replace />} />
         <Route path="drivers/wallet/negative" element={<Navigate to="/taxi/admin/drivers/negative-balance" replace />} />
         <Route path="drivers/documents" element={<Navigate to="/taxi/admin/drivers/global-documents" replace />} />
+        <Route path="drivers/pending" element={<Navigate to="/taxi/admin/drivers/pending" replace />} />
+        <Route path="drivers/active" element={<Navigate to="/taxi/admin/drivers" replace />} />
+        <Route path="drivers/*" element={<TaxiAdminLegacyRedirect />} />
         
         <Route path="referrals/dashboard" element={<Navigate to="/taxi/admin/referrals" replace />} />
         <Route path="referrals/translation" element={<Navigate to="/taxi/admin/referrals/translations" replace />} />
@@ -192,11 +204,6 @@ export default function AdminRouter() {
         <Route path="settings/app/wallet" element={<Navigate to="/taxi/admin/settings/wallet" replace />} />
         <Route path="settings/app/tip" element={<Navigate to="/taxi/admin/settings/tip" replace />} />
         <Route path="settings/app/onboard" element={<Navigate to="/taxi/admin/settings/onboarding" replace />} />
-        <Route path="settings/third-party/payment" element={<Navigate to="/taxi/admin/settings/payment-gateways" replace />} />
-        <Route path="settings/third-party/sms" element={<Navigate to="/taxi/admin/settings/sms-gateways" replace />} />
-        <Route path="settings/third-party/firebase" element={<Navigate to="/taxi/admin/settings/firebase" replace />} />
-        <Route path="settings/third-party/map-apis" element={<Navigate to="/taxi/admin/settings/map" replace />} />
-        <Route path="settings/third-party/mail" element={<Navigate to="/taxi/admin/settings/mail" replace />} />
         
         <Route path="settings/cms/header-footer" element={<Navigate to="/taxi/admin/cms/header-footer" replace />} />
         <Route path="settings/cms/home" element={<Navigate to="/taxi/admin/cms/builder" replace />} />

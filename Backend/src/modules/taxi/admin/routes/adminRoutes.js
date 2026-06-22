@@ -95,15 +95,12 @@ import {
   rejectDriverWithdrawalRequest,
   getDeletedDrivers,
   getDriverDeletionRequests,
-  getFirebaseSettings,
   getGoodsTypes,
   getIntercityTrips,
   getRentalPackageTypes,
   getReferralTranslations,
   getGeneralSettingsCategory,
   getLanguages,
-  getMailSettings,
-  getMapSettings,
   getNearbyServiceLocations,
   getNotificationChannels,
   getOngoingRides,
@@ -115,9 +112,7 @@ import {
   getOwnerBookings,
   getOwnerDashboardData,
   getOwnerNeededDocuments,
-  getPaymentGateways,
   getPaymentMethods,
-  getPaymentSettings,
   getPoolingRoutes,
   getRentalBookingRequests,
   getRentalTrackingDashboard,
@@ -133,7 +128,6 @@ import {
   getSetPrices,
   getServiceLocations,
   getServiceStores,
-  getSmsSettings,
   getSubscriptionPlans,
   getCustomerSubscriptionPlans,
   getSubscriptionSettings,
@@ -181,19 +175,15 @@ import {
   updateDriver,
   updateDriverNeededDocument,
   updateDriverPassword,
-  updateFirebaseSettings,
   updateOnboardingScreen,
   updateGoodsType,
   updateRentalPackageType,
   updateGeneralSettingsCategory,
   updateLanguageStatus,
-  updateMailSettings,
-  updateMapSettings,
   updateOwner,
   updateOwnerBooking,
   updateOwnerNeededDocument,
   updateFleetVehicle,
-  updatePaymentSettings,
   updatePaymentMethod,
   updatePoolingRoute,
   updateRentalBookingRequest,
@@ -204,7 +194,6 @@ import {
   updateSetPrice,
   updateServiceLocation,
   updateServiceStore,
-  updateSmsSettings,
   updateUser,
   updateVehicleType,
   updateZone,
@@ -463,23 +452,10 @@ adminRouter.get('/admin/notification-channels', getNotificationChannels);
 adminRouter.patch('/admin/notification-channels/:id/push', toggleChannelPush);
 adminRouter.patch('/admin/notification-channels/:id/mail', toggleChannelMail);
 
-adminRouter.get('/admin/integration-settings/payment-gateways', getPaymentGateways);
-adminRouter.get('/admin/integration-settings/payment-settings', getPaymentSettings);
-adminRouter.patch('/admin/integration-settings/payment-settings', updatePaymentSettings);
-
 adminRouter.get('/admin/payment-methods', authenticate(['admin']), getPaymentMethods);
 adminRouter.post('/admin/payment-methods', authenticate(['admin']), createPaymentMethod);
 adminRouter.patch('/admin/payment-methods/:id', authenticate(['admin']), updatePaymentMethod);
 adminRouter.delete('/admin/payment-methods/:id', authenticate(['admin']), deletePaymentMethod);
-
-adminRouter.get('/admin/integration-settings/sms', getSmsSettings);
-adminRouter.patch('/admin/integration-settings/sms', updateSmsSettings);
-adminRouter.get('/admin/integration-settings/firebase', getFirebaseSettings);
-adminRouter.patch('/admin/integration-settings/firebase', updateFirebaseSettings);
-adminRouter.get('/admin/integration-settings/map', getMapSettings);
-adminRouter.patch('/admin/integration-settings/map', updateMapSettings);
-adminRouter.get('/admin/integration-settings/mail', getMailSettings);
-adminRouter.patch('/admin/integration-settings/mail', updateMailSettings);
 
 adminRouter.patch('/admin/general-settings/:category', updateGeneralSettingsCategory);
 

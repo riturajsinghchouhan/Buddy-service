@@ -1,5 +1,5 @@
 import Ticket from "../models/ticket.js";
-import Admin from "../models/admin.js";
+import { Admin } from "../../../core/admin/admin.model.js";
 import handleResponse from "../utils/helper.js";
 import getPagination from "../utils/pagination.js";
 import { emitTicketCreated, emitTicketMessage } from "../services/ticketSocketEmitter.js";

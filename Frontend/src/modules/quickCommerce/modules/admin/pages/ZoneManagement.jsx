@@ -42,7 +42,7 @@ const ZoneManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState(null);
-  
+
   // Form states
   const [formData, setFormData] = useState({
     name: "",

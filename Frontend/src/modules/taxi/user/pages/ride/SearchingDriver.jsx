@@ -597,7 +597,7 @@ const SearchingDriver = () => {
         let userToken = getLocalUserToken();
 
         if (!userToken) {
-          navigate('/taxi/user/login', { replace: true });
+          navigate('/user/auth/login', { replace: true });
           return;
         }
 

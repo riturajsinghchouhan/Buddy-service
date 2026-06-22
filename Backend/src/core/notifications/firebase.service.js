@@ -4,7 +4,7 @@ import { resolve } from 'path';
 import { FoodUser } from '../users/user.model.js';
 import { FoodRestaurant } from '../../modules/food/restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../../modules/food/delivery/models/deliveryPartner.model.js';
-import { FoodAdmin } from '../admin/admin.model.js';
+import { Admin } from '../admin/admin.model.js';
 import { config } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
@@ -16,7 +16,7 @@ const OWNER_MODELS = {
     USER: FoodUser,
     RESTAURANT: FoodRestaurant,
     DELIVERY_PARTNER: FoodDeliveryPartner,
-    ADMIN: FoodAdmin
+    ADMIN: Admin
 };
 const OWNER_TOKEN_FIELDS = {
     web: 'fcmTokens',
@@ -440,7 +440,7 @@ export const sendNotificationToOwners = async (targets = [], payload = {}) => {
 
 export const notifyAdminsSafely = async (payload = {}) => {
     try {
-        const admins = await FoodAdmin.find({ isActive: true }).select('_id').lean();
+        const admins = await Admin.find({ isActive: true }).select('_id').lean();
         if (!admins.length) return [];
 
         const targets = admins.map(a => ({

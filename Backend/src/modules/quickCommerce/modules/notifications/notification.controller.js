@@ -7,7 +7,7 @@ import getPagination from "../../utils/pagination.js";
 import User from "../../models/customer.js";
 import Seller from "../../models/seller.js";
 import Delivery from "../../models/delivery.js";
-import Admin from "../../models/admin.js";
+import { Admin } from "../../../../core/admin/admin.model.js";
 import {
   normalizeNotificationRole,
   ROLE_TO_USER_MODEL,
