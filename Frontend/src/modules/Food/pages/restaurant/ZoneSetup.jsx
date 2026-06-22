@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
-import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
-import { MapPin, Search, Save, Loader2, ArrowLeft } from "lucide-react"
-import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
+import { MapPin, Search, Save, Loader2 } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import { restaurantAPI, zoneAPI } from "@food/api"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { Loader } from "@googlemaps/js-api-loader"
@@ -51,8 +51,6 @@ const getSavedLocationCoords = (location) => {
 }
 
 export default function ZoneSetup() {
-  const navigate = useNavigate()
-  const goBack = useRestaurantBackNavigation()
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
@@ -558,32 +556,13 @@ export default function ZoneSetup() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <RestaurantNavbar />
-      <div className="p-4 md:p-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-          <div className="flex items-center gap-3 mb-4 md:mb-0">
-            {/* Back Button */}
-            <button
-              onClick={goBack}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              aria-label="Go back"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
-            </button>
-            <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Zone Setup</h1>
-              <p className="text-sm text-gray-600">Set your restaurant location on the map</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+    <RestaurantSubPageShell
+      title="Zone setup"
+      subtitle="Set your restaurant location on the map"
+      backTo={`${RESTAURANT_BASE}/explore`}
+      contentClassName="max-w-7xl w-full"
+    >
+        <PanelSurface className="mb-6 p-4">
           <div className="flex items-center gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -624,12 +603,11 @@ export default function ZoneSetup() {
               </p>
             </div>
           )}
-        </div>
+        </PanelSurface>
 
-        {/* Zone Status Banner */}
         {selectedLocation && (
-          <div className={`p-4 rounded-lg border mb-6 flex items-center justify-between ${
-            isInZone ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+          <PanelSurface className={`mb-6 flex items-center justify-between p-4 ${
+            isInZone ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
           }`}>
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${isInZone ? "bg-green-100" : "bg-red-100"}`}>
@@ -646,12 +624,11 @@ export default function ZoneSetup() {
                 </p>
               </div>
             </div>
-            {checkingZone && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
-          </div>
+            {checkingZone && <Loader2 className="h-5 w-5 animate-spin text-gray-400" />}
+          </PanelSurface>
         )}
 
-        {/* Map Container */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative">
+        <PanelSurface className="relative overflow-hidden p-0">
           {/* Always render the map div, show loading overlay on top */}
           <div ref={mapRef} className="w-full h-[600px]" style={{ minHeight: '600px' }} />
           {mapLoading && (
@@ -663,9 +640,8 @@ export default function ZoneSetup() {
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+        </PanelSurface>
+    </RestaurantSubPageShell>
   )
 }
 

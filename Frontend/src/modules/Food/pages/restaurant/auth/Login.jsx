@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import { motion, AnimatePresence } from "framer-motion"
-import { ShieldCheck, Utensils, Star, Heart, ArrowRight, Loader2, Store } from "lucide-react"
+import { Loader2, Phone } from "lucide-react"
 import { toast } from "sonner"
 import { restaurantAPI } from "@food/api"
-import logoImage from "@/assets/logo.png"
+import { Button } from "@food/components/ui/button"
+import { Input } from "@food/components/ui/input"
+import { Label } from "@food/components/ui/label"
+import RestaurantAuthLayout from "@food/components/restaurant/auth/RestaurantAuthLayout"
 
 const DEFAULT_COUNTRY_CODE = "+91"
 
@@ -54,130 +56,80 @@ export default function RestaurantLogin() {
     }
   }
 
-  const primaryColor = "#23361A"
-
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0a0a0a] flex flex-col relative overflow-hidden font-['Poppins']">
-      {/* Decorative Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-[#23361A]/10 via-[#23361A]/5 to-transparent pointer-events-none" />
-      <div className="absolute top-[-100px] right-[-100px] w-[500px] h-[500px] bg-[#23361A]/5 rounded-full blur-[120px] pointer-events-none animate-pulse" />
-      <div className="absolute bottom-[-100px] left-[-100px] w-[400px] h-[400px] bg-[#23361A]/5 rounded-full blur-[120px] pointer-events-none" />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="w-full max-w-[440px]"
-        >
-          {/* Logo & Header */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className="relative inline-block mb-4"
-            >
-              {/* Modern Logo Background Glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-[#23361A]/20 to-[#6B8A2F]/10 rounded-full blur-2xl scale-110" />
-              <div className="absolute inset-0 border-2 border-[#23361A]/10 rounded-full scale-105" />
-              
-              <img 
-                src={logoImage} 
-                alt="Buddy Service Logo" 
-                className="w-32 h-32 md:w-36 md:h-36 object-contain mx-auto relative z-10 drop-shadow-xl"
+    <RestaurantAuthLayout
+      title="Partner Login"
+      subtitle="Enter your registered mobile number to continue"
+      footer={
+        <p className="text-center text-xs text-gray-500">
+          By continuing, you agree to our{" "}
+          <Link to="/food/restaurant/terms" className="font-medium text-primary-orange hover:underline">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link to="/food/restaurant/privacy" className="font-medium text-primary-orange hover:underline">
+            Privacy Policy
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={handleSendOTP} className="w-full space-y-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="restaurant-login-phone" className="text-sm font-medium text-gray-700">
+            Phone number
+          </Label>
+          <div className="flex gap-2">
+            <div className="flex h-11 w-16 shrink-0 items-center justify-center rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-semibold text-gray-700">
+              +91
+            </div>
+            <div className="relative min-w-0 flex-1">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                <Phone className="h-4 w-4" />
+              </span>
+              <Input
+                id="restaurant-login-phone"
+                ref={phoneInputRef}
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                autoFocus
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                maxLength={10}
+                placeholder="10-digit number"
+                className="h-11 rounded-xl border-2 border-gray-200 pl-9 shadow-none transition-colors placeholder:text-gray-400 focus-visible:border-primary-orange focus-visible:ring-2 focus-visible:ring-primary-orange/20"
               />
-            </motion.div>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="text-gray-400 dark:text-gray-500 font-bold text-xs uppercase tracking-[0.3em]"
-            >
-              RESTAURANT PARTNER
-            </motion.p>
-          </div>
-
-          {/* Login Card */}
-          <div className="bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-2xl rounded-[3rem] p-8 sm:p-12 shadow-[0_40px_80px_-20px_rgba(126,56,102,0.2)] dark:shadow-none border border-white/20 dark:border-gray-800 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-[#23361A]/20 to-transparent" />
-
-            <div className="mb-10 text-center sm:text-left">
-              <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2 font-['Outfit'] tracking-tight">
-                Partner Login
-              </h2>
-              <div className="h-1 w-10 bg-[#23361A] rounded-full mb-3 hidden sm:block" />
-              <p className="text-base text-gray-500 dark:text-gray-400 font-medium">
-                Enter your registered mobile number to manage your restaurant
-              </p>
-            </div>
-
-            <form onSubmit={handleSendOTP} className="space-y-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#23361A] uppercase tracking-[0.2em] ml-1">Mobile Number</label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                    <span className="text-sm font-bold text-[#23361A] border-r border-gray-200 dark:border-gray-800 pr-3">+91</span>
-                  </div>
-                  <input
-                    ref={phoneInputRef}
-                    type="tel"
-                    required
-                    autoFocus
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    maxLength={10}
-                    className="block w-full pl-16 pr-6 py-4 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white border-2 border-transparent focus:border-[#23361A]/50 rounded-2xl outline-none transition-all placeholder:text-gray-300 font-bold text-lg shadow-sm"
-                    placeholder="00000 00000"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || phone.length < 10}
-                className="w-full py-4.5 bg-[#23361A] hover:bg-[#1a2614] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl font-bold text-lg shadow-xl shadow-[#23361A]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group overflow-hidden relative"
-              >
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    <span>Get Start</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-                <motion.div
-                  className="absolute inset-0 bg-white/20 translate-x-[-100%]"
-                  whileHover={{ translateX: "100%" }}
-                  transition={{ duration: 0.6 }}
-                />
-              </button>
-            </form>
-          </div>
-
-          {/* Footer Info */}
-          <div className="mt-8 text-center">
-            <p className="text-[11px] text-gray-400 font-medium leading-relaxed max-w-[320px] mx-auto">
-              By continuing, you agree to Foodelo's <br />
-              <Link to="/food/restaurant/terms" className="text-gray-900 dark:text-white font-bold hover:text-[#23361A] transition-colors">Terms of Service</Link> & <Link to="/food/restaurant/privacy" className="text-gray-900 dark:text-white font-bold hover:text-[#23361A] transition-colors">Privacy Policy</Link>
-            </p>
-          </div>
-
-          <div className="mt-12 flex justify-center items-center gap-6 opacity-30 grayscale hover:opacity-60 transition-opacity">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Business Verified</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Heart className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Partner Success</span>
             </div>
           </div>
-        </motion.div>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={loading || phone.length < 10}
+          className="h-11 w-full rounded-xl bg-primary-orange text-sm font-semibold text-white shadow-md transition-colors hover:bg-primary-orange/90 disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Sending OTP...
+            </>
+          ) : (
+            "Send OTP"
+          )}
+        </Button>
+      </form>
+
+      <div className="mt-6 text-center text-sm">
+        <span className="text-gray-600">New partner? </span>
+        <button
+          type="button"
+          onClick={() => navigate("/food/restaurant/signup")}
+          className="font-medium text-primary-orange hover:underline"
+        >
+          Register restaurant
+        </button>
       </div>
-    </div>
+    </RestaurantAuthLayout>
   )
 }
-

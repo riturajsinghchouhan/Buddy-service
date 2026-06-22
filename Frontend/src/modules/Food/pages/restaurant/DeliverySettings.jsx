@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
-import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
-import { ArrowLeft, Truck, X, CheckCircle, AlertCircle } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
+import { Truck, X, CheckCircle, AlertCircle } from "lucide-react"
 import { Switch } from "@food/components/ui/switch"
-import { Card, CardContent } from "@food/components/ui/card"
 import { restaurantAPI } from "@food/api"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -16,8 +16,6 @@ const DELIVERY_STATUS_KEY = "restaurant_delivery_status"
 const RESTAURANT_ONLINE_STATUS_KEY = "restaurant_online_status"
 
 export default function DeliverySettings() {
-  const navigate = useNavigate()
-  const goBack = useRestaurantBackNavigation()
   const [deliveryStatus, setDeliveryStatus] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -202,33 +200,17 @@ export default function DeliverySettings() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={goBack}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-6 h-6 text-gray-900" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-gray-900">Delivery Settings</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage your delivery status</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+    <RestaurantSubPageShell
+      title="Delivery Settings"
+      subtitle="Manage your delivery status"
+      backTo={`${RESTAURANT_BASE}/explore`}
+    >
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="bg-white border-gray-200 shadow-sm">
-            <CardContent className="p-4">
+          <PanelSurface className="p-4">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-gray-100 rounded-lg">
                   <Truck className="w-5 h-5 text-gray-900" />
@@ -285,26 +267,21 @@ export default function DeliverySettings() {
                   className="ml-4 data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-300"
                 />
               </div>
-            </CardContent>
-          </Card>
+          </PanelSurface>
         </motion.div>
 
-        {/* Info Card */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
           className="mt-4"
         >
-          <Card className="bg-blue-50 border-blue-200 shadow-sm">
-            <CardContent className="p-4">
+          <PanelSurface className="border-blue-100 bg-blue-50 p-4">
               <p className="text-sm text-gray-700">
                 <strong>Note:</strong> When delivery is turned off, customers won't be able to place delivery orders from your restaurant. You can turn it back on anytime.
               </p>
-            </CardContent>
-          </Card>
+          </PanelSurface>
         </motion.div>
-      </div>
 
       {/* Confirmation Dialog */}
       <AnimatePresence>
@@ -397,7 +374,7 @@ export default function DeliverySettings() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </RestaurantSubPageShell>
   )
 }
 

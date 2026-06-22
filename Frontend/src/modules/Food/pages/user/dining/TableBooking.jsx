@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronDown } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { diningAPI, restaurantAPI } from "@food/api"
+import { fetchOutletTimingsCached } from "@food/utils/outletTimingsCache"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import Loader from "@food/components/Loader"
 import { toast } from "sonner"
@@ -162,8 +163,8 @@ export default function TableBooking() {
             console.error("Error fetching bookings:", err)
         }
 
-        const timingsResponse = await restaurantAPI.getOutletTimingsByRestaurantId(restaurantId)
-        setOutletTimings(timingsResponse?.data?.data?.outletTimings || {})
+        const timingsResponse = await fetchOutletTimingsCached(restaurantId)
+        setOutletTimings(timingsResponse || {})
       }
     } catch {
       setRestaurant(null)
@@ -175,9 +176,8 @@ export default function TableBooking() {
   useEffect(() => {
     if (location.state?.restaurant) {
       const restaurantId = location.state.restaurant?._id || location.state.restaurant?.id || slug
-      restaurantAPI
-        .getOutletTimingsByRestaurantId(restaurantId)
-        .then((response) => setOutletTimings(response?.data?.data?.outletTimings || {}))
+      fetchOutletTimingsCached(restaurantId)
+        .then((timings) => setOutletTimings(timings || {}))
         .catch(() => setOutletTimings({}))
       
       // Still fetch bookings even if restaurant is in state

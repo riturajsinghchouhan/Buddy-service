@@ -1,14 +1,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { MapPin, Search, Mic, Star, ArrowDownUp, Timer, IndianRupee, UtensilsCrossed } from "lucide-react"
-import { Input } from "@food/components/ui/input"
+import { MapPin, Star, ArrowDownUp, Timer, IndianRupee, UtensilsCrossed } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
-import { useSearchOverlay } from "@food/components/user/UserLayout"
 import { useLocation as useLocationHook } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useProfile } from "@food/context/ProfileContext"
 import { diningAPI } from "@food/api"
-import DiningMobileHeader from "@food/components/user/dining/DiningMobileHeader"
 import DiningQuickActions from "@food/components/user/dining/DiningQuickActions"
 import DiningHeroBanner from "@food/components/user/dining/DiningHeroBanner"
 import DiningCategoryRow from "@food/components/user/dining/DiningCategoryRow"
@@ -68,7 +65,6 @@ const loadingRestaurantCards = Array.from({ length: 6 }, (_, index) => `restaura
 
 export default function Dining() {
   const navigate = useNavigate()
-  const [heroSearch, setHeroSearch] = useState("")
   const [activeFilters, setActiveFilters] = useState(new Set())
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [activeFilterTab, setActiveFilterTab] = useState('sort')
@@ -78,7 +74,6 @@ export default function Dining() {
   const rightContentRef = useRef(null)
   const { location } = useLocationHook()
   const { zoneId } = useZone(location)
-  const { openSearch, closeSearch, setSearchValue } = useSearchOverlay()
   const { addFavorite, removeFavorite, isFavorite } = useProfile()
 
   const [categories, setCategories] = useState([])
@@ -441,20 +436,6 @@ export default function Dining() {
   }, [diningHeroBanners.length, resetBannerAutoSlide])
 
 
-  const handleSearchFocus = useCallback(() => {
-    if (heroSearch) {
-      setSearchValue(heroSearch)
-    }
-    openSearch()
-  }, [heroSearch, openSearch, setSearchValue])
-
-  const handleSearchSubmit = useCallback(() => {
-    if (!heroSearch.trim()) return
-    navigate(`/food/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
-    closeSearch()
-    setHeroSearch("")
-  }, [heroSearch, navigate, closeSearch])
-
   const buildToggleFavorite = useCallback(
     (restaurant, restaurantSlug, favorite) => (e) => {
       e.preventDefault()
@@ -477,7 +458,7 @@ export default function Dining() {
   )
 
   return (
-    <AnimatedPage className="relative min-h-dvh bg-[#faf7f4] pb-40 dark:bg-[#0a0a0a]">
+    <AnimatedPage className="relative min-h-dvh bg-white pb-40 dark:bg-[#0a0a0a]">
       <style>{`
         @keyframes shimmer {
           100% {
@@ -486,35 +467,14 @@ export default function Dining() {
         }
       `}</style>
       
-      <DiningMobileHeader
-        heroSearch={heroSearch}
-        onSearchChange={setHeroSearch}
-        onSearchFocus={handleSearchFocus}
-        onSearchSubmit={handleSearchSubmit}
+      <DiningFiltersBar
+        loading={loading}
+        activeFilters={activeFilters}
+        onToggleFilter={toggleFilter}
+        onOpenFilters={() => setIsFilterOpen(true)}
       />
 
-      <div className="sticky top-0 z-[90] hidden border-b border-gray-100 bg-white/95 backdrop-blur-xl dark:border-gray-800 dark:bg-[#0a0a0a]/95 md:block">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 py-4 lg:px-8">
-          <div className="min-w-[140px] flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-400">Dine out</p>
-            <h1 className="text-xl font-black text-gray-900 dark:text-white">Book your table</h1>
-          </div>
-          <div className="flex w-full max-w-lg items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-[#1a1a1a] md:w-auto md:flex-1">
-            <Search className="h-4 w-4 shrink-0 text-green-600" strokeWidth={2.5} />
-            <Input
-              value={heroSearch}
-              onChange={(e) => setHeroSearch(e.target.value)}
-              onFocus={handleSearchFocus}
-              onKeyDown={(e) => e.key === "Enter" && handleSearchSubmit()}
-              className="h-8 flex-1 border-0 bg-transparent p-0 text-sm font-semibold focus-visible:ring-0 dark:text-white"
-              placeholder="Search restaurants, cuisines..."
-            />
-            <Mic className="h-4 w-4 shrink-0 text-green-600" strokeWidth={2.5} />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 md:mt-6">
+      <div className="mt-3 md:mt-4">
         <DiningQuickActions />
       </div>
 
@@ -542,13 +502,6 @@ export default function Dining() {
             </div>
             <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{filteredRestaurants.length} places</span>
           </div>
-
-          <DiningFiltersBar
-            loading={loading}
-            activeFilters={activeFilters}
-            onToggleFilter={toggleFilter}
-            onOpenFilters={() => setIsFilterOpen(true)}
-          />
 
           <div className="mt-4 px-4">
             {loading ? (

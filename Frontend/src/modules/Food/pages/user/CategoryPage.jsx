@@ -22,6 +22,7 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
 import { fetchRestaurantMenuForRestaurant } from "@food/utils/restaurantMenuCache"
+import { fetchRestaurantsCached } from "@food/utils/restaurantListCache"
 
 // Filter options
 const filterOptions = [
@@ -807,7 +808,7 @@ export default function CategoryPage() {
         // IMPORTANT: Do NOT pass zoneId as a hard filter.
         // UX is "show all restaurants", and we only style out-of-service state.
         const params = {}
-        const response = await restaurantAPI.getRestaurants(params)
+        const response = await fetchRestaurantsCached(params)
 
         if (response.data && response.data.success && response.data.data && response.data.data.restaurants) {
           const restaurantsArray = response.data.data.restaurants

@@ -1,9 +1,10 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { CheckCircle2, X } from "lucide-react"
-import { adminAPI } from "@food/api"
+import { CheckCircle2 } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import { API_ENDPOINTS } from "@food/api/config"
 import api from "@food/api"
 import { toast } from "sonner"
@@ -15,17 +16,12 @@ const debugError = (...args) => {}
 
 export default function ShareFeedback() {
   const companyName = useCompanyName()
-  const navigate = useNavigate()
   const goBack = useRestaurantBackNavigation()
   const [rating, setRating] = useState(null)
   const [showThanks, setShowThanks] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const numbers = Array.from({ length: 11 }, (_, i) => i)
-
-  const handleClose = () => {
-    goBack()
-  }
 
   const handleContinue = async () => {
     if (rating === null) return
@@ -53,33 +49,20 @@ export default function ShareFeedback() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <h1 className="text-xl font-semibold text-gray-900">
-          Share your feedback
-        </h1>
-        <button
-          onClick={handleClose}
-          className="p-2 rounded-full hover:bg-gray-100"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5 text-gray-900" />
-        </button>
-      </div>
+    <RestaurantSubPageShell
+      title="Share your feedback"
+      subtitle={`Rate your experience with ${companyName.toLowerCase()}`}
+      backTo={`${RESTAURANT_BASE}/explore`}
+    >
+      <PanelSurface className="mb-6 p-4">
+        <p className="mb-1 text-sm text-gray-700">Tell us about your</p>
+        <p className="text-lg font-semibold text-gray-900">
+          Overall experience with {companyName.toLowerCase()}
+        </p>
+      </PanelSurface>
 
-      <div className="flex-1 px-4">
-        {/* Question */}
-        <div className="mt-6 mb-6">
-          <p className="text-sm text-gray-700 mb-1">Tell us about your</p>
-          <p className="text-lg font-semibold text-gray-900">
-            Overall experience with {companyName.toLowerCase()}
-          </p>
-        </div>
-
-        {/* Rating scale */}
-        <div className="mb-3">
-          <div className="grid grid-cols-11 gap-1 rounded-xl border border-gray-300 bg-white overflow-hidden">
+      <PanelSurface className="mb-6 p-4">
+        <div className="mb-3 grid grid-cols-11 gap-1 overflow-hidden rounded-xl border border-gray-300 bg-white">
             {numbers.map((num) => {
               const isActive = rating === num
               const intensity =
@@ -123,38 +106,33 @@ export default function ShareFeedback() {
               .
             </motion.p>
           )}
-        </div>
+      </PanelSurface>
 
-        {/* Illustration placeholder */}
-        <div className="mt-10 flex items-center justify-center">
-          <div className="w-full max-w-xs h-48 rounded-3xl bg-gradient-to-r from-indigo-100 via-pink-100 to-yellow-100 flex items-end justify-center px-6 pb-6">
-            <div className="flex items-end gap-2 w-full justify-between">
-              <div className="w-10 h-20 rounded-full bg-indigo-300" />
-              <div className="w-10 h-32 rounded-full bg-pink-300" />
-              <div className="w-10 h-24 rounded-full bg-purple-300" />
-              <div className="w-10 h-28 rounded-full bg-green-300" />
-              <div className="w-10 h-22 rounded-full bg-yellow-300" />
-            </div>
+      <div className="mt-6 flex items-center justify-center">
+        <div className="flex h-48 w-full max-w-xs items-end justify-center rounded-3xl bg-gradient-to-r from-indigo-100 via-pink-100 to-yellow-100 px-6 pb-6">
+          <div className="flex w-full items-end justify-between gap-2">
+            <div className="h-20 w-10 rounded-full bg-indigo-300" />
+            <div className="h-32 w-10 rounded-full bg-pink-300" />
+            <div className="h-24 w-10 rounded-full bg-purple-300" />
+            <div className="h-28 w-10 rounded-full bg-green-300" />
+            <div className="h-22 w-10 rounded-full bg-yellow-300" />
           </div>
         </div>
       </div>
 
-      {/* Bottom button */}
-      <div className="px-4 pb-6 pt-2">
-        <motion.button
-          type="button"
-          onClick={handleContinue}
-          disabled={rating === null}
-          className={`w-full py-3 rounded-full text-sm font-medium transition-colors ${
-            rating === null
-              ? "bg-gray-200 text-gray-500"
-              : "bg-black text-white hover:bg-gray-900"
-          }`}
-          whileTap={rating !== null ? { scale: 0.98 } : undefined}
-        >
-          Continue
-        </motion.button>
-      </div>
+      <motion.button
+        type="button"
+        onClick={handleContinue}
+        disabled={rating === null || isSubmitting}
+        className={`mt-6 w-full rounded-2xl py-3 text-sm font-semibold transition-colors ${
+          rating === null || isSubmitting
+            ? "cursor-not-allowed bg-gray-200 text-gray-500"
+            : "rt-btn-primary"
+        }`}
+        whileTap={rating !== null ? { scale: 0.98 } : undefined}
+      >
+        {isSubmitting ? "Submitting..." : "Continue"}
+      </motion.button>
 
       {/* Thank you popup */}
       <AnimatePresence>
@@ -202,7 +180,7 @@ export default function ShareFeedback() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </RestaurantSubPageShell>
   )
 }
 

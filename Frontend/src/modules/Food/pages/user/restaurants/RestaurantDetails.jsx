@@ -3,6 +3,8 @@ import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { restaurantAPI, diningAPI, orderAPI } from "@food/api"
+import { fetchOutletTimingsCached } from "@food/utils/outletTimingsCache"
+import { fetchRestaurantsCached } from "@food/utils/restaurantListCache"
 import { API_BASE_URL } from "@food/api/config"
 import { toast } from "sonner"
 import { useLocation } from "@food/hooks/useLocation"
@@ -58,6 +60,20 @@ import {
 } from "@food/utils/foodVariants"
 import fssaiLogo from "@food/assets/fssai.png"
 import { RestaurantDetailSkeleton } from "@food/components/ui/loading-skeletons"
+import {
+  RestaurantHero,
+  RestaurantTopBar,
+  RestaurantInfoCard,
+  RestaurantOfflineBanner,
+  RestaurantOfferStrip,
+} from "@food/components/user/restaurant-details/RestaurantHeader"
+import RestaurantMenuToolbar from "@food/components/user/restaurant-details/RestaurantMenuToolbar"
+import MenuSectionBlock, {
+  MenuEmptyComingSoon,
+  MenuEmptyNoMatches,
+  RestaurantFssaiBadge,
+  FloatingMenuFab,
+} from "@food/components/user/restaurant-details/MenuSectionBlock"
 
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
@@ -147,6 +163,14 @@ function RestaurantDetailsContent() {
   }
 
   const getDishQuantity = (item, preferredVariantId = "") => {
+    const variants = getFoodVariants(item)
+    if (variants.length > 0 && !preferredVariantId) {
+      return variants.reduce((sum, variant) => {
+        const lineItemId = getLineItemIdForDish(item, variant)
+        return sum + (quantities[lineItemId] || 0)
+      }, 0)
+    }
+
     const variant = getVariantForDish(item, preferredVariantId)
     const lineItemId = getLineItemIdForDish(item, variant)
     return quantities[lineItemId] || 0
@@ -340,7 +364,7 @@ function RestaurantDetailsContent() {
 
               for (const searchParams of searchVariants) {
                 try {
-                  const searchResponse = await restaurantAPI.getRestaurants(searchParams, { noCache: true })
+                  const searchResponse = await fetchRestaurantsCached(searchParams, { force: true })
                   const restaurants = searchResponse?.data?.data?.restaurants || searchResponse?.data?.data || []
 
                   // Try to find by slug match or name match
@@ -665,9 +689,8 @@ function RestaurantDetailsContent() {
           // Load outlet timings from public endpoint (source of truth for daily opening slots)
           try {
             const outletRestaurantId = transformedRestaurant.mongoId || actualRestaurant?._id || apiRestaurant?._id
-            if (outletRestaurantId) {
-              const outletResponse = await restaurantAPI.getOutletTimingsByRestaurantId(outletRestaurantId, { noCache: true })
-              const outletTimingsData = outletResponse?.data?.data?.outletTimings || outletResponse?.data?.outletTimings
+            if (outletRestaurantId && !transformedRestaurant.outletTimings) {
+              const outletTimingsData = await fetchOutletTimingsCached(outletRestaurantId)
               if (outletTimingsData) {
                 setRestaurant((prev) => ({ ...prev, outletTimings: outletTimingsData }))
               }
@@ -688,7 +711,7 @@ function RestaurantDetailsContent() {
                 : [{ limit: 100, _ts: Date.now() }]
 
               for (const searchParams of searchVariants) {
-                const searchResponse = await restaurantAPI.getRestaurants(searchParams, { noCache: true })
+                const searchResponse = await fetchRestaurantsCached(searchParams, { force: true })
                 const restaurants = searchResponse?.data?.data?.restaurants || searchResponse?.data?.data || []
 
                 // Try to find by exact name match
@@ -869,10 +892,14 @@ function RestaurantDetailsContent() {
                     description: typeof item.description === "string" ? item.description : "",
                   }
                 }
-                const menuSections = toArray(rawSections).map((section, sectionIndex) => ({
+                const menuSections = toArray(rawSections)
+                  .map((section, sectionIndex) => ({
                   ...section,
                   id: String(section.id || section._id || `section-${sectionIndex}`),
+                  categoryId: String(section.categoryId || section.id || section._id || `section-${sectionIndex}`),
                   name: section.name || section.title || "Unnamed Section",
+                  itemCount: Number(section.itemCount) || toArray(section.items).length,
+                  sortOrder: Number(section.sortOrder) || 0,
                   items: toArray(section.items).map(normalizeItem),
                   subsections: toArray(section.subsections).map((subsection, subsectionIndex) => ({
                     ...subsection,
@@ -881,6 +908,7 @@ function RestaurantDetailsContent() {
                     items: toArray(subsection.items).map(normalizeItem),
                   })),
                 }))
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
 
                 // Collect all recommended items from all sections
                 // Only include items that are both recommended (isRecommended === true) AND available (isAvailable !== false)
@@ -960,14 +988,35 @@ function RestaurantDetailsContent() {
                   finalMenuSections = [searchedDishSection, ...finalMenuSections]
                 }
 
+                const rawCategories = menuResponse.data.data.menu.categories || []
+                const menuCategoryNav = toArray(rawCategories)
+                  .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
+                  .map((category) => {
+                    const categoryKey = String(category.categoryId || category.id || "")
+                    const sectionIndex = finalMenuSections.findIndex((section) => {
+                      if (isRecommendedSection(section)) return false
+                      return String(section.categoryId || section.id || "") === categoryKey
+                    })
+                    if (sectionIndex < 0) return null
+                    return {
+                      id: normalizeMenuCategoryId(categoryKey || category.name),
+                      name: category.name || "Category",
+                      image: category.image || "",
+                      count: Number(category.itemCount) || 0,
+                      sectionIndex,
+                    }
+                  })
+                  .filter(Boolean)
+
                 setRestaurant(prev => ({
                   ...prev,
                   menuSections: finalMenuSections,
+                  menuCategoryNav,
                 }))
 
-                // Set first 3 sections (Recommended, Starters, Main Course) as expanded by default
+                // Expand all visible sections by default
                 const defaultExpandedSections = new Set(
-                  Array.from({ length: Math.min(3, finalMenuSections.length) }, (_, idx) => idx)
+                  finalMenuSections.map((_, idx) => idx)
                 )
                 setExpandedSections(defaultExpandedSections)
 
@@ -1433,8 +1482,12 @@ function RestaurantDetailsContent() {
     return firstSubsectionImage || ""
   }
 
-  // Menu categories - dynamically generated from restaurant menu sections
+  // Menu categories - from API nav or fallback from sections
   const menuCategories = useMemo(() => {
+    if (Array.isArray(restaurant?.menuCategoryNav) && restaurant.menuCategoryNav.length > 0) {
+      return restaurant.menuCategoryNav.filter((category) => category.count > 0)
+    }
+
     if (!restaurant?.menuSections || !Array.isArray(restaurant.menuSections)) return []
 
     return restaurant.menuSections
@@ -1459,7 +1512,7 @@ function RestaurantDetailsContent() {
         }
       })
       .filter(Boolean)
-  }, [restaurant?.menuSections])
+  }, [restaurant?.menuCategoryNav, restaurant?.menuSections])
 
   // Count active filters
   const getActiveFilterCount = () => {
@@ -2112,697 +2165,140 @@ function RestaurantDetailsContent() {
   return (
     <AnimatedPage
       id="scrollingelement"
-      className={`min-h-screen bg-white dark:bg-[#0a0a0a] flex flex-col transition-all duration-300 ${shouldShowGrayscale ? 'grayscale opacity-75' : ''
+      className={`min-h-screen bg-[#FAFAFA] dark:bg-[#0a0a0a] flex flex-col transition-all duration-300 ${shouldShowGrayscale ? 'grayscale opacity-75' : ''
         }`}
     >
-      {/* Hero Image Section with Integrated Info - Compact for Mobile */}
-      <div className="relative w-full h-[32vh] sm:h-[45vh] lg:h-[55vh] overflow-hidden bg-gray-100 dark:bg-gray-900 rounded-b-[32px] shadow-xl">
-        {restaurant?.image || (restaurant?.coverImages && restaurant.coverImages.length > 0) ? (
-          <img
-            src={restaurant.image || restaurant.coverImages[0]}
-            alt={restaurant?.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black">
-            <Utensils className="h-10 w-10 text-gray-700" />
-          </div>
-        )}
-        
-        {/* Top Gradient for navigation visibility */}
-        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent z-10" />
-        
-        {/* Bottom Gradient for info legibility */}
-        <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-10" />
-
-        {/* Integrated Restaurant Info (Directly on Image) - Compact Padding */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 md:px-8 pb-5 sm:pb-8">
-          <div className="max-w-7xl mx-auto flex flex-col gap-2">
-            <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-white truncate tracking-tight drop-shadow-lg">
-                  {restaurant?.name || "Unknown Restaurant"}
-                </h1>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] sm:text-sm font-bold text-white/90">
-                  <div className="flex items-center gap-1.5">
-                    <Utensils className="h-3 w-3 text-emerald-400" />
-                    <span>{restaurant?.topCategory || restaurant?.cuisine || "Multi-cuisine"}</span>
-                  </div>
-                  <span className="opacity-30">|</span>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="h-3 w-3 text-emerald-400" />
-                    <span>{restaurant?.distance || "1.2 km"}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <div className="flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-lg font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20">
-                  <Star className="h-3 w-3 fill-white" />
-                  {Number(restaurant?.rating || 4.5).toFixed(1)}
-                </div>
-                <span className="text-[8px] font-black text-white/50 uppercase tracking-widest">
-                  {(restaurant.reviews || 0).toLocaleString()}+
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-xl">
-                <Clock className="h-3 w-3 text-emerald-400" />
-                <span className="text-[9px] sm:text-xs font-black text-white uppercase tracking-wider">
-                  {restaurant?.deliveryTime || "25-30 mins"}
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-xl">
-                <div className={`h-1.5 w-1.5 rounded-full ${isRestaurantOffline ? "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" : "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"}`} />
-                <span className="text-[9px] sm:text-xs font-black text-white uppercase tracking-wider">
-                  {isRestaurantOffline ? "Offline" : "Open now"}
-                </span>
-              </div>
-
-              <button 
-                onClick={() => setShowLocationSheet(true)}
-                className="text-[9px] sm:text-xs font-bold text-white/60 hover:text-white transition-all underline underline-offset-4 decoration-white/10"
-              >
-                Outlets
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className="relative">
+        <RestaurantHero restaurant={restaurant} />
+        <RestaurantTopBar
+          showSearch={showSearch}
+          searchQuery={searchQuery}
+          onBack={goBack}
+          onSearchOpen={() => setShowSearch(true)}
+          onSearchChange={setSearchQuery}
+          onSearchBlur={() => { if (!searchQuery) setShowSearch(false) }}
+          onMenuOptions={() => setShowMenuOptionsSheet(true)}
+        />
       </div>
 
-      {/* Floating Header Navigation */}
-      <div className="absolute top-0 left-0 right-0 z-30 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 pt-3 md:pt-4 lg:pt-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Button
-            variant="outline"
-            size="icon"
-            className="rounded-full h-10 w-10 border-white/10 shadow-lg bg-black/20 backdrop-blur-md hover:bg-black/40 transition-all"
-            onClick={goBack}
-          >
-            <ArrowLeft className="h-5 w-5 text-white" />
-          </Button>
+      <RestaurantInfoCard
+        restaurant={restaurant}
+        isRestaurantOffline={isRestaurantOffline}
+        onOutletsClick={() => setShowLocationSheet(true)}
+      />
 
-          <div className="flex items-center gap-3">
-            {!showSearch ? (
-              <Button
-                variant="outline"
-                className="rounded-full h-10 px-4 border-white/10 shadow-lg bg-black/20 backdrop-blur-md hover:bg-black/40 transition-all flex items-center gap-2 text-white"
-                onClick={() => setShowSearch(true)}
-              >
-                <Search className="h-4 w-4" />
-                <span className="text-sm font-medium">Search</span>
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2 flex-1 max-w-md">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
-                  <input
-                    type="text"
-                    placeholder="Search dishes..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2 rounded-full border border-white/10 shadow-lg bg-black/40 backdrop-blur-md text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30"
-                    autoFocus
-                    onBlur={() => { if (!searchQuery) setShowSearch(false) }}
-                  />
-                </div>
-              </div>
-            )}
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full h-10 w-10 border-white/10 shadow-lg bg-black/20 backdrop-blur-md hover:bg-black/40 transition-all"
-              onClick={() => setShowMenuOptionsSheet(true)}
-            >
-              <MoreVertical className="h-5 w-5 text-white" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <RestaurantOfferStrip
+        headline={offerHeadline}
+        subline={offerSubline}
+        indicatorCount={offerIndicatorCount}
+        activeIndicator={activeOfferIndicator}
+        onClick={() => setShowOffersSheet(true)}
+      />
 
-      {/* Offline Alert */}
-      {isRestaurantOffline && (
-        <div className="bg-amber-500 text-white text-center py-2 text-xs font-bold uppercase tracking-widest z-20">
-          Restaurant is closed. You can schedule an order for later.
-        </div>
-      )}
+      {isRestaurantOffline && <RestaurantOfflineBanner />}
 
       {/* Main Content Area (Menu) */}
-      <div className="bg-[#f8f9fa] dark:bg-[#0a0a0a] min-h-[50vh]">
-        <div className="max-w-7xl mx-auto space-y-3 md:space-y-4 lg:space-y-5">
+      <div className="min-h-[50vh] mt-2">
+        <div className="max-w-7xl mx-auto space-y-0">
 
           {isRestaurantOffline && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              This restaurant is currently offline. You can still schedule an order for when it opens.
+            <div className="mx-4 sm:mx-6 lg:mx-auto max-w-7xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 mb-3">
+              Schedule your order for when this restaurant opens.
             </div>
           )}
 
-
-
-          {/* Filter/Category Section - Sticky & Refined */}
-          <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-100 dark:bg-[#0a0a0a]/80 dark:border-gray-800">
-            <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
-              {/* Fulfillment Mode Toggle (Delivery, Pick-up, Schedule) */}
-              <div className="flex justify-center">
-                <div className="inline-flex items-center bg-gray-200/60 dark:bg-gray-800/60 p-1 rounded-full shadow-inner">
-                  {["delivery", "pickup", "schedule"].map((mode) => {
-                    const isDisabled = isRestaurantOffline && mode !== "schedule";
-                    return (
-                    <button
-                      key={mode}
-                      disabled={isDisabled}
-                      onClick={() => {
-                        if (isDisabled) return;
-                        setFulfillmentMode(mode)
-                        if (mode === "schedule") {
-                          setShowScheduleSheet(true)
-                        } else {
-                          try {
-                            localStorage.removeItem('scheduled_order_time')
-                          } catch {}
-                        }
-                      }}
-                      className={`px-5 py-1.5 rounded-full text-xs font-bold capitalize transition-all duration-300 ${fulfillmentMode === mode
-                        ? "bg-white text-gray-900 shadow-md dark:bg-gray-700 dark:text-white"
-                        : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                        } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      {mode === "pickup" ? "Pick-up" : mode}
-                    </button>
-                  )})}
-                </div>
-              </div>
-
-              {/* Top Row: Filters and Veg/Non-Veg Toggle */}
-              <div className="flex items-center justify-between gap-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2 px-4 h-10 rounded-2xl border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] shadow-sm hover:bg-gray-50 transition-all relative"
-                  onClick={() => setShowFilterSheet(true)}
-                >
-                  <SlidersHorizontal className="h-4 w-4 text-gray-600" />
-                  <span className="text-sm font-bold text-gray-700">Filters</span>
-                  {activeFilterCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-black border-2 border-white">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </Button>
-
-                {/* Custom Veg/Non-Veg Segment Toggle */}
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-inner">
-                  <button
-                    onClick={() => setFilters(prev => ({ ...prev, vegNonVeg: prev.vegNonVeg === "veg" ? null : "veg" }))}
-                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${
-                      filters.vegNonVeg === "veg" 
-                      ? "bg-white text-green-600 shadow-sm dark:bg-gray-700" 
-                      : "text-gray-400 hover:text-gray-600"
-                    }`}
-                  >
-                    <div className={`h-2 w-2 rounded-full ${filters.vegNonVeg === "veg" ? "bg-green-500" : "bg-gray-300"}`} />
-                    Veg
-                  </button>
-                  <button
-                    onClick={() => setFilters(prev => ({ ...prev, vegNonVeg: prev.vegNonVeg === "non-veg" ? null : "non-veg" }))}
-                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${
-                      filters.vegNonVeg === "non-veg" 
-                      ? "bg-white text-red-600 shadow-sm dark:bg-gray-700" 
-                      : "text-gray-400 hover:text-gray-600"
-                    }`}
-                  >
-                    <div className={`h-2 w-2 rounded-full ${filters.vegNonVeg === "non-veg" ? "bg-red-500" : "bg-gray-300"}`} />
-                    Non-Veg
-                  </button>
-                </div>
-              </div>
-
-              {/* Bottom Row: Horizontal Categories */}
-              {menuCategories.length > 0 && (
-                <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
-                  <div className="flex items-center gap-2 w-max">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMenuCategory("all")}
-                      className={`h-9 px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${
-                        selectedMenuCategory === "all"
-                        ? "bg-[#0F172A] text-white border-[#0F172A] shadow-lg shadow-[#0F172A]/20"
-                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 dark:bg-[#1a1a1a] dark:border-gray-700"
-                      }`}
-                    >
-                      All
-                    </button>
-                    {menuCategories.map((category) => (
-                      <button
-                        key={category.id}
-                        type="button"
-                        onClick={() => setSelectedMenuCategory(category.id)}
-                        className={`h-9 px-4 flex items-center gap-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${
-                          selectedMenuCategory === category.id
-                          ? "bg-[#0F172A] text-white border-[#0F172A] shadow-lg shadow-[#0F172A]/20"
-                          : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 dark:bg-[#1a1a1a] dark:border-gray-700"
-                        }`}
-                      >
-                        {category.image && (
-                          <img
-                            src={category.image}
-                            alt={category.name}
-                            className={`h-5 w-5 rounded-full object-cover border ${selectedMenuCategory === category.id ? "border-white/30" : "border-gray-200"}`}
-                            onError={(e) => e.currentTarget.style.display = "none"}
-                          />
-                        )}
-                        {category.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <RestaurantMenuToolbar
+            fulfillmentMode={fulfillmentMode}
+            isRestaurantOffline={isRestaurantOffline}
+            onFulfillmentChange={(mode) => {
+              setFulfillmentMode(mode)
+              if (mode === "schedule") {
+                setShowScheduleSheet(true)
+              } else {
+                try {
+                  localStorage.removeItem('scheduled_order_time')
+                } catch {}
+              }
+            }}
+            onFilterOpen={() => setShowFilterSheet(true)}
+            activeFilterCount={activeFilterCount}
+            filters={filters}
+            onVegToggle={() => setFilters(prev => ({ ...prev, vegNonVeg: prev.vegNonVeg === "veg" ? null : "veg" }))}
+            onNonVegToggle={() => setFilters(prev => ({ ...prev, vegNonVeg: prev.vegNonVeg === "non-veg" ? null : "non-veg" }))}
+            menuCategories={menuCategories}
+            selectedMenuCategory={selectedMenuCategory}
+            onCategorySelect={setSelectedMenuCategory}
+          />
 
           {/* Menu Items Section */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 sm:py-8 md:py-10 lg:py-12 space-y-6 md:space-y-8 lg:space-y-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
             {restaurant?.menuSections && Array.isArray(restaurant.menuSections) && (
               <>
                 {filteredSections.length === 0 && !hasActiveMenuFilters && !loadingMenuItems && (
-                  <div className="rounded-[2.5rem] border-2 border-dashed border-[#F0FDF4]/30 bg-white dark:bg-[#1a1a1a] px-6 py-16 text-center shadow-sm">
-                    <div className="bg-[#FFFDF5] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-[#F0FDF4]/10">
-                      <Utensils className="h-10 w-10 text-[#F0FDF4]" />
-                    </div>
-                    <h3 className="text-xl font-black text-[#0F172A] tracking-tight">Menu Update Coming Soon</h3>
-                    <p className="text-sm font-bold text-[#0F172A]/40 mt-2 max-w-[240px] mx-auto uppercase tracking-widest leading-relaxed">
-                      {restaurant?.name || "This outlet"} is currently updating its menu card. Stay tuned!
-                    </p>
-                    <div className="mt-8 flex justify-center">
-                      <div className="px-4 py-2 bg-[#F0FDF4]/10 rounded-full border border-[#F0FDF4]/20">
-                        <p className="text-[10px] font-black text-[#0F172A] uppercase tracking-[0.2em]">Check back later</p>
-                      </div>
-                    </div>
-                  </div>
+                  <MenuEmptyComingSoon restaurantName={restaurant?.name} />
                 )}
 
                 {filteredSections.length === 0 && hasActiveMenuFilters && (
-                  <div className="rounded-[2.5rem] border-2 border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] px-6 py-12 text-center">
-                    <p className="text-base font-black text-gray-800 dark:text-white uppercase tracking-tight">
-                      No matches found
-                    </p>
-                    <p className="text-xs font-bold text-gray-400 mt-2 uppercase tracking-widest">
-                      Try clearing your filters or search query
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-6 rounded-xl font-bold border-gray-200"
-                      onClick={() => {
-                        setFilters({
-                          sortBy: null,
-                          vegNonVeg: null,
-                          highlyReordered: false,
-                          spicy: false,
-                        })
-                        setSearchQuery("")
-                      }}
-                    >
-                      Clear Filters
-                    </Button>
-                  </div>
+                  <MenuEmptyNoMatches
+                    onClearFilters={() => {
+                      setFilters({
+                        sortBy: null,
+                        vegNonVeg: null,
+                        highlyReordered: false,
+                        spicy: false,
+                      })
+                      setSearchQuery("")
+                    }}
+                  />
                 )}
 
-                {filteredSections.map(({ section, originalIndex }, sectionIndex) => {
-                  // Handle section name - check for valid non-empty string
-                  const isRecommended = isRecommendedSection(section)
-                  const sectionId = `menu-section-${originalIndex}`
-                  const sectionItems = toRenderableArray(section?.items)
-                  const sectionSubsections = toRenderableArray(section?.subsections)
-
-                  const isExpanded = expandedSections.has(originalIndex)
-
-                  return (
-                    <div key={sectionIndex} id={sectionId} className="space-y-1 scroll-mt-20">
-                      {/* Section Header */}
-                      {isRecommended && (
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                            Recommended for you
-                          </h2>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setExpandedSections(prev => {
-                                const newSet = new Set(prev)
-                                if (newSet.has(originalIndex)) {
-                                  newSet.delete(originalIndex)
-                                } else {
-                                  newSet.add(originalIndex)
-                                }
-                                return newSet
-                              })
-                            }}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
-                          >
-                            <ChevronDown
-                              className={`h-5 w-5 text-gray-600 dark:text-gray-400 transition-transform duration-200 ${isExpanded ? '' : '-rotate-90'
-                                }`}
-                            />
-                          </button>
-                        </div>
-                      )}
-                      {!isRecommended && (
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                              {(section?.name && typeof section.name === 'string' && section.name.trim())
-                                ? section.name.trim()
-                                : (section?.title && typeof section.title === 'string' && section.title.trim())
-                                  ? section.title.trim()
-                                  : "Unnamed Section"}
-                            </h2>
-                            {section.subtitle && (
-                              <button className="text-sm text-blue-600 dark:text-blue-400 underline">
-                                {section.subtitle}
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setExpandedSections(prev => {
-                                const newSet = new Set(prev)
-                                if (newSet.has(originalIndex)) {
-                                  newSet.delete(originalIndex)
-                                } else {
-                                  newSet.add(originalIndex)
-                                }
-                                return newSet
-                              })
-                            }}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
-                          >
-                            <ChevronDown
-                              className={`h-5 w-5 text-gray-600 dark:text-gray-400 transition-transform duration-200 ${isExpanded ? '' : '-rotate-90'
-                                }`}
-                            />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Direct Items */}
-                      {isExpanded && isRecommended && !loadingMenuItems && sectionItems.length === 0 && (
-                        <div className="text-center py-8">
-                          <p className="text-gray-500 dark:text-gray-400 text-sm md:text-base">
-                            No dish recommended
-                          </p>
-                        </div>
-                      )}
-                      {/* Loading State */}
-                      {isExpanded && loadingMenuItems && (
-                        <div className="space-y-3 px-1 py-2 animate-pulse">
-                          <div className="h-24 rounded-2xl bg-gray-100 dark:bg-gray-800" />
-                          <div className="h-24 rounded-2xl bg-gray-100 dark:bg-gray-800" />
-                        </div>
-                      )}
-
-                      {/* Section Items - Modern Horizontal Scroll */}
-                      {isExpanded && sectionItems.length > 0 && (
-                        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-6 mt-4">
-                          <div className="flex items-stretch gap-4 w-max">
-                            {sectionItems.map((item) => {
-                              const quantity = getDishQuantity(item)
-                              const isVeg = item.foodType === "Veg"
-                              
-                              return (
-                                <div
-                                  key={item.id}
-                                  ref={(el) => (dishCardRefs.current[item.id] = el)}
-                                  className={`w-[160px] flex flex-col bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden relative transition-all duration-300 hover:shadow-md ${highlightedDishId === item.id ? "ring-2 ring-[#0F172A] shadow-lg" : ""}`}
-                                  onClick={() => handleItemClick(item)}
-                                >
-                                  {/* Top Image Section - Compact */}
-                                  <div className="relative h-32 w-full overflow-hidden bg-gray-50 dark:bg-gray-900">
-                                    {item.image ? (
-                                      <img
-                                        src={item.image}
-                                        alt={item.name}
-                                        className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                                        onError={(e) => {
-                                          if (e.currentTarget.src !== FOOD_IMAGE_FALLBACK) {
-                                            e.currentTarget.src = FOOD_IMAGE_FALLBACK
-                                          }
-                                        }}
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center">
-                                        <Utensils className="h-6 w-6 text-gray-200" />
-                                      </div>
-                                    )}
-                                    
-                                    {/* Veg/Non-veg Indicator Overlay - Compact */}
-                                    <div className="absolute top-2 left-2 z-10">
-                                      <div className={`w-4 h-4 border-2 ${isVeg ? "border-green-600 bg-green-50" : "border-red-600 bg-red-50"} flex items-center justify-center rounded-sm shadow-sm`}>
-                                        <div className={`w-2 h-2 rounded-full ${isVeg ? "bg-green-600" : "bg-red-600"}`}></div>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Details Content - Compact */}
-                                  <div className="flex-1 p-2 flex flex-col justify-between">
-                                    <div>
-                                      <h3 className="font-bold text-gray-900 dark:text-white text-[13px] line-clamp-2 leading-tight mb-0.5">
-                                        {item.name}
-                                      </h3>
-                                      <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 mb-1.5">
-                                        {item.description || "Freshly prepared"}
-                                      </p>
-                                    </div>
-
-                                    <div className="flex items-center justify-between mt-auto">
-                                      <div className="flex flex-col">
-                                        <span className="text-[13px] font-black text-gray-900 dark:text-white">
-                                          {getFoodPriceLabel(item)}
-                                        </span>
-                                        {item.preparationTime && (
-                                          <span className="text-[9px] font-medium text-gray-400 flex items-center gap-0.5">
-                                            <Clock className="h-2 w-2" />
-                                            {item.preparationTime}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Add Button Section - Compact */}
-                                      <div className="flex-shrink-0">
-                                        {quantity > 0 ? (
-                                          <div className="flex items-center bg-[#0F172A] rounded-lg px-1.5 py-0.5 gap-1.5 shadow-sm">
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                if (!shouldShowGrayscale) updateItemQuantity(item, Math.max(0, quantity - 1), e)
-                                              }}
-                                              className="text-white hover:opacity-70 transition-opacity"
-                                            >
-                                              <Minus size={10} />
-                                            </button>
-                                            <span className="text-[11px] font-bold text-white min-w-[10px] text-center">{quantity}</span>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                if (!shouldShowGrayscale) updateItemQuantity(item, quantity + 1, e)
-                                              }}
-                                              className="text-white hover:opacity-70 transition-opacity"
-                                            >
-                                              <Plus size={10} />
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              if (!shouldShowGrayscale) updateItemQuantity(item, 1, e)
-                                            }}
-                                            className="bg-[#0F172A] hover:bg-[#15803D] text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg transition-all shadow-sm active:scale-95"
-                                          >
-                                            Add
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Subsections */}
-                      {isExpanded && sectionSubsections.length > 0 && (
-                        <div className="space-y-6 mt-4">
-                          {sectionSubsections.map((subsection, subIndex) => {
-                            const subsectionKey = `${originalIndex}-${subIndex}`
-                            const isSubsectionExpanded = expandedSections.has(subsectionKey)
-                            const subsectionItems = toRenderableArray(subsection?.items)
-
-                            return (
-                              <div key={subIndex} className="space-y-3">
-                                {/* Subsection Header */}
-                                <div className="flex items-center justify-between">
-                                  <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                    {subsection?.name || subsection?.title || "Subsection"}
-                                  </h3>
-                                  <div className="h-px flex-1 mx-4 bg-gray-100 dark:bg-gray-800"></div>
-                                </div>
-
-                                {/* Subsection Items - Horizontal Carousel */}
-                                <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-6">
-                                  <div className="flex items-stretch gap-4 w-max">
-                                    {subsectionItems.map((item) => {
-                                      const quantity = getDishQuantity(item)
-                                      const isVeg = item.foodType === "Veg"
-
-                                      return (
-                                        <div
-                                          key={item.id}
-                                          ref={(el) => (dishCardRefs.current[item.id] = el)}
-                                          className={`w-[160px] flex flex-col bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden relative transition-all duration-300 hover:shadow-md ${highlightedDishId === item.id ? "ring-2 ring-[#0F172A] shadow-lg" : ""}`}
-                                          onClick={() => handleItemClick(item)}
-                                        >
-                                          {/* Image Section - Compact */}
-                                          <div className="relative h-32 w-full overflow-hidden bg-gray-50 dark:bg-gray-900">
-                                            {item.image ? (
-                                              <img
-                                                src={item.image}
-                                                alt={item.name}
-                                                className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                                              />
-                                            ) : (
-                                              <div className="w-full h-full flex items-center justify-center">
-                                                <Utensils className="h-6 w-6 text-gray-200" />
-                                              </div>
-                                            )}
-                                            <div className="absolute top-2 left-2 z-10">
-                                              <div className={`w-4 h-4 border-2 ${isVeg ? "border-green-600 bg-green-50" : "border-red-600 bg-red-50"} flex items-center justify-center rounded-sm shadow-sm`}>
-                                                <div className={`w-2 h-2 rounded-full ${isVeg ? "bg-green-600" : "bg-red-600"}`}></div>
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          {/* Details - Compact */}
-                                          <div className="flex-1 p-2 flex flex-col justify-between">
-                                            <div>
-                                              <h3 className="font-bold text-gray-900 dark:text-white text-[13px] line-clamp-2 leading-tight mb-0.5">
-                                                {item.name}
-                                              </h3>
-                                              <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 mb-1.5">
-                                                {item.description || "Freshly prepared"}
-                                              </p>
-                                            </div>
-
-                                            <div className="flex items-center justify-between mt-auto">
-                                              <div className="flex flex-col">
-                                                <span className="text-[13px] font-black text-gray-900 dark:text-white">
-                                                  {getFoodPriceLabel(item)}
-                                                </span>
-                                              </div>
-
-                                              <div className="flex-shrink-0">
-                                                {quantity > 0 ? (
-                                                  <div className="flex items-center bg-[#0F172A] rounded-lg px-1.5 py-0.5 gap-1.5 shadow-sm">
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        if (!shouldShowGrayscale) updateItemQuantity(item, Math.max(0, quantity - 1), e)
-                                                      }}
-                                                      className="text-white hover:opacity-70 transition-opacity"
-                                                    >
-                                                      <Minus size={10} />
-                                                    </button>
-                                                    <span className="text-[11px] font-bold text-white min-w-[10px] text-center">{quantity}</span>
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        if (!shouldShowGrayscale) updateItemQuantity(item, quantity + 1, e)
-                                                      }}
-                                                      className="text-white hover:opacity-70 transition-opacity"
-                                                    >
-                                                      <Plus size={10} />
-                                                    </button>
-                                                  </div>
-                                                ) : (
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation()
-                                                      if (!shouldShowGrayscale) updateItemQuantity(item, 1, e)
-                                                    }}
-                                                    className="bg-[#0F172A] hover:bg-[#15803D] text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg transition-all shadow-sm active:scale-95"
-                                                  >
-                                                    Add
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                {filteredSections.map(({ section, originalIndex }, sectionIndex) => (
+                  <MenuSectionBlock
+                    key={`${originalIndex}-${section?.id || sectionIndex}`}
+                    section={section}
+                    originalIndex={originalIndex}
+                    sectionIndex={sectionIndex}
+                    isRecommended={isRecommendedSection(section)}
+                    isExpanded={expandedSections.has(originalIndex)}
+                    loadingMenuItems={loadingMenuItems}
+                    sectionItems={toRenderableArray(section?.items)}
+                    sectionSubsections={toRenderableArray(section?.subsections)}
+                    sectionImage={getSectionCategoryImage(section)}
+                    itemCount={section?.itemCount ?? toRenderableArray(section?.items).length}
+                    highlightedDishId={highlightedDishId}
+                    shouldShowGrayscale={shouldShowGrayscale}
+                    getSectionDisplayName={getSectionDisplayName}
+                    getDishQuantity={getDishQuantity}
+                    getFoodPriceLabel={getFoodPriceLabel}
+                    onToggleExpand={(index) => {
+                      setExpandedSections(prev => {
+                        const newSet = new Set(prev)
+                        if (newSet.has(index)) newSet.delete(index)
+                        else newSet.add(index)
+                        return newSet
+                      })
+                    }}
+                    onItemClick={handleItemClick}
+                    onUpdateQuantity={updateItemQuantity}
+                    dishCardRefs={dishCardRefs}
+                    toRenderableArray={toRenderableArray}
+                  />
+                ))}
               </>
             )}
           </div>
         </div>
       </div>
 
-      {/* FSSAI License Information - Bottom of page */}
-      {restaurant?.onboarding?.step3?.fssai?.registrationNumber && (
-        <div className="px-4 py-4 mt-2 mb-24 border-t border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/30 dark:bg-white/5 mx-4 rounded-xl">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-20 flex items-center justify-center bg-white rounded-lg p-1.5 shadow-sm border border-gray-100">
-              <img
-                src={fssaiLogo}
-                alt="FSSAI"
-                className="h-full w-auto object-contain"
-              />
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-bold mb-1">
-                License No.
-              </p>
-              <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 font-mono tracking-wide">
-                {restaurant?.onboarding?.step3?.fssai?.registrationNumber}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <RestaurantFssaiBadge
+        registrationNumber={restaurant?.onboarding?.step3?.fssai?.registrationNumber}
+        logoSrc={fssaiLogo}
+      />
 
-      {!showFilterSheet && !showMenuSheet && !showMenuOptionsSheet && (
-        <motion.div
-          drag
-          dragMomentum={false}
-          whileDrag={{ scale: 1.1, zIndex: 100 }}
-          whileHover={{ scale: 1.05 }}
-          className="fixed bottom-24 right-6 z-[60] pointer-events-auto sm:bottom-8 cursor-grab active:cursor-grabbing"
-        >
-          <Button
-            className="bg-[#0F172A] hover:bg-[#15803D] text-white flex items-center gap-2 shadow-[0_12px_40px_rgba(126,56,102,0.4)] border border-white/20 px-6 py-3.5 h-auto rounded-full font-bold transform transition-all duration-300 active:scale-95 group"
-            size="lg"
-            onClick={() => setShowMenuSheet(true)}
-          >
-            <Utensils className="h-4 w-4 text-white group-hover:rotate-12 transition-transform" />
-            <span className="tracking-widest text-xs uppercase">Menu</span>
-          </Button>
-        </motion.div>
-      )}
+      <FloatingMenuFab
+        hidden={showFilterSheet || showMenuSheet || showMenuOptionsSheet}
+        onClick={() => setShowMenuSheet(true)}
+      />
 
       {/* Menu Categories Bottom Sheet - Rendered via Portal */}
       {typeof window !== "undefined" &&
@@ -2883,7 +2379,7 @@ function RestaurantDetailsContent() {
                   {/* Close Button */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4 bg-white dark:bg-[#1a1a1a]">
                     <Button
-                      className="w-full bg-[#0F172A] hover:bg-[#15803D] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
+                      className="w-full bg-[#16A34A] hover:bg-[#15803D] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
                       onClick={() => setShowMenuSheet(false)}
                     >
                       <X className="h-4 w-4" />
@@ -2947,7 +2443,7 @@ function RestaurantDetailsContent() {
                             }))
                           }
                           className={`text-left px-4 py-2.5 rounded-lg border-2 transition-all ${filters.sortBy === "low-to-high"
-                            ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                            ? "border-[#16A34A] dark:border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400"
                             : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                             }`}
                         >
@@ -2961,7 +2457,7 @@ function RestaurantDetailsContent() {
                             }))
                           }
                           className={`text-left px-4 py-2.5 rounded-lg border-2 transition-all ${filters.sortBy === "high-to-low"
-                            ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                            ? "border-[#16A34A] dark:border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400"
                             : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                             }`}
                         >
@@ -3018,7 +2514,7 @@ function RestaurantDetailsContent() {
                           }))
                         }
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all w-full ${filters.highlyReordered
-                          ? "border-[#0F172A] dark:border-[#0F172A] bg-[#F0FDF420] dark:bg-[#0F172A]/20 text-[#0F172A] dark:text-[#0F172A]"
+                          ? "border-[#16A34A] dark:border-[#16A34A] bg-green-50 dark:bg-green-950/30 text-[#16A34A] dark:text-green-400"
                           : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                           }`}
                       >
@@ -3064,7 +2560,7 @@ function RestaurantDetailsContent() {
                       Clear All
                     </button>
                     <Button
-                      className="bg-[#0F172A] hover:bg-[#15803D] text-white px-6 py-2.5 rounded-lg font-bold"
+                      className="bg-[#16A34A] hover:bg-[#15803D] text-white px-6 py-2.5 rounded-lg font-bold"
                       onClick={() => setShowFilterSheet(false)}
                     >
                       Apply {activeFilterCount > 0 && `(${activeFilterCount})`}
@@ -3123,9 +2619,9 @@ function RestaurantDetailsContent() {
                             className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a]"
                           >
                             {outlet?.isNearest && (
-                              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-[#F0FDF420] dark:bg-[#0F172A]/20 rounded-md">
-                                <Zap className="h-3.5 w-3.5 text-[#0F172A] dark:text-[#0F172A] fill-[#0F172A] dark:fill-[#0F172A]" />
-                                <span className="text-xs font-semibold text-[#0F172A] dark:text-[#0F172A]">
+                              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-green-50 dark:bg-green-950/30 rounded-md">
+                                <Zap className="h-3.5 w-3.5 text-[#16A34A] dark:text-green-400 fill-[#16A34A] dark:fill-green-400" />
+                                <span className="text-xs font-semibold text-[#16A34A] dark:text-green-400">
                                   Nearest available outlet
                                 </span>
                               </div>
@@ -3278,7 +2774,7 @@ function RestaurantDetailsContent() {
                   {/* Done Button */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4">
                     <Button
-                      className="w-full bg-[#0F172A] hover:bg-[#15803D] text-white py-3 rounded-lg font-bold"
+                      className="w-full bg-[#16A34A] hover:bg-[#15803D] text-white py-3 rounded-lg font-bold"
                       onClick={() => {
                         setShowManageCollections(false)
                       }}
@@ -3486,7 +2982,7 @@ function RestaurantDetailsContent() {
                       <Button
                         className={`flex-1 h-[44px] rounded-lg font-semibold flex items-center justify-center gap-2 ${shouldShowGrayscale
                           ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-600 cursor-not-allowed opacity-50'
-                          : 'bg-red-500 hover:bg-red-600 text-white'
+                          : 'bg-[#16A34A] hover:bg-[#15803D] text-white'
                           }`}
                         onClick={(e) => {
                           if (!shouldShowGrayscale) {
@@ -3634,7 +3130,7 @@ function RestaurantDetailsContent() {
                   {/* Confirm Button - Fixed at bottom */}
                   <div className="px-4 pb-4 pt-2 border-t border-gray-100">
                     <Button
-                      className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold"
+                      className="w-full bg-[#16A34A] hover:bg-[#15803D] text-white py-3 rounded-xl font-semibold"
                       onClick={() => {
                         if (selectedDate && selectedTimeSlot) {
                           localStorage.setItem('scheduled_order_time', JSON.stringify({
@@ -3796,7 +3292,7 @@ function RestaurantDetailsContent() {
                   {/* Close Button */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4 bg-white dark:bg-[#1a1a1a]">
                     <Button
-                      className="w-full bg-[#0F172A] hover:bg-[#15803D] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
+                      className="w-full bg-[#16A34A] hover:bg-[#15803D] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
                       onClick={() => setShowOffersSheet(false)}
                     >
                       <X className="h-4 w-4" />

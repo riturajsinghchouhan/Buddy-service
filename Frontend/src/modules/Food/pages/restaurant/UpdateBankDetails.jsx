@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
-import { ArrowLeft, AlertCircle, Upload, Loader2 } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
+import { AlertCircle, Upload, Loader2 } from "lucide-react"
 import { restaurantAPI, uploadAPI } from "@food/api"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
@@ -180,22 +182,18 @@ export default function UpdateBankDetails() {
     }`
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <div className="px-4 pt-4 pb-3 flex items-center gap-3 border-b border-gray-200">
-        <button onClick={goBack} className="p-2 rounded-full hover:bg-gray-100" aria-label="Back">
-          <ArrowLeft className="w-5 h-5 text-gray-900" />
-        </button>
-        <h1 className="text-lg font-bold text-gray-900">Bank & UPI Details</h1>
-      </div>
-
-      <div className="flex-1 px-4 pt-4 pb-6">
+    <RestaurantSubPageShell
+      title="Bank & UPI Details"
+      subtitle="Payout account information"
+      backTo={`${RESTAURANT_BASE}/explore`}
+    >
         {loading ? (
-          <div className="py-12 flex items-center justify-center gap-2 text-gray-600">
-            <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex items-center justify-center gap-2 py-12 text-gray-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
             <span>Loading details...</span>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="rt-panel-surface mx-auto max-w-2xl space-y-5 p-5">
             <div className="mb-2">
               <h2 className="text-base font-bold text-gray-900">Account details</h2>
               {formattedUpdatedAt ? (
@@ -331,14 +329,13 @@ export default function UpdateBankDetails() {
             <button
               type="submit"
               disabled={saving || uploadingQr}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg text-base transition-colors"
+              className="rt-btn-primary w-full py-4 text-base disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving..." : "Submit"}
             </button>
           </form>
         )}
-      </div>
-      
+
       <ImageSourcePicker
         isOpen={isQrPickerOpen}
         onClose={() => setIsQrPickerOpen(false)}
@@ -348,7 +345,7 @@ export default function UpdateBankDetails() {
         fileNamePrefix="upi-qr"
         galleryInputRef={qrInputRef}
       />
-    </div>
+    </RestaurantSubPageShell>
   )
 }
 

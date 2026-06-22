@@ -172,3 +172,8 @@
   pointer-events: auto !important;
 }
 
+gmp-place-autocomplete {
+  width: 100%;
+  display: block;
+}
+

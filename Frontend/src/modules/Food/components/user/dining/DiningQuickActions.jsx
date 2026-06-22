@@ -38,7 +38,7 @@ const ACTIONS = [
 
 export default function DiningQuickActions() {
   return (
-    <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="mb-6 flex gap-2.5 overflow-x-auto px-4 pb-2 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {ACTIONS.map((action) => {
         const Icon = action.icon;
         return (

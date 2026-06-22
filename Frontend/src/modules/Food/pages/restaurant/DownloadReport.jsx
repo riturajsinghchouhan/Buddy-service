@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react"
-import { ArrowLeft, CheckCircle, Mail } from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
+import { CheckCircle, Mail } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 
 const REPORT_VIEWS = [
   { id: "detailed", label: "Detailed report" },
@@ -11,8 +12,6 @@ const REPORT_VIEWS = [
 const VIEW_TYPES = ["DAILY", "WEEKLY", "MONTHLY"]
 
 export default function DownloadReport() {
-  const navigate = useNavigate()
-  const goBack = useRestaurantBackNavigation()
   const [reportView, setReportView] = useState("detailed")
   const [viewType, setViewType] = useState("DAILY")
   const durations = useMemo(() => {
@@ -55,23 +54,17 @@ export default function DownloadReport() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <div className="sticky top-0 z-20 bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-200">
-        <button
-          className="p-2 -ml-2 rounded-full hover:bg-gray-100"
-          onClick={goBack}
-          aria-label="Back"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-900" />
-        </button>
-        <h1 className="text-lg font-bold text-gray-900">Download report</h1>
-      </div>
-
-      <div className="bg-[#f8e7a0] text-gray-900 text-sm px-4 py-2">
+    <RestaurantSubPageShell
+      title="Download report"
+      subtitle="Generate and email finance reports"
+      backTo={`${RESTAURANT_BASE}/hub-finance`}
+      showBottomNav
+    >
+      <PanelSurface className="mb-4 border-amber-200 bg-[#f8e7a0] p-3 text-sm text-gray-900">
         You are generating a report for <span className="font-semibold">All Outlets</span>
-      </div>
+      </PanelSurface>
 
-      <div className="flex-1 px-4 py-5 space-y-6">
+      <div className="space-y-6">
         <div className="space-y-3">
           <p className="text-sm font-semibold text-gray-900">Select the report view:</p>
           <div className="space-y-3">
@@ -126,15 +119,14 @@ export default function DownloadReport() {
         </div>
       </div>
 
-      <div className="px-4 pb-6">
-        <button
-          onClick={handleSend}
-          className="w-full bg-black text-white py-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-        >
-          <Mail className="w-5 h-5" />
-          Send an email
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleSend}
+        className="rt-btn-primary mt-6 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold"
+      >
+        <Mail className="h-5 w-5" />
+        Send an email
+      </button>
 
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-6 pointer-events-none">
@@ -149,7 +141,7 @@ export default function DownloadReport() {
           </div>
         </div>
       )}
-    </div>
+    </RestaurantSubPageShell>
   )
 }
 

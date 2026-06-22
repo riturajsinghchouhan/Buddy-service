@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
 import { ArrowLeft, Clock, Edit2, Trash2, ChevronDown, AlertTriangle, X } from "lucide-react"
@@ -569,7 +570,7 @@ export default function DaySlots() {
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(allDays))
       window.dispatchEvent(new Event("outletTimingsUpdated"))
-      navigate("/restaurant/outlet-timings")
+      navigate(`${RESTAURANT_BASE}/outlet-timings`)
     } catch (error) {
       debugError("Error saving day slots:", error)
       alert("Error saving slots. Please try again.")
@@ -582,7 +583,7 @@ export default function DaySlots() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/restaurant/outlet-timings")}
+            onClick={() => navigate(`${RESTAURANT_BASE}/outlet-timings`)}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Go back"
           >
