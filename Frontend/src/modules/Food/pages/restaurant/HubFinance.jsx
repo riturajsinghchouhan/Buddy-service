@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { Bell, Menu, ChevronDown, Calendar, Download, ArrowRight, FileText, Wallet, X } from "lucide-react"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
+import RestaurantPanelHeader from "@food/components/restaurant/panel/RestaurantPanelHeader"
+import { PanelPill, PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import { restaurantAPI } from "@food/api"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -179,7 +182,7 @@ export default function HubFinance() {
   }, [invoiceOrders])
 
   const handleViewDetails = () => {
-    navigate("/restaurant/finance-details", { state: { financeData, restaurantData } })
+    navigate(`${RESTAURANT_BASE}/finance-details`, { state: { financeData, restaurantData } })
   }
 
   const getWithdrawalStatusClass = (statusRaw) => {
@@ -699,94 +702,69 @@ export default function HubFinance() {
   }, [showDownloadMenu])
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Navbar */}
-      <div className="sticky bg-white top-0 z-40 px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0 flex items-start gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
-                <p className="text-lg font-bold text-gray-900 truncate">
-                  {restaurantData?.name || financeData?.restaurant?.name || "Restaurant"}
-                </p>
-                <ChevronDown className="w-4 h-4 text-gray-600 flex-shrink-0" />
-              </div>
-              <p className="text-xs text-gray-600 mt-0.5">
-                {(() => {
-                  const restaurantId = restaurantData?.restaurantId || financeData?.restaurant?.restaurantId
-                  const address = restaurantData?.address || financeData?.restaurant?.address || ''
-                  const parts = []
-                  if (restaurantId) {
-                    const formattedId = formatRestaurantId(restaurantId)
-                    parts.push(`ID: ${formattedId}`)
-                  }
-                  if (address) {
-                    const shortAddress = address.length > 40 ? address.substring(0, 40) + '...' : address
-                    parts.push(shortAddress)
-                  }
-                  return parts.length > 0 ? parts.join(' • ') : 'Loading...'
-                })()}
-              </p>
-            </div>
+    <div className="rt-panel-bg flex min-h-screen flex-col pb-24 lg:pb-8">
+      <div className="hidden lg:block">
+        <RestaurantPanelHeader
+          title="Accounting"
+          subtitle={restaurantData?.name || financeData?.restaurant?.name || "Payouts, invoices and withdrawals"}
+        />
+      </div>
+
+      <div className="sticky top-0 z-40 border-b border-[var(--rt-border)] bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-bold text-gray-900">
+              {restaurantData?.name || financeData?.restaurant?.name || "Restaurant"}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-gray-600">
+              {(() => {
+                const restaurantId = restaurantData?.restaurantId || financeData?.restaurant?.restaurantId
+                const address = restaurantData?.address || financeData?.restaurant?.address || ""
+                const parts = []
+                if (restaurantId) parts.push(`ID: ${formatRestaurantId(restaurantId)}`)
+                if (address) parts.push(address.length > 40 ? `${address.substring(0, 40)}...` : address)
+                return parts.length > 0 ? parts.join(" • ") : "Loading..."
+              })()}
+            </p>
           </div>
-          <div className="flex items-center gap-1 ml-2">
+          <div className="flex items-center gap-1">
             <button
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              onClick={() => navigate("/restaurant/withdrawal-history")}
+              type="button"
+              className="rounded-xl border border-[var(--rt-border)] p-2 hover:bg-gray-50"
+              onClick={() => navigate(`${RESTAURANT_BASE}/withdrawal-history`)}
               title="Withdrawal History"
             >
-              <Wallet className="w-5 h-5 text-gray-700" />
+              <Wallet className="h-5 w-5 text-gray-700" />
             </button>
             <button
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              onClick={() => navigate("/restaurant/notifications")}
+              type="button"
+              className="rounded-xl border border-[var(--rt-border)] p-2 hover:bg-gray-50"
+              onClick={() => navigate(`${RESTAURANT_BASE}/notifications`)}
             >
-              <Bell className="w-5 h-5 text-gray-700" />
-            </button>
-            <button
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              onClick={() => navigate("/restaurant/explore")}
-            >
-              <Menu className="w-5 h-5 text-gray-700" />
+              <Bell className="h-5 w-5 text-gray-700" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Primary Navigation Tabs */}
-      <div className="px-4 py-3">
+      <div className="mx-auto w-full max-w-6xl px-4 py-3 lg:px-6">
         <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab("payouts")}
-            className={`flex-1 py-3 px-4 rounded-full font-medium text-sm transition-colors ${
-              activeTab === "payouts"
-                ? "bg-black text-white"
-                : "bg-white text-gray-600 border border-gray-300"
-            }`}
-          >
+          <PanelPill active={activeTab === "payouts"} onClick={() => setActiveTab("payouts")} className="flex-1">
             Payouts
-          </button>
-          <button
-            onClick={() => setActiveTab("invoices")}
-            className={`flex-1 py-3 px-4 rounded-full font-medium text-sm transition-colors ${
-              activeTab === "invoices"
-                ? "bg-black text-white"
-                : "bg-white text-gray-600 border border-gray-300"
-            }`}
-          >
+          </PanelPill>
+          <PanelPill active={activeTab === "invoices"} onClick={() => setActiveTab("invoices")} className="flex-1">
             Invoices & Taxes
-          </button>
+          </PanelPill>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pb-8 pt-2 lg:px-6">
         {activeTab === "payouts" && (
           <div className="space-y-6">
             {/* Current cycle */}
             <div>
-              <h2 className="text-base font-bold text-gray-900 mb-3">Current cycle</h2>
-              <div className="bg-white rounded-lg p-4">
+              <h2 className="mb-3 text-base font-bold text-gray-900">Current cycle</h2>
+              <PanelSurface className="p-4">
                 {loading ? (
                   <div className="py-8 text-center text-gray-500">Loading...</div>
                 ) : (
@@ -800,10 +778,10 @@ export default function HubFinance() {
                     <button
                       onClick={() => setShowWithdrawalModal(true)}
                       disabled={!(financeData?.currentCycle?.estimatedPayout > 0)}
-                      className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 mt-4 transition-colors ${
+                      className={`mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 px-4 font-semibold transition-colors ${
                         financeData?.currentCycle?.estimatedPayout > 0
-                          ? "bg-black text-white hover:bg-gray-800"
-                          : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                          ? "rt-btn-primary"
+                          : "cursor-not-allowed bg-gray-200 text-gray-500"
                       }`}
                     >
                       <Wallet className="h-5 w-5" />
@@ -811,13 +789,12 @@ export default function HubFinance() {
                     </button>
                   </>
                 )}
-              </div>
+              </PanelSurface>
             </div>
 
-            {/* Withdrawal Requests */}
             <div>
-              <h2 className="text-base font-bold text-gray-900 mb-3">Withdrawal requests</h2>
-              <div className="bg-white rounded-lg p-4">
+              <h2 className="mb-3 text-base font-bold text-gray-900">Withdrawal requests</h2>
+              <PanelSurface className="p-4">
                 {loadingWithdrawals ? (
                   <div className="py-6 text-center text-sm text-gray-500">Loading withdrawal requests...</div>
                 ) : withdrawalRequests.length === 0 ? (
@@ -855,7 +832,7 @@ export default function HubFinance() {
                     {withdrawalRequests.length > 8 ? (
                       <button
                         type="button"
-                        onClick={() => navigate("/restaurant/withdrawal-history")}
+                        onClick={() => navigate(`${RESTAURANT_BASE}/withdrawal-history`)}
                         className="w-full text-sm font-medium text-black hover:underline pt-1"
                       >
                         View all requests
@@ -863,7 +840,7 @@ export default function HubFinance() {
                     ) : null}
                   </div>
                 )}
-              </div>
+              </PanelSurface>
             </div>
 
             {/* Past cycles */}
@@ -874,7 +851,7 @@ export default function HubFinance() {
                   <div className="flex-1 relative" ref={dateRangePickerRef}>
                     <button 
                       onClick={() => setShowDateRangePicker(!showDateRangePicker)}
-                      className="w-full bg-white rounded-lg px-4 py-3 flex items-center justify-between border border-gray-200 hover:border-gray-300 transition-colors cursor-pointer"
+                      className="rt-panel-surface-flat flex w-full cursor-pointer items-center justify-between px-4 py-3 transition hover:bg-gray-50"
                     >
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-600" />
@@ -1056,14 +1033,13 @@ export default function HubFinance() {
                   </div>
                 </div>
                 {loadingPastCycles ? (
-                  <div className="bg-white rounded-lg p-4">
-                    <p className="text-sm text-gray-600 text-center">Loading past cycles...</p>
-                  </div>
+                  <PanelSurface className="p-4">
+                    <p className="text-center text-sm text-gray-600">Loading past cycles...</p>
+                  </PanelSurface>
                 ) : (
                   <>
-                    {/* Show past cycles orders if available */}
                     {pastCyclesData && pastCyclesData.orders && pastCyclesData.orders.length > 0 ? (
-                      <div className="bg-white rounded-lg p-4 space-y-3">
+                      <PanelSurface className="space-y-3 p-4">
                         {pastCyclesData.orders.map((order, index) => (
                           <div key={order.orderId || index} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
                             <div className="flex justify-between items-start">
@@ -1086,16 +1062,15 @@ export default function HubFinance() {
                             </div>
                           </div>
                         ))}
-                      </div>
+                      </PanelSurface>
                     ) : (pastCyclesData && pastCyclesData.orders && pastCyclesData.orders.length === 0) ? (
-                      <div className="bg-white rounded-lg p-8 text-center border border-dashed border-gray-300">
-                        <p className="text-sm text-gray-500 italic">No orders found for this selected range.</p>
-                      </div>
+                      <PanelSurface className="border-dashed p-8 text-center">
+                        <p className="text-sm italic text-gray-500">No orders found for this selected range.</p>
+                      </PanelSurface>
                     ) : null}
 
-                    {/* Show current cycle orders if past cycles data is not requested or not being viewed */}
                     {(!pastCyclesData || !pastCyclesData.orders) && !loadingPastCycles && financeData?.currentCycle?.orders && financeData.currentCycle.orders.length > 0 && (
-                      <div className="bg-white rounded-lg p-4 space-y-3">
+                      <PanelSurface className="space-y-3 p-4">
                         {financeData.currentCycle.orders.map((order, index) => (
                           <div key={order.orderId || index} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
                             <div className="flex justify-between items-start">
@@ -1118,16 +1093,16 @@ export default function HubFinance() {
                             </div>
                           </div>
                         ))}
-                      </div>
+                      </PanelSurface>
                     )}
                     
                     {(!pastCyclesData || (!pastCyclesData.orders || pastCyclesData.orders.length === 0)) && 
                      (!financeData?.currentCycle?.orders || financeData.currentCycle.orders.length === 0) && 
                      !loadingPastCycles && !loading && (
-                      <div className="bg-white rounded-lg p-12 text-center border border-gray-200">
-                        <p className="text-gray-400 mb-2">No transaction history available</p>
+                      <PanelSurface className="p-12 text-center">
+                        <p className="mb-2 text-gray-400">No transaction history available</p>
                         <p className="text-xs text-gray-500">Your earnings and order payouts will appear here.</p>
-                      </div>
+                      </PanelSurface>
                     )}
                   </>
                 )}
@@ -1138,8 +1113,8 @@ export default function HubFinance() {
 
         {activeTab === "invoices" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Invoices & Taxes Summary</h3>
+            <PanelSurface className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Invoices & Taxes Summary</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-md bg-gray-50 p-3">
                   <p className="text-xs text-gray-600">Orders</p>
@@ -1158,10 +1133,10 @@ export default function HubFinance() {
                   <p className="text-base font-semibold text-gray-900">₹{invoiceSummary.gross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
               </div>
-            </div>
+            </PanelSurface>
 
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Order invoice details</h3>
+            <PanelSurface className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Order invoice details</h3>
               {loading ? (
                 <p className="text-sm text-gray-500">Loading invoice data...</p>
               ) : invoiceOrders.length === 0 ? (
@@ -1188,7 +1163,7 @@ export default function HubFinance() {
                   ))}
                 </div>
               )}
-            </div>
+            </PanelSurface>
           </div>
         )}
       </div>

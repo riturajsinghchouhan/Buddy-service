@@ -22,6 +22,10 @@ import { calculateDistance } from "@food/utils/common"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
+import CartEmptyState from "@food/components/user/cart/CartEmptyState"
+import CartPageHeader, { CartSavingsBanner } from "@food/components/user/cart/CartPageHeader"
+import CartItemsCard from "@food/components/user/cart/CartItemsCard"
+import CartCheckoutBar from "@food/components/user/cart/CartCheckoutBar"
 const zoopSound = "/zomato_sms.mp3"
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
@@ -2025,166 +2029,37 @@ function Cart() {
 
   // Empty cart state - but don't show if order success or placing order modal is active
   if (cart.length === 0 && !showOrderSuccess && !showPlacingOrder && !showSavingsCongrats) {
-    return (
-      <AnimatedPage className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a]">
-        <div className="bg-white dark:bg-[#1a1a1a] border-b dark:border-gray-800 sticky top-0 z-10">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-              onClick={handleBack}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <span className="font-semibold text-gray-800 dark:text-white">Cart</span>
-          </div>
-        </div>
-        <div className="flex flex-col items-center justify-center py-20 px-4">
-          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Utensils className="h-10 w-10 text-gray-400" />
-          </div>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">Your cart is empty</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-center">Add items from a restaurant to start a new order</p>
-          <Link to="/user">
-            <Button className="bg-[#16A34A] hover:bg-[#15803D] text-white">Browse Restaurants</Button>
-          </Link>
-        </div>
-      </AnimatedPage>
-    )
+    return <CartEmptyState onBack={handleBack} />
   }
 
+  const headerAddressLabel = defaultAddress
+    ? formatFullAddress(defaultAddress) || defaultAddress?.formattedAddress || defaultAddress?.address || defaultAddress?.city || "Select address"
+    : "Select delivery address"
+
   return (
-    <div className="relative min-h-screen bg-slate-50 dark:bg-[#0a0a0a]">
-      {/* Header - Sticky at top */}
-      <div className="bg-white dark:bg-[#1a1a1a] border-b dark:border-gray-800 sticky top-0 z-20 flex-shrink-0">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between px-3 md:px-6 py-2 md:py-3">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7 md:h-8 md:w-8 flex-shrink-0 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                onClick={handleBack}
-              >
-                <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
-              </Button>
-              <div className="min-w-0">
-                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">{restaurantName}</p>
-                <p className="text-sm md:text-base font-medium text-gray-800 dark:text-white truncate">
-                  {restaurantData?.estimatedDeliveryTime || "10-15 mins"} to <span className="font-semibold">Location</span>
-                  <span className="text-gray-400 dark:text-gray-500 ml-1 text-xs md:text-sm">{defaultAddress ? (formatFullAddress(defaultAddress) || defaultAddress?.formattedAddress || defaultAddress?.address || defaultAddress?.city || "Select address") : "Select address"}</span>
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 md:h-8 md:w-8 flex-shrink-0"
-              onClick={handleShare}
-            >
-              <Share2 className="h-4 w-4 md:h-5 md:w-5" />
-            </Button>
-          </div>
-        </div>
-      </div>
+    <AnimatedPage className="relative min-h-screen bg-[#FAFAFA] dark:bg-[#0a0a0a]">
+      <CartPageHeader
+        restaurantName={restaurantName}
+        deliveryTime={restaurantData?.estimatedDeliveryTime || "25-35 mins"}
+        addressLabel={headerAddressLabel}
+        onBack={handleBack}
+        onShare={handleShare}
+        onAddressClick={openLocationSelector}
+      />
 
-      {/* Scrollable Content Area */}
+      <CartSavingsBanner amount={savings} rupeeSymbol={RUPEE_SYMBOL} />
+
       <div className="flex-1 overflow-y-auto overflow-x-hidden pb-44 md:pb-52">
-        {/* Savings Banner */}
-        {savings > 0 && (
-          <div className="bg-blue-100 dark:bg-blue-900/20 px-4 md:px-6 py-2 md:py-3 flex-shrink-0">
-            <div className="max-w-7xl mx-auto">
-              <p className="text-sm md:text-base font-medium text-blue-800 dark:text-blue-200">
-                Saved {RUPEE_SYMBOL}{savings} on this order
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
-          <div className="max-w-3xl mx-auto">
-            {/* Main Cart Content */}
-            <div className="space-y-2 md:space-y-4">
-              {/* Cart Items */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 md:py-5 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-gray-800">
-                <div className="space-y-3 md:space-y-4">
-                  <div className="space-y-6">
-                    {cart.map((item, index) => (
-                      <div key={item.id}>
-                        <div className="flex items-center gap-4">
-                          {/* Veg/Non-veg indicator */}
-                          <div className={`w-4 h-4 border-2 ${item.isVeg === true || item.foodType === 'Veg' ? 'border-green-600' : 'border-red-600'} flex items-center justify-center flex-shrink-0 rounded-[2px]`}>
-                            <div className={`w-2 h-2 rounded-full ${item.isVeg === true || item.foodType === 'Veg' ? 'bg-green-600' : 'bg-red-600'}`} />
-                          </div>
-
-                          <div className="flex-1 min-w-0 flex items-center gap-4">
-                            {item.image && (
-                              <div className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800">
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-700"
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <h3 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100 leading-tight truncate">{item.name}</h3>
-                              {item.variantName ? (
-                                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium bg-gray-50 dark:bg-gray-800/50 w-fit px-2 py-0.5 rounded-full">
-                                  {item.variantName}
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
-                            <div className="flex items-center border border-[#16A34A]/30 dark:border-[#16A34A]/40 rounded-lg overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
-                              <button
-                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                className="px-2.5 py-1.5 hover:bg-[#16A34A]/5 text-[#16A34A] transition-colors"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="px-2 text-sm md:text-base font-black text-[#16A34A] min-w-[28px] text-center">
-                                {item.quantity}
-                              </span>
-                              <button
-                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                className="px-2.5 py-1.5 hover:bg-[#16A34A]/5 text-[#16A34A] transition-colors"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            <p className="text-sm md:text-base font-black text-gray-900 dark:text-gray-100">
-                              {RUPEE_SYMBOL}{((item.price || 0) * (item.quantity || 1)).toFixed(0)}
-                            </p>
-                          </div>
-                        </div>
-                        {index < cart.length - 1 && (
-                          <div className="mt-6 border-b border-gray-100 dark:border-gray-800/40 border-dashed" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Add more items */}
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-2 mt-4 md:mt-6 text-[#16A34A] dark:text-[#16A34A]"
-                >
-                  <Plus className="h-4 w-4 md:h-5 md:w-5" />
-                  <span className="text-sm md:text-base font-medium">Add more items</span>
-                </button>
-              </div>
-
+        <div className="mx-auto max-w-2xl px-4 py-4 space-y-4">
+          <CartItemsCard
+            items={cart}
+            rupeeSymbol={RUPEE_SYMBOL}
+            onUpdateQuantity={updateQuantity}
+            onAddMore={handleBack}
+          />
 
               {/* Note & Cutlery */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800 flex flex-col sm:flex-row gap-3">
+              <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-4 shadow-sm dark:border-gray-800 dark:bg-[#141414] flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 flex flex-col gap-2">
                   <button
                     onClick={() => setShowRestaurantNoteInput(!showRestaurantNoteInput)}
@@ -2231,7 +2106,7 @@ function Cart() {
 
               {/* Complete your meal section - Approved Addons */}
               {addons.length > 0 && (
-                <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+                <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-5 shadow-sm dark:border-gray-800 dark:bg-[#141414]">
                   <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                     <div className="w-6 h-6 md:w-8 md:h-8 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
                        <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#16A34A]" />
@@ -2314,7 +2189,7 @@ function Cart() {
               )}
 
               {/* Coupon Section */}
-              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl overflow-hidden border border-slate-100 dark:border-gray-800 shadow-sm flex flex-col">
+              <div className="rounded-3xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-[#141414] flex flex-col">
                 {deliveryFee === 0 && (
                   <div className="px-4 py-3 md:px-6 md:py-4 border-b border-dashed border-gray-200 dark:border-gray-800 flex items-center gap-3 bg-[#f4fcf7] dark:bg-green-900/10">
                     <CheckCircle2 className="h-5 w-5 text-green-600 fill-green-600/20" />
@@ -2427,7 +2302,7 @@ function Cart() {
               </div>
 
               {/* Delivery Time */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+              <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-5 shadow-sm dark:border-gray-800 dark:bg-[#141414]">
                 <div className="flex items-start gap-3 md:gap-4">
                   <div className="mt-0.5">
                     <Zap className="h-5 w-5 text-green-600 fill-green-600/20" />
@@ -2493,7 +2368,7 @@ function Cart() {
               </div>
 
               {/* Delivery Address */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+              <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-5 shadow-sm dark:border-gray-800 dark:bg-[#141414]">
                 <div className="flex items-start justify-between w-full text-left">
                   <div className="flex items-start gap-4 flex-1">
                      <div className="bg-[#16A34A05] dark:bg-[#16A34A10] p-2 rounded-xl mt-0.5">
@@ -2615,7 +2490,7 @@ function Cart() {
               </div>
 
               {/* Contact */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+              <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-4 shadow-sm dark:border-gray-800 dark:bg-[#141414]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0">
                     <Phone className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
@@ -2680,7 +2555,7 @@ function Cart() {
                 )}
               </div>
 {/* Bill Details */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+              <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-5 shadow-sm dark:border-gray-800 dark:bg-[#141414]">
                 <button
                   onClick={() => setShowBillDetails(!showBillDetails)}
                   className="flex items-center justify-between w-full"
@@ -2833,81 +2708,21 @@ function Cart() {
                 )}
               </div>
 
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Bottom Sticky - Place Order */}
-      <div
-        className="bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 shadow-lg z-30 flex-shrink-0 fixed bottom-0 left-0 right-0"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">
-          <div className="w-full max-w-lg mx-auto space-y-3">
-            {/* Pay Using - Slim Pro UI */}
-            <div
-              className="flex items-center justify-between p-2 bg-gray-50 dark:bg-[#222222] rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#282828] active:scale-[0.98] transition-all duration-200 shadow-sm"
-              onClick={() => setShowPaymentSheet(true)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#16A34A10] dark:bg-[#16A34A20] flex items-center justify-center flex-shrink-0">
-                   {selectedPaymentMethod === "wallet" ? (
-                    <Wallet className="h-5 w-5 text-[#16A34A]" />
-                  ) : selectedPaymentMethod === "razorpay" ? (
-                    <Zap className="h-5 w-5 text-[#16A34A]" />
-                  ) : (
-                    <Banknote className="h-5 w-5 text-[#16A34A]" />
-                  )}
-                </div>
-                <div className="leading-tight">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold opacity-80">
-                    PAYING WITH
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-bold text-gray-800 dark:text-gray-100">
-                      {selectedPaymentLabel}
-                    </p>
-                    {selectedPaymentMethod === "wallet" && (
-                      <p className="text-[10px] text-green-600 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/20 px-1 rounded">
-                        {RUPEE_SYMBOL}{walletBalance.toFixed(0)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-               <div className="flex items-center gap-0.5 text-[#16A34A] font-bold text-[11px] uppercase tracking-widest bg-[#16A34A05] dark:bg-[#16A34A10] px-2.5 py-1 rounded-lg">
-                CHANGE <ChevronRight className="h-3.5 w-3.5" />
-              </div>
-            </div>
-
-            {/* Place Order Button */}
-            <button
-              onClick={handlePlaceOrder}
-              disabled={isPlacingOrder || (selectedPaymentMethod === "wallet" && walletBalance < total)}
-              className="w-full bg-gradient-to-r from-[#16A34A] to-[#15803D] hover:from-[#15803D] hover:to-[#1a2614] text-white px-6 h-12 md:h-14 rounded-2xl font-bold shadow-lg shadow-[#16A34A]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between transition-transform active:scale-[0.98]"
-            >
-              {(selectedPaymentMethod === "razorpay" || selectedPaymentMethod === "wallet" || selectedPaymentMethod === "cash") && (
-                <div className="text-left flex flex-col justify-center border-r-[1.5px] border-white/20 pr-4">
-                  <span className="text-xs md:text-sm font-semibold text-white/90">{RUPEE_SYMBOL}{total.toFixed(2)}</span>
-                  <span className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider text-white/80 mt-[-2px]">Total</span>
-                </div>
-              )}
-              <div className="flex items-center gap-1 mx-auto text-sm md:text-lg tracking-wide">
-                {isPlacingOrder
-                  ? "Processing..."
-                  : !hasSavedAddress
-                    ? "Select Address"
-                    : "Place Order"}
-                <div className="flex align-center h-full">
-                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
+      <CartCheckoutBar
+        rupeeSymbol={RUPEE_SYMBOL}
+        total={total}
+        selectedPaymentMethod={selectedPaymentMethod}
+        selectedPaymentLabel={selectedPaymentLabel}
+        walletBalance={walletBalance}
+        isPlacingOrder={isPlacingOrder}
+        hasSavedAddress={hasSavedAddress}
+        disabled={isPlacingOrder || (selectedPaymentMethod === "wallet" && walletBalance < total)}
+        onOpenPayment={() => setShowPaymentSheet(true)}
+        onPlaceOrder={handlePlaceOrder}
+      />
 
           {/* Placing Order Modal */}
           {showPlacingOrder && (
@@ -3525,9 +3340,9 @@ function Cart() {
           </AnimatePresence>,
           document.body
         )}
-    </div>
+    </AnimatedPage>
   )
-}      
+}
 
 export default Cart
 

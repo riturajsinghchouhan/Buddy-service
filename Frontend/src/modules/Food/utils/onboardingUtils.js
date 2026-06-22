@@ -4,7 +4,7 @@ const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
 
-const getOnboardingStorageKey = () => {
+export const getOnboardingStorageKey = () => {
     try {
       const userStr = localStorage.getItem("restaurant_user")
       if (userStr) {
@@ -15,7 +15,29 @@ const getOnboardingStorageKey = () => {
     } catch (e) {}
     return "restaurant_onboarding_data"
 }
-const ONBOARDING_STORAGE_KEY = getOnboardingStorageKey()
+
+const getOnboardingStorageKeyInternal = getOnboardingStorageKey
+
+const isPresentImage = (value) => {
+  if (!value) return false
+  if (typeof value === "string" && value.trim()) return true
+  if (typeof File !== "undefined" && value instanceof File) return true
+  if (typeof Blob !== "undefined" && value instanceof Blob) return true
+  if (value?.url) return true
+  return false
+}
+
+const hasValidMenuImages = (images) =>
+  Array.isArray(images) && images.length > 0 && images.some(isPresentImage)
+
+const isPresentDocument = (value) => {
+  if (!value) return false
+  if (typeof value === "string" && value.trim()) return true
+  if (typeof File !== "undefined" && value instanceof File) return true
+  if (typeof Blob !== "undefined" && value instanceof Blob) return true
+  if (value?.url) return true
+  return false
+}
 
 // Helper function to check if a step is complete
 const isStepComplete = (stepData, stepNumber) => {
@@ -29,36 +51,38 @@ const isStepComplete = (stepData, stepNumber) => {
       stepData.ownerEmail &&
       stepData.ownerPhone &&
       stepData.primaryContactNumber &&
+      stepData.zoneId &&
       stepData.location?.area &&
-      stepData.location?.city
+      stepData.location?.city &&
+      stepData.location?.pincode
     )
   }
 
   if (stepNumber === 2) {
+    const openingTime =
+      stepData.deliveryTimings?.openingTime || stepData.openingTime || ""
+    const closingTime =
+      stepData.deliveryTimings?.closingTime || stepData.closingTime || ""
+
     return (
       Array.isArray(stepData.cuisines) &&
       stepData.cuisines.length > 0 &&
-      stepData.deliveryTimings?.openingTime &&
-      stepData.deliveryTimings?.closingTime &&
+      openingTime &&
+      closingTime &&
       Array.isArray(stepData.openDays) &&
       stepData.openDays.length > 0 &&
-      // Check for menu images (must have at least one)
-      Array.isArray(stepData.menuImageUrls) &&
-      stepData.menuImageUrls.length > 0 &&
-      // Check for profile image
-      stepData.profileImageUrl &&
-      (stepData.profileImageUrl.url || typeof stepData.profileImageUrl === 'string')
+      hasValidMenuImages(stepData.menuImageUrls) &&
+      isPresentImage(stepData.profileImageUrl) &&
+      isPresentDocument(stepData.menuPdf) &&
+      Boolean(String(stepData.estimatedDeliveryTime || "").trim())
     )
   }
 
   if (stepNumber === 3) {
-    const hasPanImage = stepData.pan?.image && 
-      (stepData.pan.image.url || typeof stepData.pan.image === 'string')
-    const hasFssaiImage = stepData.fssai?.image && 
-      (stepData.fssai.image.url || typeof stepData.fssai.image === 'string')
-    // GST image is required only if GST is registered
-    const hasGstImage = !stepData.gst?.isRegistered || 
-      (stepData.gst?.image && (stepData.gst.image.url || typeof stepData.gst.image === 'string'))
+    const hasPanImage = isPresentImage(stepData.pan?.image)
+    const hasFssaiImage = isPresentImage(stepData.fssai?.image)
+    const hasGstImage =
+      !stepData.gst?.isRegistered || isPresentImage(stepData.gst?.image)
     
     return (
       stepData.pan?.panNumber &&
@@ -204,6 +228,62 @@ export const isRestaurantOnboardingComplete = (restaurant) => {
   }
 
   return false
+}
+
+/** Map flat onboarding form state (Onboarding.jsx) to API/check shape used by isStepComplete */
+export const mapOnboardingFormToCheckData = (step1 = {}, step2 = {}, step3 = {}) => ({
+  step1: {
+    ...step1,
+    zoneId: step1.zoneId,
+  },
+  step2: {
+    cuisines: step2.cuisines,
+    openDays: step2.openDays,
+    openingTime: step2.openingTime,
+    closingTime: step2.closingTime,
+    deliveryTimings: {
+      openingTime: step2.openingTime || step2.deliveryTimings?.openingTime,
+      closingTime: step2.closingTime || step2.deliveryTimings?.closingTime,
+    },
+    menuImageUrls: step2.menuImages,
+    profileImageUrl: step2.profileImage,
+    menuPdf: step2.menuPdf,
+    estimatedDeliveryTime: step2.estimatedDeliveryTime,
+  },
+  step3: {
+    pan: {
+      panNumber: step3.panNumber,
+      nameOnPan: step3.nameOnPan,
+      image: step3.panImage,
+    },
+    gst: {
+      isRegistered: Boolean(step3.gstRegistered),
+      gstNumber: step3.gstNumber,
+      legalName: step3.gstLegalName,
+      address: step3.gstAddress,
+      image: step3.gstImage,
+    },
+    fssai: {
+      registrationNumber: step3.fssaiNumber,
+      expiryDate: step3.fssaiExpiry,
+      image: step3.fssaiImage,
+    },
+    bank: {
+      accountNumber: step3.accountNumber,
+      ifscCode: step3.ifscCode,
+      accountHolderName: step3.accountHolderName,
+      accountType: step3.accountType,
+    },
+  },
+})
+
+export const getCompletedOnboardingSteps = (step1, step2, step3) => {
+  const data = mapOnboardingFormToCheckData(step1, step2, step3)
+  const completed = new Set()
+  if (isStepComplete(data.step1, 1)) completed.add(1)
+  if (isStepComplete(data.step2, 2)) completed.add(2)
+  if (isStepComplete(data.step3, 3)) completed.add(3)
+  return completed
 }
 
 // Determine which step to show based on completeness

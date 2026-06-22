@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, ShieldCheck, Timer, RefreshCw, Store, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import { Loader2, RefreshCw, Timer } from "lucide-react"
 import { toast } from "sonner"
 import { restaurantAPI } from "@food/api"
+import { Button } from "@food/components/ui/button"
 import {
   setAuthData as setRestaurantAuthData,
   setRestaurantPendingPhone,
 } from "@food/utils/auth"
 import { checkOnboardingStatus, isRestaurantOnboardingComplete } from "@food/utils/onboardingUtils"
+import RestaurantAuthLayout from "@food/components/restaurant/auth/RestaurantAuthLayout"
 
 export default function RestaurantOTP() {
   const navigate = useNavigate()
@@ -20,8 +21,6 @@ export default function RestaurantOTP() {
   const [focusedIndex, setFocusedIndex] = useState(null)
   const inputRefs = useRef([])
   const hasSubmittedRef = useRef(false)
-
-  const primaryColor = "#16A34A"
 
   useEffect(() => {
     const stored = sessionStorage.getItem("restaurantAuthData")
@@ -60,12 +59,43 @@ export default function RestaurantOTP() {
   }, [navigate])
 
   useEffect(() => {
-    if (inputRefs.current[0]) {
-      inputRefs.current[0].focus()
-    }
+    inputRefs.current[0]?.focus()
   }, [])
 
+  const applyOtpDigits = (rawValue, startIndex = 0) => {
+    const digits = String(rawValue || "")
+      .replace(/\D/g, "")
+      .slice(0, 4 - startIndex)
+    if (!digits.length) return
+
+    setOtp((prev) => {
+      const newOtp = [...prev]
+      for (let i = 0; i < digits.length && startIndex + i < 4; i += 1) {
+        newOtp[startIndex + i] = digits[i]
+      }
+
+      window.setTimeout(() => {
+        const nextEmpty = newOtp.findIndex((digit) => !digit)
+        const focusIndex = nextEmpty === -1 ? 3 : nextEmpty
+        inputRefs.current[focusIndex]?.focus()
+
+        if (newOtp.every((digit) => digit !== "") && !hasSubmittedRef.current) {
+          hasSubmittedRef.current = true
+          handleVerify(newOtp.join(""))
+        }
+      }, 0)
+
+      return newOtp
+    })
+  }
+
   const handleChange = (index, value) => {
+    const digits = value.replace(/\D/g, "")
+    if (digits.length > 1) {
+      applyOtpDigits(digits, index)
+      return
+    }
+
     if (value && !/^\d$/.test(value)) return
 
     const newOtp = [...otp]
@@ -82,6 +112,12 @@ export default function RestaurantOTP() {
         handleVerify(newOtp.join(""))
       }
     }
+  }
+
+  const handlePaste = (e, index = 0) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData("text")
+    applyOtpDigits(pasted, index)
   }
 
   const handleKeyDown = (index, e) => {
@@ -129,10 +165,10 @@ export default function RestaurantOTP() {
         sessionStorage.removeItem("restaurantAuthData")
         navigate("/food/restaurant/pending-verification", {
           replace: true,
-          state: { 
+          state: {
             phone: pendingPhone,
             isRejected: data.isRejected,
-            rejectionReason: data.rejectionReason
+            rejectionReason: data.rejectionReason,
           },
         })
         return
@@ -165,7 +201,7 @@ export default function RestaurantOTP() {
       }
     } catch (err) {
       const message = err?.response?.data?.message || "Invalid OTP. Please try again."
-      
+
       if (/pending approval/i.test(message)) {
         const pendingPhone = authData?.phone || authData?.email || contactInfo
         setRestaurantPendingPhone(pendingPhone)
@@ -205,108 +241,70 @@ export default function RestaurantOTP() {
   if (!authData) return null
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0a0a0a] flex flex-col relative overflow-hidden font-['Poppins']">
-      {/* Decorative Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-[#16A34A]/10 via-[#16A34A]/5 to-transparent pointer-events-none" />
-      <div className="absolute top-[-100px] right-[-100px] w-[500px] h-[500px] bg-[#16A34A]/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-100px] left-[-100px] w-[400px] h-[400px] bg-[#16A34A]/5 rounded-full blur-[120px] pointer-events-none" />
-      
-      {/* Header / Back */}
-      <div className="relative z-20 px-6 py-8 flex items-center">
-        <motion.button
-          whileHover={{ x: -4 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => navigate("/food/restaurant/login")}
-          className="p-3 bg-white dark:bg-[#1a1a1a] shadow-xl shadow-[#16A34A]/10 rounded-2xl text-[#16A34A] border border-[#16A34A]/5 outline-none"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </motion.button>
+    <RestaurantAuthLayout
+      title="Verify OTP"
+      subtitle={
+        <>
+          Enter the 4-digit code sent to{" "}
+          <span className="font-semibold text-primary-orange">{contactInfo}</span>
+        </>
+      }
+      onBack={() => navigate("/food/restaurant/login")}
+    >
+      <div className="mx-auto grid max-w-[15rem] grid-cols-4 gap-2 sm:max-w-[17rem] sm:gap-3">
+        {otp.map((digit, index) => (
+          <input
+            key={index}
+            ref={(el) => {
+              inputRefs.current[index] = el
+            }}
+            type="tel"
+            inputMode="numeric"
+            autoComplete={index === 0 ? "one-time-code" : "off"}
+            maxLength={1}
+            value={digit}
+            onChange={(e) => handleChange(index, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(index, e)}
+            onPaste={(e) => handlePaste(e, index)}
+            onFocus={() => setFocusedIndex(index)}
+            onBlur={() => setFocusedIndex(null)}
+            aria-label={`OTP digit ${index + 1}`}
+            className={`h-11 w-11 rounded-xl border-2 bg-gray-50 text-center text-lg font-bold text-gray-900 outline-none transition-all sm:h-12 sm:w-12 sm:text-xl ${
+              focusedIndex === index
+                ? "border-primary-orange bg-white ring-2 ring-primary-orange/20"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          />
+        ))}
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-20 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-[440px]"
-        >
-          {/* Icon & Title */}
-          <div className="text-center mb-12">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="w-20 h-20 bg-[#16A34A] rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-[#16A34A]/30 relative"
-            >
-              <ShieldCheck className="text-white w-10 h-10" />
-            </motion.div>
-            
-            <h1 className="text-4xl font-black text-[#16A34A] font-['Outfit'] tracking-tight mb-3">
-              Verify Account
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 font-medium">
-              We've sent a 4-digit code to <br />
-              <span className="text-[#16A34A] font-bold">{contactInfo}</span>
-            </p>
-          </div>
+      <Button
+        type="button"
+        onClick={() => handleVerify()}
+        disabled={isLoading || !isOtpComplete}
+        className="mt-6 h-11 w-full rounded-xl bg-primary-orange text-sm font-semibold text-white shadow-md transition-colors hover:bg-primary-orange/90 disabled:opacity-50"
+      >
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & Continue"}
+      </Button>
 
-          {/* OTP Input Card */}
-          <div className="bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-2xl rounded-[3rem] p-10 shadow-[0_40px_80px_-20px_rgba(126,56,102,0.2)] border border-white/20 dark:border-gray-800">
-            <div className="grid grid-cols-4 gap-4 mb-10">
-              {otp.map((digit, index) => (
-                <div key={index} className="relative group">
-                  <input
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    type="tel"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onFocus={() => setFocusedIndex(index)}
-                    onBlur={() => setFocusedIndex(null)}
-                    className={`w-full aspect-square bg-gray-50 dark:bg-gray-900/50 text-center text-3xl font-black text-[#16A34A] border-2 border-transparent rounded-2xl outline-none transition-all ${
-                      focusedIndex === index 
-                        ? "border-[#16A34A] bg-white scale-105 shadow-[0_10px_30px_rgba(126,56,102,0.1)]" 
-                        : "group-hover:border-gray-200 dark:group-hover:border-gray-700"
-                    }`}
-                  />
-                  <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full transition-all duration-300 ${focusedIndex === index ? "bg-[#16A34A] opacity-100" : "bg-gray-200 opacity-0"}`} />
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => handleVerify()}
-              disabled={isLoading || !isOtpComplete}
-              className="w-full py-4.5 bg-[#16A34A] hover:bg-[#1a2614] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl font-bold text-lg shadow-xl shadow-[#16A34A]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 mb-8"
-            >
-              {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Verify & Continue"}
-            </button>
-
-            {/* Resend Logic */}
-            <div className="text-center">
-              {resendTimer > 0 ? (
-                <p className="text-sm text-gray-400 font-medium flex items-center justify-center gap-2 tracking-wide uppercase text-[10px] font-black">
-                  <Timer className="w-3.5 h-3.5 text-[#16A34A]" />
-                  Resend code in <span className="text-[#16A34A] font-bold">{resendTimer}s</span>
-                </p>
-              ) : (
-                <button
-                  onClick={handleResend}
-                  className="text-xs text-[#16A34A] font-black uppercase tracking-widest hover:underline underline-offset-4 flex items-center justify-center gap-2 mx-auto"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Resend OTP Code
-                </button>
-              )}
-            </div>
-          </div>
-
-          <p className="mt-12 text-[10px] font-black text-gray-300 dark:text-gray-600 text-center uppercase tracking-[0.3em]">
-            Secure Verification &bull; Foodelo Partner
+      <div className="mt-5 text-center">
+        {resendTimer > 0 ? (
+          <p className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Timer className="h-4 w-4 text-primary-orange" />
+            Resend code in <span className="font-semibold text-primary-orange">{resendTimer}s</span>
           </p>
-        </motion.div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 text-sm font-medium text-primary-orange hover:underline"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Resend OTP
+          </button>
+        )}
       </div>
-    </div>
+    </RestaurantAuthLayout>
   )
 }
-

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
-import { ArrowLeft, ChevronUp, ChevronDown, Clock, Edit2 } from "lucide-react"
+import { ChevronUp, ChevronDown, Clock } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import { Switch } from "@food/components/ui/switch"
 import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
@@ -57,7 +59,6 @@ const getDefaultDays = () => ({
 
 export default function OutletTimings() {
   const companyName = useCompanyName()
-  const navigate = useNavigate()
   const [expandedDay, setExpandedDay] = useState("Monday")
   const isInternalUpdate = useRef(false)
   const [days, setDays] = useState(getDefaultDays)
@@ -173,53 +174,43 @@ export default function OutletTimings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-sm text-gray-600">Loading outlet timings...</div>
-      </div>
+      <RestaurantSubPageShell
+        title="Outlet timings"
+        subtitle="Set weekly opening hours"
+        backTo={`${RESTAURANT_BASE}/explore`}
+      >
+        <div className="py-12 text-center text-sm text-gray-600">Loading outlet timings...</div>
+      </RestaurantSubPageShell>
     )
   }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <div className="min-h-screen bg-white overflow-x-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/food/restaurant/explore")}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Go back"
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-900" />
-            </button>
-            <h1 className="text-lg font-bold text-gray-900">Outlet timings</h1>
+      <RestaurantSubPageShell
+        title="Outlet timings"
+        subtitle="Set weekly opening hours"
+        backTo={`${RESTAURANT_BASE}/explore`}
+      >
+        <div className="mb-6">
+          <div className="text-center mb-2">
+            <h2 className="text-base font-semibold text-[var(--rt-primary-strong)]">{companyName} delivery</h2>
           </div>
+          <div className="h-0.5 bg-[var(--rt-primary-strong)]" />
         </div>
 
-        {/* Main Content */}
-        <div className="px-4 py-6">
-          {/* Appzeto delivery Section Header */}
-          <div className="mb-6">
-            <div className="text-center mb-2">
-              <h2 className="text-base font-semibold text-blue-600">{companyName} delivery</h2>
-            </div>
-            <div className="h-0.5 bg-blue-600"></div>
-          </div>
+        <div className="space-y-2">
+          {dayNames.map((day, index) => {
+            const dayData = days[day] || { isOpen: true, openingTime: "09:00", closingTime: "22:00" }
+            const isExpanded = expandedDay === day
 
-          {/* Day-wise Accordion */}
-          <div className="space-y-2">
-            {dayNames.map((day, index) => {
-              const dayData = days[day] || { isOpen: true, openingTime: "09:00", closingTime: "22:00" }
-              const isExpanded = expandedDay === day
-
-              return (
-                <motion.div
-                  key={day}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.03 }}
-                  className="bg-white border border-gray-200 rounded-sm overflow-hidden"
-                >
+            return (
+              <motion.div
+                key={day}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: index * 0.03 }}
+              >
+                <PanelSurface className="overflow-hidden p-0">
                   {/* Day Header */}
                   <div
                     className={`w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-color transition-all ${isExpanded ? "bg-gray-100" : ""}`}
@@ -379,12 +370,12 @@ export default function OutletTimings() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
-              )
-            })}
-          </div>
+                </PanelSurface>
+              </motion.div>
+            )
+          })}
         </div>
-      </div>
+      </RestaurantSubPageShell>
     </LocalizationProvider>
   )
 }

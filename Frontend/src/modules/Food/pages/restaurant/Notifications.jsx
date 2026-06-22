@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Bell, RefreshCw, X } from "lucide-react"
+import { RefreshCw, Bell, X } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import { restaurantAPI } from "@food/api"
 import useNotificationInbox from "@food/hooks/useNotificationInbox"
 const debugLog = (...args) => {}
@@ -23,7 +25,6 @@ const getStatusLabel = (status = "") => {
 }
 
 export default function Notifications() {
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState([])
   const [dismissedIds, setDismissedIds] = useState(() => {
@@ -132,78 +133,80 @@ export default function Notifications() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 flex items-center gap-3 border-b border-gray-200">
+    <RestaurantSubPageShell
+      title="Notifications"
+      subtitle="Order updates and admin announcements"
+      backTo={RESTAURANT_BASE}
+      showBottomNav
+      headerRight={
         <button
-          onClick={() => navigate("/restaurant")}
-          className="p-2 rounded-full hover:bg-gray-100"
-          aria-label="Back"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-900" />
-        </button>
-        <h1 className="text-base font-semibold text-gray-900 flex-1">Notifications</h1>
-        <button
+          type="button"
           onClick={handleRefresh}
-          className="p-2 rounded-full hover:bg-gray-100"
+          className="rounded-xl border border-[var(--rt-border)] p-2 hover:bg-gray-50"
           aria-label="Refresh"
         >
-          <RefreshCw className="w-4 h-4 text-gray-700" />
+          <RefreshCw className="h-4 w-4 text-gray-700" />
         </button>
-      </div>
+      }
+    >
+      {!loading && notifications.length > 0 && (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={clearAll}
+            className="text-xs font-medium text-red-600 hover:text-red-700"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
-      <div className="flex-1 px-4 pt-4 pb-28">
-        {!loading && notifications.length > 0 && (
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={clearAll}
-              className="text-xs font-medium text-red-600 hover:text-red-700"
+      {loading || broadcastLoading ? (
+        <div className="py-12 text-center text-sm text-gray-600">Loading notifications...</div>
+      ) : notifications.length === 0 ? (
+        <PanelSurface className="py-12 text-center text-sm text-gray-600">No notifications</PanelSurface>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map((item) => (
+            <PanelSurface
+              key={item.id}
+              className={`cursor-default p-3 ${
+                item.source === "broadcast" && !item.read
+                  ? "border-blue-200 bg-blue-50/40 cursor-pointer"
+                  : ""
+              }`}
+              onClick={() => (item.source === "broadcast" ? markBroadcastAsRead(item.id) : undefined)}
             >
-              Clear all
-            </button>
-          </div>
-        )}
-
-        {loading || broadcastLoading ? (
-          <div className="text-center text-sm text-gray-600 py-12">Loading notifications...</div>
-        ) : notifications.length === 0 ? (
-          <div className="text-center text-sm text-gray-600 py-12">No notifications</div>
-        ) : (
-          <div className="space-y-2">
-            {notifications.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => item.source === "broadcast" ? markBroadcastAsRead(item.id) : undefined}
-                className={`border rounded-lg p-3 flex items-start justify-between gap-3 ${item.source === "broadcast" && !item.read ? "border-blue-200 bg-blue-50/40 cursor-pointer" : "border-gray-200"}`}
-              >
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    {item.source === "broadcast" && <Bell className="w-4 h-4 text-blue-600" />}
+                    {item.source === "broadcast" && <Bell className="h-4 w-4 text-blue-600" />}
                     <p className="text-sm font-medium text-gray-900">{item.message}</p>
                   </div>
                   {item.source === "broadcast" ? (
-                    <p className="text-xs text-gray-600 mt-0.5">{item.detail || "Admin notification"}</p>
+                    <p className="mt-0.5 text-xs text-gray-600">{item.detail || "Admin notification"}</p>
                   ) : (
-                    <p className="text-xs text-gray-600 mt-0.5">Order: {item.orderId}</p>
+                    <p className="mt-0.5 text-xs text-gray-600">Order: {item.orderId}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">{item.time}</p>
+                  <p className="mt-1 text-xs text-gray-500">{item.time}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={(event) => {
                     event.stopPropagation()
                     removeNotification(item.id, item.source)
                   }}
-                  className="p-1.5 rounded-full hover:bg-gray-100"
+                  className="rounded-full p-1.5 hover:bg-gray-100"
                   aria-label="Remove notification"
                 >
-                  <X className="w-4 h-4 text-gray-600" />
+                  <X className="h-4 w-4 text-gray-600" />
                 </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+            </PanelSurface>
+          ))}
+        </div>
+      )}
+    </RestaurantSubPageShell>
   )
 }
 

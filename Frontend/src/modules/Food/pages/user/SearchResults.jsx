@@ -10,6 +10,7 @@ import { useProfile } from "@food/context/ProfileContext"
 import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { restaurantAPI, adminAPI } from "@food/api"
+import { fetchRestaurantsCached } from "@food/utils/restaurantListCache"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
 
 const debugLog = (...args) => {}
@@ -189,7 +190,7 @@ export default function SearchResults() {
         if (zoneId) {
           params.zoneId = zoneId
         }
-        const response = await restaurantAPI.getRestaurants(params)
+        const response = await fetchRestaurantsCached(params)
 
         debugLog('?? Full API Response:', response)
         debugLog('?? Response Data:', response?.data)

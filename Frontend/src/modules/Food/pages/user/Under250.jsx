@@ -18,6 +18,7 @@ import { restaurantAPI, adminAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
 import { flattenMenuItems } from "@food/utils/menuItems"
 import { fetchRestaurantMenuCached, getPrimaryRestaurantMenuLookupId } from "@food/utils/restaurantMenuCache"
+import { fetchRestaurantsCached } from "@food/utils/restaurantListCache"
 import { calculateDistance, formatDistance } from "@food/utils/common"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -356,7 +357,7 @@ export default function Under250() {
     const fetchRestaurantsUnder250 = async () => {
       try {
         setLoadingRestaurants(true)
-        const response = await restaurantAPI.getRestaurants(zoneId ? { zoneId } : {})
+        const response = await fetchRestaurantsCached(zoneId ? { zoneId } : {})
         const restaurantsRaw = Array.isArray(response?.data?.data?.restaurants)
           ? response.data.data.restaurants
           : []
