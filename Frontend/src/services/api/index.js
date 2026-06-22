@@ -1464,9 +1464,9 @@ function createInFlightCache({ ttlMs }) {
 
 // Public user-app endpoints can be called by multiple components/effects on refresh (and React StrictMode in dev).
 // A small in-flight + short TTL cache collapses duplicate requests without changing functionality.
-const publicRestaurantsCache = createInFlightCache({ ttlMs: 3000 });
+const publicRestaurantsCache = createInFlightCache({ ttlMs: 5 * 60 * 1000 });
 const publicRestaurantMenuCache = createInFlightCache({ ttlMs: 5 * 60 * 1000 });
-const publicRestaurantOutletTimingsCache = createInFlightCache({ ttlMs: 3000 });
+const publicRestaurantOutletTimingsCache = createInFlightCache({ ttlMs: 5 * 60 * 1000 });
 const publicGenericGetCache = createInFlightCache({ ttlMs: 3000 });
 
 export const publicGetOnce = (url, config = {}) => {
@@ -1503,6 +1503,12 @@ const getPublicRestaurantsOnce = (params = {}, config = {}) => {
   // `_ts` is an explicit cache-buster in many call sites; ignore it for dedupe purposes.
   if (keyParams && typeof keyParams === "object") {
     delete keyParams._ts;
+    if (keyParams.lat != null && Number.isFinite(Number(keyParams.lat))) {
+      keyParams.lat = Math.round(Number(keyParams.lat) * 1000) / 1000;
+    }
+    if (keyParams.lng != null && Number.isFinite(Number(keyParams.lng))) {
+      keyParams.lng = Math.round(Number(keyParams.lng) * 1000) / 1000;
+    }
   }
   const key = `restaurants:${stableStringify(keyParams)}`;
   return publicRestaurantsCache.getOrCreate(key, () =>

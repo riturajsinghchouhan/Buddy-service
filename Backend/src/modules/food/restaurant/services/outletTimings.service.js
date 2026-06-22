@@ -58,6 +58,33 @@ export async function getOutletTimingsForRestaurant(restaurantId) {
     return { outletTimings: toClientShape(doc) };
 }
 
+export function getDefaultOutletTimingsShape() {
+    return toClientShape({ timings: defaultTimings() });
+}
+
+/** Batch-load outlet timings for list endpoints (one DB query for all restaurants). */
+export async function getOutletTimingsMapForRestaurants(restaurantIds = []) {
+    const validIds = [
+        ...new Set(
+            (Array.isArray(restaurantIds) ? restaurantIds : [])
+                .map((id) => String(id || '').trim())
+                .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        )
+    ].map((id) => new mongoose.Types.ObjectId(id));
+
+    if (validIds.length === 0) return new Map();
+
+    const docs = await FoodRestaurantOutletTimings.find({ restaurantId: { $in: validIds } })
+        .select('restaurantId timings')
+        .lean();
+
+    const map = new Map();
+    for (const doc of docs) {
+        map.set(String(doc.restaurantId), toClientShape(doc));
+    }
+    return map;
+}
+
 export async function upsertOutletTimingsForRestaurant(restaurantId, outletTimings) {
     if (!restaurantId || !mongoose.Types.ObjectId.isValid(String(restaurantId))) {
         throw new ValidationError('Invalid restaurant id');

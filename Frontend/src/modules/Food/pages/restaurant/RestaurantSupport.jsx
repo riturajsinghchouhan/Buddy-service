@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
-import { ChevronLeft, Loader2, Send } from "lucide-react"
+import RestaurantSubPageShell from "@food/components/restaurant/panel/RestaurantSubPageShell"
+import { PanelPill, PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
+import { Loader2, Send } from "lucide-react"
 import { restaurantAPI } from "@food/api"
-import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { toast } from "sonner"
 
 const CATEGORY_OPTIONS = [
@@ -35,8 +35,6 @@ const getStatusStyle = (status) => {
 }
 
 export default function RestaurantSupport() {
-  const navigate = useNavigate()
-  const goBack = useRestaurantBackNavigation()
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -107,44 +105,33 @@ export default function RestaurantSupport() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <div className="sticky top-0 z-40 bg-white border-b border-slate-200">
-        <div className="px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={goBack}
-            className="p-1 hover:bg-slate-100 rounded-full transition-colors"
-            aria-label="Go back"
-          >
-            <ChevronLeft className="w-6 h-6 text-slate-900" />
-          </button>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900">Support</h1>
-            <p className="text-xs text-slate-500">Raise issue and track admin response</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-28">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-xs text-slate-500">Total</p>
-            <p className="text-lg font-bold text-slate-900">{stats.total}</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+    <RestaurantSubPageShell
+      title="Support"
+      subtitle="Raise issues and track admin response"
+      backTo={`${RESTAURANT_BASE}/explore`}
+      showBottomNav
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <PanelSurface className="p-3">
+            <p className="text-xs text-gray-500">Total</p>
+            <p className="text-lg font-bold text-gray-900">{stats.total}</p>
+          </PanelSurface>
+          <PanelSurface className="border-amber-200 bg-amber-50 p-3">
             <p className="text-xs text-amber-700">Open</p>
             <p className="text-lg font-bold text-amber-800">{stats.open}</p>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+          </PanelSurface>
+          <PanelSurface className="border-blue-200 bg-blue-50 p-3">
             <p className="text-xs text-blue-700">In progress</p>
             <p className="text-lg font-bold text-blue-800">{stats.inProgress}</p>
-          </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          </PanelSurface>
+          <PanelSurface className="border-emerald-200 bg-emerald-50 p-3">
             <p className="text-xs text-emerald-700">Resolved</p>
             <p className="text-lg font-bold text-emerald-800">{stats.resolved}</p>
-          </div>
+          </PanelSurface>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+        <PanelSurface as="form" onSubmit={handleSubmit} className="space-y-3 p-4">
           <h2 className="text-sm font-bold text-slate-900">Raise support ticket</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
@@ -206,9 +193,9 @@ export default function RestaurantSupport() {
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Submit Ticket
           </button>
-        </form>
+        </PanelSurface>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+        <PanelSurface className="space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-bold text-slate-900">My tickets</h2>
             <select
@@ -273,11 +260,9 @@ export default function RestaurantSupport() {
               ))}
             </div>
           )}
-        </div>
+        </PanelSurface>
       </div>
-
-      <BottomNavOrders />
-    </div>
+    </RestaurantSubPageShell>
   )
 }
 

@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Bell, HelpCircle, Menu, Search, SlidersHorizontal, Calendar, ChevronLeft, X, Loader2, ChevronRight, Star } from "lucide-react"
 import { DateRangeCalendar } from "@food/components/ui/date-range-calendar"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
+import RestaurantPanelHeader from "@food/components/restaurant/panel/RestaurantPanelHeader"
+import { PanelPill, PanelSurface } from "@food/components/restaurant/panel/panelUi"
+import useMediaQuery from "@food/hooks/useMediaQuery"
 import { restaurantAPI } from "@food/api"
 
 const debugLog = (...args) => {}
@@ -52,6 +55,7 @@ const toComparableId = (value) =>
   String(value?._id || value || "").trim()
 
 export default function Feedback() {
+  const isDesktop = useMediaQuery("(min-width: 1024px)")
   const [searchParams, setSearchParams] = useSearchParams()
   const tabFromUrl = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState(tabFromUrl === "complaints" ? "complaints" : "reviews")
@@ -99,6 +103,8 @@ export default function Feedback() {
   const [isCustomDateOpen, setIsCustomDateOpen] = useState(false)
   const [isComplaintsLoading, setIsComplaintsLoading] = useState(false)
   const [complaints, setComplaints] = useState([])
+  const [selectedComplaint, setSelectedComplaint] = useState(null)
+  const [selectedReview, setSelectedReview] = useState(null)
 
   const [restaurantData, setRestaurantData] = useState(null)
   const [isLoadingRestaurant, setIsLoadingRestaurant] = useState(true)
@@ -198,6 +204,28 @@ export default function Feedback() {
 
     fetchComplaints()
   }, [activeTab, selectedDateRange, customDateRange, complaintsFilterValues, complaintsSearchQuery])
+
+  useEffect(() => {
+    if (!isDesktop) return
+    if (complaints.length === 0) {
+      setSelectedComplaint(null)
+      return
+    }
+    setSelectedComplaint((prev) =>
+      prev && complaints.some((c) => c._id === prev._id) ? prev : complaints[0]
+    )
+  }, [complaints, isDesktop])
+
+  useEffect(() => {
+    if (!isDesktop) return
+    if (displayedReviews.length === 0) {
+      setSelectedReview(null)
+      return
+    }
+    setSelectedReview((prev) =>
+      prev && displayedReviews.some((r) => r.id === prev.id) ? prev : displayedReviews[0]
+    )
+  }, [displayedReviews, isDesktop])
 
   useEffect(() => {
     const fetchReviews = async () => {
@@ -301,7 +329,7 @@ export default function Feedback() {
     setDisplayedReviews(filtered)
   }, [reviews, filterValues])
 
-  const handleFilterReset = () => { setFilterValues({ duration: null, sortBy: "newest", reviewType: [] }); setIsFilterApply() }
+  const handleFilterReset = () => { setFilterValues({ duration: null, sortBy: "newest", reviewType: [] }); setIsFilterOpen(false) }
   const handleFilterApply = () => { setIsFilterLoading(true); setIsFilterOpen(false); setTimeout(() => setIsFilterLoading(false), 200) }
 
   const formatDate = (date) => {
@@ -387,56 +415,94 @@ export default function Feedback() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-[#0a0a0a] flex flex-col" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-      <div className="sticky bg-white dark:bg-[#0a0a0a] top-0 z-40 px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+    <div className="rt-panel-bg flex min-h-screen flex-col pb-24 lg:pb-8" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+      <div className="hidden lg:block">
+        <RestaurantPanelHeader
+          title="Feedback"
+          subtitle={restaurantData?.name || restaurantData?.restaurantName || "Reviews and complaints"}
+        />
+      </div>
+
+      <div className="sticky top-0 z-40 border-b border-[var(--rt-border)] bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] tracking-wider text-gray-500 uppercase">Showing data for</p>
-            <p className="text-md font-bold text-gray-900 dark:text-white">{restaurantData?.name || "Restaurant"}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Showing data for</p>
+            <p className="text-base font-bold text-gray-900">{restaurantData?.name || restaurantData?.restaurantName || "Restaurant"}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/food/restaurant/help-centre/support")}
-              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all"
-              aria-label="Open support"
-            >
-              <HelpCircle className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/food/restaurant/help-centre/support")}
+            className="rounded-xl border border-[var(--rt-border)] p-2 hover:bg-gray-50"
+            aria-label="Open support"
+          >
+            <HelpCircle className="h-5 w-5 text-gray-700" />
+          </button>
         </div>
-        
-        <div className="flex gap-2 mt-4">
+
+        <div className="mt-4 flex gap-2">
           {tabs.map((tab) => (
-            <button
+            <PanelPill
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-2 rounded-full text-sm font-bold transition-all relative ${
-                activeTab === tab.id ? "bg-black dark:bg-white text-white dark:text-black" : "bg-white dark:bg-[#1a1a1a] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800"
-              }`}
+              active={activeTab === tab.id}
+              onClick={() => {
+                setActiveTab(tab.id)
+                setSearchParams(tab.id === "complaints" ? { tab: "complaints" } : {})
+              }}
+              className="relative flex-1"
             >
               {tab.label}
-              {tab.id === 'complaints' && complaints.length > 0 && activeTab !== 'complaints' && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-[#0a0a0a]" />
-              )}
-            </button>
+              {tab.id === "complaints" && complaints.length > 0 && activeTab !== "complaints" ? (
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />
+              ) : null}
+            </PanelPill>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 p-4">
+      <div className="mx-auto w-full max-w-6xl flex-1 p-4 lg:px-6">
+        <div className="mb-4 hidden gap-2 lg:flex">
+          {tabs.map((tab) => (
+            <PanelPill
+              key={tab.id}
+              active={activeTab === tab.id}
+              onClick={() => {
+                setActiveTab(tab.id)
+                setSearchParams(tab.id === "complaints" ? { tab: "complaints" } : {})
+              }}
+            >
+              {tab.label}
+            </PanelPill>
+          ))}
+        </div>
+
+        {!isLoadingRestaurant && ratingSummary.totalReviews > 0 ? (
+          <PanelSurface className="mb-4 grid grid-cols-3 gap-3 p-4 lg:grid-cols-3">
+            <div>
+              <p className="text-xs text-gray-500">Average rating</p>
+              <p className="text-2xl font-bold text-gray-900">{ratingSummary.averageRating.toFixed(1)} ★</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Total reviews</p>
+              <p className="text-2xl font-bold text-gray-900">{ratingSummary.totalReviews}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Open complaints</p>
+              <p className="text-2xl font-bold text-gray-900">{complaints.filter((c) => String(c.status || "").toLowerCase() === "open").length}</p>
+            </div>
+          </PanelSurface>
+        ) : null}
         {activeTab === "complaints" ? (
           <div className="space-y-4">
             <div className="flex gap-2">
-              <button onClick={() => setIsDateSelectorOpen(true)} className="flex-1 bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800 flex justify-between items-center">
+              <button onClick={() => setIsDateSelectorOpen(true)} className="rt-panel-surface-flat flex flex-1 items-center justify-between p-3">
                 <div className="text-left">
-                  <p className="text-xs font-bold text-gray-900 dark:text-white">{selectedDateRange}</p>
+                  <p className="text-xs font-bold text-gray-900">{selectedDateRange}</p>
                   <p className="text-[10px] text-gray-500">Select date range</p>
                 </div>
-                <Calendar className="w-4 h-4 text-gray-400" />
+                <Calendar className="h-4 w-4 text-gray-400" />
               </button>
-              <button onClick={() => setIsComplaintsFilterOpen(true)} className="bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800">
-                <SlidersHorizontal className="w-4 h-4 text-gray-900 dark:text-white" />
+              <button onClick={() => setIsComplaintsFilterOpen(true)} className="rt-panel-surface-flat p-3">
+                <SlidersHorizontal className="h-4 w-4 text-gray-900" />
               </button>
             </div>
 
@@ -444,13 +510,79 @@ export default function Feedback() {
               {isComplaintsLoading ? (
                 <div className="flex justify-center p-10"><Loader2 className="animate-spin text-gray-400" /></div>
               ) : complaints.length === 0 ? (
-                <div className="text-center py-20 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-                  <p className="text-sm text-gray-500 font-medium">No complaints found</p>
+                <div className="rt-panel-surface-flat py-20 text-center">
+                  <p className="text-sm font-medium text-gray-500">No complaints found</p>
+                </div>
+              ) : isDesktop ? (
+                <div className="flex min-h-[480px] gap-4 pb-8">
+                  <div className="w-[360px] shrink-0 space-y-2 overflow-y-auto">
+                    {complaints.map((complaint) => (
+                      <button
+                        key={complaint._id}
+                        type="button"
+                        onClick={() => setSelectedComplaint(complaint)}
+                        className={`rt-panel-surface w-full p-3 text-left transition ${
+                          selectedComplaint?._id === complaint._id ? "ring-2 ring-[var(--rt-primary-strong)]" : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-semibold text-gray-900">
+                            {complaint.userId?.name || "Customer"}
+                          </span>
+                          <span className={`text-[9px] font-bold uppercase ${
+                            complaint.status === "open" ? "text-orange-600" : "text-green-600"
+                          }`}>
+                            {complaint.status || "open"}
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs text-gray-600">{complaint.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <PanelSurface className="flex-1 space-y-4 p-4">
+                    {selectedComplaint ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
+                            selectedComplaint.status === "open" ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-600"
+                          }`}>
+                            {selectedComplaint.status || "open"}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(selectedComplaint.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 font-bold text-gray-400">
+                            {selectedComplaint.userId?.name?.[0] || "U"}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{selectedComplaint.userId?.name || "Customer"}</p>
+                            <p className="text-[10px] font-bold uppercase text-gray-500">
+                              Order #{selectedComplaint.orderId?.orderId || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-gray-50 p-3">
+                          <p className="mb-1 text-[10px] font-black uppercase text-red-500">{selectedComplaint.issueType}</p>
+                          <p className="text-sm font-semibold leading-relaxed text-gray-800">{selectedComplaint.description}</p>
+                        </div>
+                        {selectedComplaint.adminResponse ? (
+                          <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                            <p className="mb-1 text-[9px] font-black uppercase text-blue-600">Admin response</p>
+                            <p className="text-sm font-medium text-blue-900">{selectedComplaint.adminResponse}</p>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">Select a complaint to view details</p>
+                    )}
+                  </PanelSurface>
                 </div>
               ) : (
-                <div className="space-y-4 pb-20">
+                <div className="grid gap-4 pb-8">
                   {complaints.map((complaint) => (
-                    <div key={complaint._id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm space-y-3">
+                    <PanelSurface key={complaint._id} className="space-y-3 p-4">
                       <div className="flex justify-between items-center">
                         <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
                           complaint.status === 'open' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' : 'bg-green-100 dark:bg-green-900/30 text-green-600'
@@ -479,7 +611,7 @@ export default function Feedback() {
                           <p className="text-sm text-blue-900 dark:text-blue-200 font-medium">{complaint.adminResponse}</p>
                         </div>
                       )}
-                    </div>
+                    </PanelSurface>
                   ))}
                 </div>
               )}
@@ -488,18 +620,18 @@ export default function Feedback() {
         ) : (
           <div className="space-y-4">
             <div className="flex gap-2">
-              <div className="flex-1 bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center gap-2">
-                <Search className="w-4 h-4 text-gray-400" />
-                <input type="text" placeholder="Search reviews" className="flex-1 text-sm bg-transparent focus:outline-none dark:text-white" />
+              <div className="rt-panel-surface-flat flex flex-1 items-center gap-2 p-3">
+                <Search className="h-4 w-4 text-gray-400" />
+                <input type="text" placeholder="Search reviews" className="flex-1 bg-transparent text-sm focus:outline-none" />
               </div>
-              <button onClick={() => setIsFilterOpen(true)} className="bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800">
-                <SlidersHorizontal className="w-4 h-4 text-gray-900 dark:text-white" />
+              <button onClick={() => setIsFilterOpen(true)} className="rt-panel-surface-flat p-3">
+                <SlidersHorizontal className="h-4 w-4 text-gray-900" />
               </button>
             </div>
 
-            <div className="space-y-4 pb-20">
+            <div className="grid gap-4 pb-8 lg:hidden">
               {displayedReviews.map((review) => (
-                <div key={review.id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm space-y-3">
+                <PanelSurface key={review.id} className="space-y-3 p-4">
                   <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase">
                     <span>Order #{review.orderNumber}</span>
                     <span>{review.date}</span>
@@ -511,12 +643,59 @@ export default function Feedback() {
                       {review.rating} <Star className="w-2 h-2 fill-current" />
                     </div>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 font-medium italic">"{review.reviewText}"</p>
+                  <div className="rounded-2xl bg-[var(--rt-surface-muted)] p-3">
+                    <p className="text-sm font-medium italic text-gray-800">"{review.reviewText}"</p>
                   </div>
-                </div>
+                </PanelSurface>
               ))}
             </div>
+
+            {isDesktop ? (
+              <div className="hidden lg:flex min-h-[480px] gap-4 pb-8">
+                <div className="w-[360px] shrink-0 space-y-2 overflow-y-auto">
+                  {displayedReviews.map((review) => (
+                    <button
+                      key={review.id}
+                      type="button"
+                      onClick={() => setSelectedReview(review)}
+                      className={`rt-panel-surface w-full p-3 text-left transition ${
+                        selectedReview?.id === review.id ? "ring-2 ring-[var(--rt-primary-strong)]" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-semibold text-gray-900">{review.userName}</p>
+                        <span className="rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          {review.rating} ★
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-600">{review.reviewText}</p>
+                    </button>
+                  ))}
+                </div>
+                <PanelSurface className="flex-1 space-y-4 p-4">
+                  {selectedReview ? (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-gray-400 font-bold uppercase">
+                        <span>Order #{selectedReview.orderNumber}</span>
+                        <span>{selectedReview.date}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <img src={selectedReview.userImage} alt="" className="h-10 w-10 rounded-full border border-gray-100" />
+                        <p className="text-sm font-bold text-gray-900">{selectedReview.userName}</p>
+                        <div className="ml-auto flex items-center gap-1 rounded bg-green-600 px-2 py-1 text-xs font-bold text-white">
+                          {selectedReview.rating} <Star className="h-3 w-3 fill-current" />
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-[var(--rt-surface-muted)] p-4">
+                        <p className="text-sm font-medium italic text-gray-800">&ldquo;{selectedReview.reviewText}&rdquo;</p>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">Select a review to view details</p>
+                  )}
+                </PanelSurface>
+              </div>
+            ) : null}
           </div>
         )}
       </div>

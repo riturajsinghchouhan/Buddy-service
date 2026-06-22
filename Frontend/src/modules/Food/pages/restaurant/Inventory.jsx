@@ -17,7 +17,10 @@ import {
   Pencil
 } from "lucide-react"
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
+import RestaurantPanelHeader from "@food/components/restaurant/panel/RestaurantPanelHeader"
+import MenuItemGridCard from "@food/components/restaurant/panel/MenuItemGridCard"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
+import useMediaQuery from "@food/hooks/useMediaQuery"
 import { Switch } from "@food/components/ui/switch"
 import { useNavigate } from "react-router-dom"
 import { restaurantAPI, uploadAPI } from "@food/api"
@@ -734,6 +737,8 @@ function SimpleCalendar({ selectedDate, onDateSelect, isOpen, onClose }) {
 
 export default function Inventory() {
   const navigate = useNavigate()
+  const isDesktop = useMediaQuery("(min-width: 1024px)")
+  const [activeCategoryPill, setActiveCategoryPill] = useState("all")
   const [activeTab, setActiveTab] = useState(() => {
     try {
       if (typeof window === "undefined") return "all-items"
@@ -1452,6 +1457,17 @@ export default function Inventory() {
   // When on Add-ons tab, keep the list empty (no items shown)
   const listToRender = activeTab === "add-ons" ? [] : filteredCategories
 
+  const gridMenuItems = useMemo(() => {
+    const categories =
+      activeCategoryPill === "all"
+        ? listToRender
+        : listToRender.filter((category) => String(category.id) === String(activeCategoryPill))
+
+    return categories.flatMap((category) =>
+      (category.items || []).map((item) => ({ item, category })),
+    )
+  }, [listToRender, activeCategoryPill])
+
   const activeFilterCount = activeTab === "add-ons"
     ? (addonFilterCounts[selectedFilter] || 0)
     : (menuFilterCounts[selectedFilter] || 0)
@@ -1767,9 +1783,8 @@ export default function Inventory() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f5f8] flex flex-col">
-      {/* Navbar */}
-      <div className="sticky top-0 z-50 bg-white">
+    <div className="rt-panel-bg flex min-h-screen flex-col">
+      <div className="sticky top-0 z-50 bg-white lg:hidden">
         <RestaurantNavbar
           showSearch={false}
           showOfflineOnlineTag={false}
@@ -1777,37 +1792,26 @@ export default function Inventory() {
         />
       </div>
 
+      <div className="hidden lg:block">
+        <RestaurantPanelHeader title="Menu" subtitle="Manage dishes, prices and availability" showSearch />
+      </div>
+
       {/* Tabs */}
-      <div className="bg-[#f3f5f8] px-4 pt-4 pb-4">
-        <div ref={tabBarRef} className="grid grid-cols-2 gap-3">
+      <div className="bg-[var(--rt-surface-muted)] px-4 pt-4 pb-4 lg:px-6">
+        <div ref={tabBarRef} className="grid max-w-md grid-cols-2 gap-3 lg:max-w-lg">
           <motion.button
             onClick={() => setActiveTab("all-items")}
-            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold ${
+            className={`rounded-[20px] border px-4 py-3 text-sm font-semibold ${
               activeTab === "all-items"
-                ? "border-[#16A34A] text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.6)]"
-                : "border-[#ead6e3] bg-white/90 text-[#6d6470] shadow-[0_16px_40px_-34px_rgba(109,100,112,0.35)]"
+                ? "rt-pill-active shadow-sm"
+                : "border-[var(--rt-border)] bg-white text-gray-600"
             }`}
-            animate={{
-              scale: activeTab === "all-items" ? 1.02 : 1,
-            }}
-            transition={{ duration: 0.2 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {activeTab === "all-items" && (
-              <motion.div
-                layoutId="activeTabBackground"
-                className="absolute inset-0 rounded-[24px] bg-[#16A34A] -z-10"
-                initial={false}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 30
-                }}
-              />
-            )}
-            <span className="relative z-10 flex min-h-7 items-center justify-center gap-2 leading-none">
+            <span className="flex min-h-7 items-center justify-center gap-2 leading-none">
               <span className="whitespace-nowrap">All items</span>
               <span className={`inline-flex min-h-5 min-w-[24px] items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "all-items" ? "bg-white text-[#16A34A]" : "bg-[#f6ecf3] text-[#6d6470]"
+                activeTab === "all-items" ? "bg-white/80 text-[var(--rt-primary-strong)]" : "bg-gray-100 text-gray-500"
               }`}>
                 {totalItems}
               </span>
@@ -1816,32 +1820,17 @@ export default function Inventory() {
 
           <motion.button
             onClick={() => setActiveTab("add-ons")}
-            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold ${
+            className={`rounded-[20px] border px-4 py-3 text-sm font-semibold ${
               activeTab === "add-ons"
-                ? "border-[#16A34A] text-white shadow-[0_18px_32px_-24px_rgba(126,56,102,0.6)]"
-                : "border-[#ead6e3] bg-white/90 text-[#6d6470] shadow-[0_16px_40px_-34px_rgba(109,100,112,0.35)]"
+                ? "rt-pill-active shadow-sm"
+                : "border-[var(--rt-border)] bg-white text-gray-600"
             }`}
-            animate={{
-              scale: activeTab === "add-ons" ? 1.02 : 1,
-            }}
-            transition={{ duration: 0.2 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {activeTab === "add-ons" && (
-              <motion.div
-                layoutId="activeTabBackground"
-                className="absolute inset-0 rounded-[24px] bg-[#16A34A] -z-10"
-                initial={false}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 30
-                }}
-              />
-            )}
-            <span className="relative z-10 flex min-h-7 items-center justify-center gap-2 leading-none">
+            <span className="flex min-h-7 items-center justify-center gap-2 leading-none">
               <span className="whitespace-nowrap">Add ons</span>
               <span className={`inline-flex min-h-5 min-w-[24px] items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "add-ons" ? "bg-white text-[#16A34A]" : "bg-[#f6ecf3] text-[#6d6470]"
+                activeTab === "add-ons" ? "bg-white/80 text-[var(--rt-primary-strong)]" : "bg-gray-100 text-gray-500"
               }`}>
                 {addons.length}
               </span>
@@ -1916,8 +1905,8 @@ export default function Inventory() {
         }}
       >
         {/* Search and Filter */}
-        <div className="sticky top-0 z-30 -mx-4 px-4 pb-4 bg-[#f3f5f8]/95 backdrop-blur supports-[backdrop-filter]:bg-[#f3f5f8]/80">
-          <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+        <div className="sticky top-0 z-30 -mx-4 bg-[var(--rt-surface-muted)]/95 px-4 pb-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--rt-surface-muted)]/80 lg:-mx-6 lg:px-6">
+          <div className="rt-panel-surface overflow-hidden p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-950">
@@ -1999,10 +1988,10 @@ export default function Inventory() {
                     key={option.value}
                     type="button"
                     onClick={() => setSelectedFilter(option.value)}
-                    className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    className={`shrink-0 rounded-[16px] border px-3.5 py-2 text-xs font-semibold transition ${
                       isActive
-                        ? "border-[#16A34A] bg-[#16A34A] text-white shadow-[0_14px_28px_-24px_rgba(126,56,102,0.8)]"
-                        : "border-[#e7d5e0] bg-[#fcf7fb] text-[#6d6470] hover:border-[#d5bdd0] hover:bg-white"
+                        ? "rt-pill-active"
+                        : "border-[var(--rt-border)] bg-white text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     <span>{option.label}</span>
@@ -2015,11 +2004,62 @@ export default function Inventory() {
                 )
               })}
             </div>
+
+            {isDesktop && activeTab === "all-items" && listToRender.length > 0 ? (
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                <button
+                  type="button"
+                  onClick={() => setActiveCategoryPill("all")}
+                  className={`shrink-0 rounded-[16px] border px-4 py-2 text-xs font-semibold ${
+                    activeCategoryPill === "all" ? "rt-pill-active" : "border-[var(--rt-border)] bg-white text-gray-600"
+                  }`}
+                >
+                  All ({totalItems})
+                </button>
+                {listToRender.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => setActiveCategoryPill(String(category.id))}
+                    className={`shrink-0 rounded-[16px] border px-4 py-2 text-xs font-semibold ${
+                      activeCategoryPill === String(category.id)
+                        ? "rt-pill-active"
+                        : "border-[var(--rt-border)] bg-white text-gray-600"
+                    }`}
+                  >
+                    {category.name} ({category.items?.length || 0})
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
+        {isDesktop && activeTab === "all-items" && gridMenuItems.length > 0 ? (
+          <div className="mb-6 hidden lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+            {gridMenuItems.map(({ item, category }) => {
+              const approvalMeta = getApprovalDisplayMeta(item.approvalStatus)
+              const isRejectedItem = item.approvalStatus === "rejected"
+              return (
+                <MenuItemGridCard
+                  key={`${category.id}-${item.id}`}
+                  item={item}
+                  category={category}
+                  approvalMeta={approvalMeta}
+                  isRejectedItem={isRejectedItem}
+                  onEdit={handleEditItem}
+                  onRecommendToggle={handleRecommendToggle}
+                  onToggleStock={(categoryId, itemId, checked) =>
+                    handleToggleChange("item", categoryId, itemId, checked)
+                  }
+                />
+              )
+            })}
+          </div>
+        ) : null}
+
         {/* Categories Accordions */}
-        <div className="space-y-4 mb-6">
+        <div className={`space-y-4 mb-6 ${isDesktop && activeTab === "all-items" ? "lg:hidden" : ""}`}>
           {activeTab === "add-ons" && (
             <>
               {isAddAddonOpen && (

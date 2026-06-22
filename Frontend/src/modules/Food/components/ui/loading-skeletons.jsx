@@ -282,46 +282,31 @@ function ContentPageSkeleton({ className, hero = true }) {
 
 function RestaurantDetailSkeleton({ className }) {
   return (
-    <LoadingSkeletonRegion label="Loading restaurant details" className={cn("min-h-screen bg-white dark:bg-[#0a0a0a]", className)}>
-      <div className="mx-auto max-w-6xl px-4 pb-10 pt-3">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-11 w-11 rounded-full" />
-          <div className="flex gap-3">
-            <Skeleton className="h-11 w-24 rounded-full" />
-            <Skeleton className="h-11 w-11 rounded-full" />
+    <LoadingSkeletonRegion label="Loading restaurant details" className={cn("min-h-screen bg-[#FAFAFA] dark:bg-[#0a0a0a]", className)}>
+      <div className="relative h-[38vh] min-h-[240px] bg-gray-200 dark:bg-gray-900 animate-pulse" />
+      <div className="mx-auto max-w-7xl px-4 -mt-10">
+        <div className="rounded-[24px] border border-gray-100 bg-white p-5 shadow-lg dark:border-gray-800 dark:bg-[#141414] space-y-3">
+          <Skeleton className="h-7 w-3/4 rounded-xl" />
+          <Skeleton className="h-4 w-1/2 rounded-full" />
+          <div className="flex gap-2 pt-2">
+            <Skeleton className="h-8 w-24 rounded-xl" />
+            <Skeleton className="h-8 w-20 rounded-xl" />
           </div>
         </div>
-        <div className="mt-5 space-y-5">
-          <HeroBannerSkeleton compact className="h-56 rounded-[30px] sm:h-64" />
-          <div className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#141414]">
-            <div className="space-y-3">
-              <Skeleton className="h-8 w-3/4 rounded-full" />
-              <div className="flex flex-wrap gap-2">
-                <Skeleton className="h-5 w-20 rounded-full" />
-                <Skeleton className="h-5 w-24 rounded-full" />
-                <Skeleton className="h-5 w-16 rounded-full" />
-              </div>
-              <SkeletonLines lines={2} />
-            </div>
-          </div>
+        <div className="mt-6 space-y-3">
           <CategoryChipRowSkeleton count={5} />
-          <div className="space-y-4">
-            {Array.from({ length: 5 }, (_, index) => (
-              <div
-                key={`detail-item-${index}`}
-                className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#141414]"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <Skeleton className="h-6 w-3/5 rounded-full" />
-                    <Skeleton className="h-4 w-20 rounded-full" />
-                    <SkeletonLines lines={2} />
-                  </div>
-                  <Skeleton className="h-24 w-24 rounded-2xl" />
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={`detail-item-${index}`} className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-[#141414]">
+              <div className="flex items-start gap-4">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-5 w-3/5 rounded-full" />
+                  <SkeletonLines lines={2} />
+                  <Skeleton className="h-8 w-20 rounded-xl" />
                 </div>
+                <Skeleton className="h-24 w-24 rounded-2xl flex-shrink-0" />
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     </LoadingSkeletonRegion>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
@@ -145,7 +146,7 @@ export default function RatingsReviews() {
           </div>
         </div>
         <button
-          onClick={() => navigate("/restaurant/feedback?tab=reviews")}
+          onClick={() => navigate(`${RESTAURANT_BASE}/feedback?tab=reviews`)}
           className="flex items-center gap-1 text-blue-600 text-sm font-normal hover:text-blue-700 transition-colors"
         >
           <span>View order ratings</span>

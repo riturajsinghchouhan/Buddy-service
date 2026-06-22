@@ -90,6 +90,7 @@ import { useZone } from "@food/hooks/useZone";
 import offerImage from "@food/assets/offerimage.png";
 import api, { publicGetOnce, restaurantAPI, adminAPI } from "@food/api";
 import { fetchRestaurantMenuCached } from "@food/utils/restaurantMenuCache";
+import { fetchRestaurantsCached } from "@food/utils/restaurantListCache";
 import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
@@ -1357,6 +1358,50 @@ export default function Home() {
 
   const { zoneId: effectiveZoneId } = useZone(effectiveLocation);
 
+  const effectiveLocationRef = useRef(effectiveLocation);
+  effectiveLocationRef.current = effectiveLocation;
+  const effectiveZoneIdRef = useRef(effectiveZoneId);
+  effectiveZoneIdRef.current = effectiveZoneId;
+
+  const restaurantsLocationQueryKey = useMemo(() => {
+    const city = String(effectiveLocation?.city || "")
+      .trim()
+      .toLowerCase();
+    const lat = Number.isFinite(effectiveLocation?.latitude)
+      ? Math.round(effectiveLocation.latitude * 1000) / 1000
+      : null;
+    const lng = Number.isFinite(effectiveLocation?.longitude)
+      ? Math.round(effectiveLocation.longitude * 1000) / 1000
+      : null;
+    return `${city}|${lat ?? ""}|${lng ?? ""}|${effectiveZoneId || ""}`;
+  }, [
+    effectiveLocation?.city,
+    effectiveLocation?.latitude,
+    effectiveLocation?.longitude,
+    effectiveZoneId,
+  ]);
+
+  const [restaurantsFetchReady, setRestaurantsFetchReady] = useState(false);
+
+  useEffect(() => {
+    const hasCoords =
+      Number.isFinite(effectiveLocation?.latitude) &&
+      Number.isFinite(effectiveLocation?.longitude);
+    if (hasCoords || effectiveZoneId) {
+      setRestaurantsFetchReady(true);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setRestaurantsFetchReady(true);
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [
+    effectiveLocation?.latitude,
+    effectiveLocation?.longitude,
+    effectiveZoneId,
+  ]);
+
   const {
     isOutOfService: isSavedAddressOutOfService,
     loading: savedAddressZoneLoading,
@@ -1439,14 +1484,16 @@ export default function Home() {
 
         // Build query parameters from filters
         const params = {};
+        const currentLocation = effectiveLocationRef.current;
+        const currentZoneId = effectiveZoneIdRef.current;
 
         // Always send user coordinates when available so backend can compute distance/sort.
         if (
-          Number.isFinite(effectiveLocation?.latitude) &&
-          Number.isFinite(effectiveLocation?.longitude)
+          Number.isFinite(currentLocation?.latitude) &&
+          Number.isFinite(currentLocation?.longitude)
         ) {
-          params.lat = effectiveLocation.latitude;
-          params.lng = effectiveLocation.longitude;
+          params.lat = currentLocation.latitude;
+          params.lng = currentLocation.longitude;
         }
 
         // Sort by
@@ -1501,11 +1548,11 @@ export default function Home() {
           params.trusted = "true";
         }
 
-        if (effectiveZoneId) {
-          params.zoneId = effectiveZoneId;
+        if (currentZoneId) {
+          params.zoneId = currentZoneId;
         }
 
-        const normalizedUserCity = String(effectiveLocation?.city || "")
+        const normalizedUserCity = String(currentLocation?.city || "")
           .trim()
           .toLowerCase();
         const hasUsableUserCity =
@@ -1514,11 +1561,11 @@ export default function Home() {
           normalizedUserCity !== "unknown city" &&
           normalizedUserCity !== "select location";
         if (hasUsableUserCity) {
-          params.city = String(effectiveLocation.city).trim();
+          params.city = String(currentLocation.city).trim();
         }
 
         debugLog("Fetching restaurants with params:", params);
-        const response = await restaurantAPI.getRestaurants(params);
+        const response = await fetchRestaurantsCached(params);
         debugLog("Restaurants API response:", response.data);
 
         // If a newer request started, ignore this response to avoid races/flicker.
@@ -1555,8 +1602,8 @@ export default function Home() {
           };
 
           // Get user coordinates
-          const userLat = effectiveLocation?.latitude;
-          const userLng = effectiveLocation?.longitude;
+          const userLat = currentLocation?.latitude;
+          const userLng = currentLocation?.longitude;
 
           // Transform API data to match expected format
           const normalizeCityValue = (value) =>
@@ -1585,7 +1632,7 @@ export default function Home() {
 
             if (!restaurantCity) return false;
 
-            const userCity = normalizeCityValue(effectiveLocation?.city);
+            const userCity = normalizeCityValue(currentLocation?.city);
             return restaurantCity === userCity;
           });
 
@@ -1772,62 +1819,6 @@ export default function Home() {
           startTransition(() => {
             setRestaurantsData(sortRestaurantsForDisplay(transformedRestaurants));
           });
-
-          const restaurantsNeedingOutletTimings = transformedRestaurants.filter(
-            (restaurant) => restaurant.mongoId && !restaurant.outletTimings,
-          );
-
-          if (restaurantsNeedingOutletTimings.length > 0) {
-            void (async () => {
-              const resolvedOutletTimings = new Map();
-
-              for (const restaurant of restaurantsNeedingOutletTimings) {
-                try {
-                  const outletResponse =
-                    await restaurantAPI.getOutletTimingsByRestaurantId(
-                      restaurant.mongoId,
-                      { noCache: true },
-                    );
-                  const outletTimings =
-                    outletResponse?.data?.data?.outletTimings ||
-                    outletResponse?.data?.outletTimings ||
-                    null;
-
-                  if (outletTimings) {
-                    resolvedOutletTimings.set(restaurant.mongoId, outletTimings);
-                  }
-                } catch (_) {
-                  // Keep the existing restaurant data if enrichment fails.
-                }
-              }
-
-              if (
-                requestSeq !== restaurantsRequestSeqRef.current ||
-                resolvedOutletTimings.size === 0
-              ) {
-                return;
-              }
-
-              startTransition(() => {
-                setRestaurantsData((currentRestaurants) => {
-                  let hasChanges = false;
-                  const nextRestaurants = currentRestaurants.map((restaurant) => {
-                    if (!restaurant.mongoId) return restaurant;
-                    const outletTimings = resolvedOutletTimings.get(
-                      restaurant.mongoId,
-                    );
-                    if (!outletTimings) return restaurant;
-                    hasChanges = true;
-                    return { ...restaurant, outletTimings };
-                  });
-
-                  return hasChanges
-                    ? sortRestaurantsForDisplay(nextRestaurants)
-                    : currentRestaurants;
-                });
-              });
-            })();
-          }
         } else {
           debugWarn("Invalid API response structure:", response.data);
           setRestaurantsData([]);
@@ -1847,9 +1838,6 @@ export default function Home() {
     [
       extractImages,
       buildRestaurantImageCandidates,
-      effectiveLocation?.latitude,
-      effectiveLocation?.longitude,
-      effectiveZoneId,
     ],
   );
 
@@ -1879,10 +1867,16 @@ export default function Home() {
     [activeFilters, sortBy, selectedCuisine, fetchRestaurants],
   );
 
-  // Fetch restaurants when appliedFilters change
+  // Fetch restaurants when filters or meaningful location context change.
   useEffect(() => {
+    if (!restaurantsFetchReady) return;
     fetchRestaurants(appliedFilters);
-  }, [appliedFilters, fetchRestaurants]);
+  }, [
+    restaurantsFetchReady,
+    restaurantsLocationQueryKey,
+    appliedFilters,
+    fetchRestaurants,
+  ]);
 
   // Recalculate distances when user location updates
   useEffect(() => {

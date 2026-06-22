@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import RestaurantPanelHeader from "@food/components/restaurant/panel/RestaurantPanelHeader"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
@@ -341,10 +342,12 @@ export default function OutletInfo() {
 
   return (
     <>
-      <div className="min-h-screen bg-white overflow-x-hidden">
-        {/* Header */}
-        {/* Header */}
-        <div className="bg-white/80 backdrop-blur-md border-b border-[#F0FDF4]/10 px-4 py-3 sticky top-0 z-50 shadow-sm">
+      <div className="rt-panel-bg min-h-screen overflow-x-hidden">
+        <div className="hidden lg:block">
+          <RestaurantPanelHeader title="Outlet Information" subtitle="Manage profile, photos and details" />
+        </div>
+
+        <div className="sticky top-0 z-50 border-b border-[var(--rt-border)] bg-white/95 px-4 py-3 backdrop-blur-md shadow-sm lg:hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 flex-1">
               <button 
@@ -425,7 +428,7 @@ export default function OutletInfo() {
         </div>
 
         {/* Info Content Section */}
-        <div className="px-5 pt-8 pb-12 space-y-8 bg-[#FFFDF5]">
+        <div className="mx-auto max-w-6xl space-y-8 bg-[var(--rt-surface-muted)] px-5 pb-12 pt-8 lg:px-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-[#16A34A]/40 uppercase tracking-widest px-1">Vital Information</h3>

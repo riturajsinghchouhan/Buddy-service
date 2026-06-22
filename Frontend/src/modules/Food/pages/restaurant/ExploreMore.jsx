@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Navigate } from "react-router-dom"
 import Lenis from "lenis"
 import {
   ArrowLeft,
@@ -36,6 +36,10 @@ import { clearModuleAuth, clearAuthData, getCurrentUser } from "@food/utils/auth
 import { restaurantAPI } from "@food/api"
 import { firebaseAuth, ensureFirebaseInitialized } from "@food/firebase"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
+import RestaurantPanelHeader from "@food/components/restaurant/panel/RestaurantPanelHeader"
+import { EXPLORE_SECTIONS, RESTAURANT_BASE } from "@food/utils/restaurantNavConfig"
+import useRestaurantLayout from "@food/hooks/useRestaurantLayout"
+import { Switch } from "@food/components/ui/switch"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -335,6 +339,9 @@ function TimePickerWheel({
 
 export default function ExploreMore() {
   const navigate = useNavigate()
+  const { isDesktop } = useRestaurantLayout()
+  const [deliveryOnline, setDeliveryOnline] = useState(false)
+  const [togglingStatus, setTogglingStatus] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -369,6 +376,7 @@ export default function ExploreMore() {
         const data = response?.data?.data?.restaurant || response?.data?.restaurant
         if (data) {
           setRestaurantData(data)
+          setDeliveryOnline(data.isAcceptingOrders === true)
         }
       } catch (error) {
         // Only log error if it's not a network/timeout error (backend might be down/slow)
@@ -475,6 +483,21 @@ export default function ExploreMore() {
   // Get restaurant display data
   const restaurantDisplayName = restaurantData?.name || "Loading..."
   const restaurantDisplayAddress = restaurantData?.location ? formatAddress(restaurantData.location) : ""
+
+  const handleOnlineToggle = async (checked) => {
+    setDeliveryOnline(checked)
+    setTogglingStatus(true)
+    try {
+      await restaurantAPI.updateAcceptingOrders(checked)
+      localStorage.setItem("restaurant_online_status", JSON.stringify(Boolean(checked)))
+      window.dispatchEvent(new CustomEvent("restaurantStatusChanged", { detail: { isOnline: checked } }))
+    } catch (error) {
+      setDeliveryOnline((prev) => !prev)
+      debugError("Error updating online status:", error)
+    } finally {
+      setTogglingStatus(false)
+    }
+  }
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
@@ -730,44 +753,8 @@ export default function ExploreMore() {
     }
   }, [])
 
-  // Section data
-  const manageOutletItems = [
-    { id: 1, label: "Outlet info", icon: Info, route: "/food/restaurant/outlet-info" },
-    { id: 2, label: "Outlet timings", icon: Clock, route: "/food/restaurant/outlet-timings" },
-    { id: 3, label: "Dining Reservations", icon: Calendar, route: "/food/restaurant/reservations" },
-    { id: 4, label: "Menu categories", icon: Settings, route: "/food/restaurant/menu-categories" },
-  ]
-
-  const settingsItems = [
-    { id: 3, label: "Delivery settings", icon: Truck, route: "/food/restaurant/delivery-settings" },
-    { id: 4, label: "Zone Setup", icon: MapPin, route: "/food/restaurant/zone-setup" },
-  ]
-
-  const ordersItems = [
-    { id: 1, label: "Order history", icon: FileText, route: "/food/restaurant/orders/all" },
-    { id: 2, label: "Complaints", icon: Star, route: "/food/restaurant/feedback?tab=complaints" },
-    { id: 3, label: "Reviews", icon: MessageSquare, route: "/food/restaurant/feedback" },
-  ]
-
-  const helpItems = [
-    { id: 1, label: "Support", icon: LifeBuoy, route: "/food/restaurant/help-centre/support" },
-    { id: 2, label: "Share your feedback", icon: Edit, route: "/food/restaurant/Share-Feedback" },
-  ]
-
-  const accountingItems = [
-    { id: 1, label: "Payout", icon: IndianRupee, route: "/food/restaurant/hub-finance" },
-    { id: 2, label: "Invoices", icon: Receipt, route: "/food/restaurant/hub-finance?tab=invoices" },
-    { id: 3, label: "Bank details", icon: Building2, route: "/food/restaurant/update-bank-details" },
-  ]
-
-  // All sections with their items
-  const allSections = [
-    { title: "Manage outlet", items: manageOutletItems, key: "manage-outlet" },
-    { title: "Settings", items: settingsItems, key: "settings" },
-    { title: "Orders", items: ordersItems, key: "orders" },
-    { title: "Help", items: helpItems, key: "help" },
-    { title: "Finance", items: accountingItems, key: "accounting" },
-  ]
+  // All sections — single source of truth (restaurantNavConfig)
+  const allSections = EXPLORE_SECTIONS
 
   // Filter logic
   const getFilteredSections = () => {
@@ -788,6 +775,10 @@ export default function ExploreMore() {
 
   const filteredSections = getFilteredSections()
 
+  if (isDesktop) {
+    return <Navigate to={RESTAURANT_BASE} replace />
+  }
+
   const renderSection = (title, items, delay = 0) => (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -807,7 +798,7 @@ export default function ExploreMore() {
       >
         {title}
       </motion.h2>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         {items.map((item, index) => {
           const IconComponent = item.icon
           return (
@@ -833,7 +824,7 @@ export default function ExploreMore() {
                     navigate(item.route)
                   }
                 }}
-                className="w-full flex items-center justify-center p-6 bg-white rounded-lg shadow-md border-2 border-gray-200 hover:shadow-md transition-shadow duration-200 min-h-[110px]"
+                className="rt-panel-surface flex min-h-[100px] w-full items-center justify-center p-4 transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="relative flex items-center justify-center">
                   {item.customIcon ? (
@@ -874,9 +865,13 @@ export default function ExploreMore() {
         duration: 0.2,
         ease: [0.25, 0.1, 0.25, 1]
       }}
-      className="min-h-screen bg-white overflow-x-hidden pb-24"
+      className="rt-panel-bg min-h-screen overflow-x-hidden pb-24 lg:pb-8"
     >
-      {/* Header */}
+      <div className="hidden lg:block">
+        <RestaurantPanelHeader title="Settings" subtitle={restaurantDisplayName} showSearch />
+      </div>
+
+      {/* Mobile header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -884,18 +879,18 @@ export default function ExploreMore() {
           duration: 0.25,
           ease: [0.25, 0.1, 0.25, 1]
         }}
-        className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50"
+        className="sticky top-0 z-50 border-b border-[var(--rt-border)] bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden"
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 flex-1">
+          <div className="flex flex-1 items-center gap-3">
             <button
-              onClick={() => navigate("/food/restaurant")}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => navigate(RESTAURANT_BASE)}
+              className="rounded-lg p-1.5 transition-colors hover:bg-gray-100"
               aria-label="Go back"
             >
-              <ArrowLeft className="w-6 h-6 text-gray-900" />
+              <ArrowLeft className="h-6 w-6 text-gray-900" />
             </button>
-            <h1 className="text-lg font-bold text-gray-900">Explore more</h1>
+            <h1 className="text-lg font-bold text-gray-900">More</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -917,39 +912,50 @@ export default function ExploreMore() {
       </motion.div>
 
       {/* Main Content */}
-      <div className="px-4 py-6">
-        {/* Restaurant Information Card */}
+      <div className="mx-auto max-w-6xl px-4 py-6 lg:px-6">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 0.3,
-            delay: 0.05,
-            ease: [0.25, 0.1, 0.25, 1]
-          }}
+          transition={{ duration: 0.3, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <Card 
-            className="bg-white border-gray-200 py-3 mb-6 rounded-lg shadow-0 hover:border-[#16A34A]/30 hover:bg-[#16A34A]/5 transition-all active:scale-[0.99] cursor-pointer"
-            onClick={() => navigate("/food/restaurant/outlet-info")}
-          >
-            <CardContent className="px-4">
-              <div className="w-full flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-[#16A34A]/10 transition-colors">
-                    <Store className="w-5 h-5 text-gray-900 group-hover:text-[#16A34A]" />
+          <Card className="rt-panel-surface-flat mb-6 border-0 py-3">
+            <CardContent className="px-4 space-y-4">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between"
+                onClick={() => navigate(`${RESTAURANT_BASE}/outlet-info`)}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <div className="rounded-lg bg-gray-100 p-2">
+                    <Store className="h-5 w-5 text-gray-900" />
                   </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <h2 className="text-base font-semibold text-gray-900 mb-0.5">
-                      {restaurantDisplayName}
-                    </h2>
-                    {restaurantDisplayAddress && (
-                      <p className="text-sm text-gray-500 break-words text-wrap">
-                        {restaurantDisplayAddress}
-                      </p>
-                    )}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="mb-0.5 text-base font-semibold text-gray-900">{restaurantDisplayName}</h2>
+                    {restaurantDisplayAddress ? (
+                      <p className="text-sm text-gray-500 break-words">{restaurantDisplayAddress}</p>
+                    ) : null}
+                    <p className="mt-1 text-xs font-medium text-[var(--rt-primary-strong)]">View outlet info</p>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-300" />
+                <ChevronRight className="h-5 w-5 shrink-0 text-gray-300" />
+              </button>
+
+              <div
+                className="flex items-center justify-between border-t border-[var(--rt-border)] pt-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Receiving orders</p>
+                  <p className="text-xs text-gray-500">
+                    {deliveryOnline ? "Online — accepting delivery orders" : "Offline — not accepting orders"}
+                  </p>
+                </div>
+                <Switch
+                  checked={deliveryOnline}
+                  onCheckedChange={handleOnlineToggle}
+                  disabled={togglingStatus}
+                  className="data-[state=checked]:bg-[var(--rt-primary-strong)]"
+                />
               </div>
             </CardContent>
           </Card>

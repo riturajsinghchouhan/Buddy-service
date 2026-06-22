@@ -502,7 +502,7 @@ export default function RestaurantNavbar({
               <button 
                 onClick={() => {
                   clearNewReservation();
-                  navigate("/food/restaurant/dining-reservations");
+                  navigate("/food/restaurant/reservations");
                 }}
                 className="flex-1 h-10 bg-[#16A34A] text-white text-xs font-bold rounded-xl uppercase tracking-widest shadow-lg shadow-purple-200"
               >

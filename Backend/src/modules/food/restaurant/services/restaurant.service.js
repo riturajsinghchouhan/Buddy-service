@@ -5,6 +5,10 @@ import mongoose from 'mongoose';
 import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodDiningRestaurant } from '../../dining/models/diningRestaurant.model.js';
+import {
+    getDefaultOutletTimingsShape,
+    getOutletTimingsMapForRestaurants
+} from './outletTimings.service.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -1356,7 +1360,29 @@ export const listApprovedRestaurants = async (query = {}) => {
         ]);
 
         const total = totalDocs?.[0]?.count || 0;
-        return { restaurants: pageDocs, total, page, limit };
+        const outletTimingsMap = await getOutletTimingsMapForRestaurants(
+            (pageDocs || []).map((r) => r._id)
+        );
+        const defaultOutletTimings = getDefaultOutletTimingsShape();
+        const restaurants = (pageDocs || []).map((r) => {
+            const rid = String(r._id);
+            return {
+                ...r,
+                restaurantId: r._id,
+                id: r._id,
+                name: r.restaurantName || '',
+                rating: normalizeRatingValue(r.rating),
+                totalRatings: normalizeTotalRatingsValue(r.totalRatings),
+                profileImage: r.profileImage ? { url: r.profileImage } : null,
+                coverImages: Array.isArray(r.coverImages) ? r.coverImages : [],
+                openingTime: r.openingTime || null,
+                closingTime: r.closingTime || null,
+                openDays: Array.isArray(r.openDays) ? r.openDays : [],
+                menuImages: Array.isArray(r.menuImages) ? r.menuImages : [],
+                outletTimings: outletTimingsMap.get(rid) || defaultOutletTimings
+            };
+        });
+        return { restaurants, total, page, limit };
     }
 
     // Non-geo path: normal query + sort.
@@ -1380,17 +1406,23 @@ export const listApprovedRestaurants = async (query = {}) => {
     ]);
 
     const restaurantIds = (restaurantsRaw || []).map((r) => r._id);
-    const { FoodItem } = await import('../../admin/models/food.model.js');
-    const featuredItemsRaw = restaurantIds.length
-        ? await FoodItem.find({
-            restaurantId: { $in: restaurantIds },
-            approvalStatus: 'approved',
-            image: { $ne: '' }
-        })
-            .select('name image price restaurantId')
-            .sort({ createdAt: -1 })
-            .lean()
-        : [];
+    const [featuredItemsRaw, outletTimingsMap] = await Promise.all([
+        restaurantIds.length
+            ? (async () => {
+                const { FoodItem } = await import('../../admin/models/food.model.js');
+                return FoodItem.find({
+                    restaurantId: { $in: restaurantIds },
+                    approvalStatus: 'approved',
+                    image: { $ne: '' }
+                })
+                    .select('name image price restaurantId')
+                    .sort({ createdAt: -1 })
+                    .lean();
+            })()
+            : Promise.resolve([]),
+        getOutletTimingsMapForRestaurants(restaurantIds)
+    ]);
+    const defaultOutletTimings = getDefaultOutletTimingsShape();
 
     const featuredItemsMap = new Map();
     for (const item of featuredItemsRaw) {
@@ -1423,7 +1455,8 @@ export const listApprovedRestaurants = async (query = {}) => {
             openDays: Array.isArray(r.openDays) ? r.openDays : [],
             // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
             menuImages: Array.isArray(r.menuImages) ? r.menuImages : [],
-            featuredItems: featuredItemsMap.get(rid) || []
+            featuredItems: featuredItemsMap.get(rid) || [],
+            outletTimings: outletTimingsMap.get(rid) || defaultOutletTimings
         };
     });
 
@@ -1438,10 +1471,13 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
     if (/^[0-9a-fA-F]{24}$/.test(value)) {
         const doc = await FoodRestaurant.findOne({ _id: value, status: 'approved' }).lean();
         if (!doc) return null;
+        const timingsMap = await getOutletTimingsMapForRestaurants([doc._id]);
+        const rid = String(doc._id);
         return {
             ...doc,
             rating: normalizeRatingValue(doc.rating),
-            totalRatings: normalizeTotalRatingsValue(doc.totalRatings)
+            totalRatings: normalizeTotalRatingsValue(doc.totalRatings),
+            outletTimings: timingsMap.get(rid) || getDefaultOutletTimingsShape()
         };
     }
 
@@ -1454,10 +1490,13 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
         restaurantNameNormalized
     }).lean();
     if (!doc) return null;
+    const timingsMap = await getOutletTimingsMapForRestaurants([doc._id]);
+    const rid = String(doc._id);
     return {
         ...doc,
         rating: normalizeRatingValue(doc.rating),
-        totalRatings: normalizeTotalRatingsValue(doc.totalRatings)
+        totalRatings: normalizeTotalRatingsValue(doc.totalRatings),
+        outletTimings: timingsMap.get(rid) || getDefaultOutletTimingsShape()
     };
 };
 
