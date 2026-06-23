@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { Loader2, RefreshCw, Timer } from "lucide-react"
 import { toast } from "sonner"
 import { restaurantAPI } from "@food/api"
@@ -13,6 +13,8 @@ import RestaurantAuthLayout from "@food/components/restaurant/auth/RestaurantAut
 
 export default function RestaurantOTP() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnPath = location.state?.from
   const [otp, setOtp] = useState(["", "", "", ""])
   const [isLoading, setIsLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
@@ -152,14 +154,7 @@ export default function RestaurantOTP() {
       const response = await restaurantAPI.verifyOTP(phone, code, purpose, null, email)
       const data = response?.data?.data || response?.data
 
-      if (data?.needsRegistration) {
-        setRestaurantPendingPhone(data.phone || phone)
-        sessionStorage.removeItem("restaurantAuthData")
-        navigate("/food/restaurant/onboarding", { replace: true })
-        return
-      }
-
-      if (data?.pendingApproval) {
+      if (data?.pendingApproval && !data?.accessToken) {
         const pendingPhone = data.phone || phone
         setRestaurantPendingPhone(pendingPhone)
         sessionStorage.removeItem("restaurantAuthData")
@@ -174,7 +169,7 @@ export default function RestaurantOTP() {
         return
       }
 
-      const accessToken = data?.accessToken
+      const accessToken = data?.accessToken || data?.token
       const restaurant = data?.user ?? data?.restaurant
 
       if (accessToken && restaurant) {
@@ -184,19 +179,39 @@ export default function RestaurantOTP() {
         toast.success("Verification successful!")
 
         setTimeout(async () => {
-          if (authData?.isSignUp) {
-            navigate("/food/restaurant/onboarding", { replace: true })
-          } else {
-            const onboardingComplete = isRestaurantOnboardingComplete(restaurant)
-            if (!onboardingComplete) {
-              const incompleteStep = await checkOnboardingStatus()
-              if (incompleteStep) {
-                navigate(`/food/restaurant/onboarding?step=${incompleteStep}`, { replace: true })
-                return
-              }
-            }
-            navigate("/food/restaurant", { replace: true })
+          if (data?.isRejected) {
+            const rejectionStep = data?.rejectionStep || 1
+            navigate(`/food/restaurant/onboarding?step=${rejectionStep}`, {
+              replace: true,
+              state: {
+                isRejected: true,
+                rejectionReason: data?.rejectionReason || "",
+              },
+            })
+            return
           }
+
+          const onboardingStatus = String(data?.onboardingStatus || "").toUpperCase()
+          if (
+            onboardingStatus === "IN_PROGRESS" ||
+            onboardingStatus === "NOT_STARTED" ||
+            data?.isNewOnboarding ||
+            authData?.isSignUp
+          ) {
+            const step = data?.currentStep || (await checkOnboardingStatus()) || 1
+            navigate(`/food/restaurant/onboarding?step=${step}`, { replace: true })
+            return
+          }
+
+          const onboardingComplete = isRestaurantOnboardingComplete(restaurant)
+          if (!onboardingComplete) {
+            const incompleteStep = await checkOnboardingStatus()
+            if (incompleteStep) {
+              navigate(`/food/restaurant/onboarding?step=${incompleteStep}`, { replace: true })
+              return
+            }
+          }
+          navigate(returnPath || "/food/restaurant", { replace: true })
         }, 800)
       }
     } catch (err) {
