@@ -2916,7 +2916,7 @@ function RestaurantDetailsContent() {
                                   : "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-[#2a2a2a] dark:text-gray-300"
                                 }`}
                             >
-                              {variant.name} · {RUPEE_SYMBOL}{Math.round(variant.price)}
+                              {variant.name} · {RUPEE_SYMBOL}{Math.round(variant.price)}{variant.unit ? ` / ${variant.unit}` : ''}
                             </button>
                           ))}
                         </div>
