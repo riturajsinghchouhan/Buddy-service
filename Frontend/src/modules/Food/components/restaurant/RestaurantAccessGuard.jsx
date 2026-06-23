@@ -40,12 +40,13 @@ if (typeof window !== "undefined" && !window.__restaurantGuardWired) {
   });
 }
 
-function resolveRedirect(onboarding, mode, pathname) {
+function resolveRedirect(onboarding, mode, pathname, locationState = {}) {
   const status = String(onboarding?.onboardingStatus || "").toUpperCase();
-  const currentStep = onboarding?.currentStep || 1;
+  const currentStep =
+    onboarding?.rejectionStep || onboarding?.currentStep || 1;
 
   if (status === "APPROVED") {
-    if (mode === "onboarding") {
+    if (mode === "onboarding" || pathname === "/food/restaurant/pending-verification") {
       return "/food/restaurant";
     }
     return null;
@@ -58,7 +59,21 @@ function resolveRedirect(onboarding, mode, pathname) {
     return null;
   }
 
-  if (status === "REJECTED" || status === "IN_PROGRESS" || status === "NOT_STARTED") {
+  if (status === "REJECTED") {
+    if (mode === "dashboard") {
+      return "/food/restaurant/pending-verification";
+    }
+    if (
+      mode === "onboarding" &&
+      pathname === "/food/restaurant/onboarding" &&
+      !locationState?.fromRejection
+    ) {
+      return "/food/restaurant/pending-verification";
+    }
+    return null;
+  }
+
+  if (status === "IN_PROGRESS" || status === "NOT_STARTED") {
     if (mode === "dashboard") {
       return `/food/restaurant/onboarding?step=${currentStep}`;
     }
@@ -99,18 +114,21 @@ export default function RestaurantAccessGuard({ children, mode = "dashboard" }) 
           onboarding,
           mode,
           location.pathname,
+          location.state,
         );
 
         if (redirectTo) {
+          const status = String(onboarding?.onboardingStatus || "").toUpperCase();
           setState({
             kind: "redirect",
             to: redirectTo,
             state:
-              String(onboarding?.onboardingStatus || "").toUpperCase() ===
-              "REJECTED"
+              status === "REJECTED"
                 ? {
                     isRejected: true,
                     rejectionReason: onboarding?.adminRemarks || "",
+                    rejectionStep:
+                      onboarding?.rejectionStep || onboarding?.currentStep || 1,
                   }
                 : undefined,
           });

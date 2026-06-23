@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { AlertCircle, Clock3, ShieldCheck } from "lucide-react"
 import { Button } from "@food/components/ui/button"
-import { useCompanyName } from "@food/hooks/useCompanyName"
 import { restaurantAPI } from "@food/api"
 import {
   clearRestaurantPendingPhone,
@@ -13,32 +12,29 @@ import { resolveRestaurantOnboardingStatus } from "@food/utils/onboardingUtils"
 import RestaurantAuthLayout from "@food/components/restaurant/auth/RestaurantAuthLayout"
 
 export default function VerificationPending() {
-  const companyName = useCompanyName()
   const navigate = useNavigate()
   const location = useLocation()
-  const isRejected = location.state?.isRejected || false
-  const rejectionReason = location.state?.rejectionReason || ""
   const [checkingStatus, setCheckingStatus] = useState(true)
-  const [onboardingStatus, setOnboardingStatus] = useState("SUBMITTED")
+  const [onboardingStatus, setOnboardingStatus] = useState(
+    () => location.state?.isRejected ? "REJECTED" : "SUBMITTED",
+  )
+  const [isRejected, setIsRejected] = useState(() => Boolean(location.state?.isRejected))
+  const [rejectionReason, setRejectionReason] = useState(
+    () => location.state?.rejectionReason || "",
+  )
+  const [resumeStep, setResumeStep] = useState(
+    () => Number(location.state?.rejectionStep) || 1,
+  )
 
   const pendingPhone = useMemo(() => {
-    return (
-      location.state?.phone ||
-      getRestaurantPendingPhone() ||
-      ""
-    )
+    return location.state?.phone || getRestaurantPendingPhone() || ""
   }, [location.state?.phone])
 
   useEffect(() => {
     let cancelled = false
 
     const checkApprovalStatus = async () => {
-      // If we already know it's rejected from the login/otp flow state, don't poll yet
-      if (isRejected && !checkingStatus) return
-
       const token = getModuleToken("restaurant")
-      // Since rejected/pending users might not have tokens yet (returned early in auth service),
-      // we might rely on the state passed from OTP.
       if (!token) {
         if (!cancelled) setCheckingStatus(false)
         return
@@ -61,29 +57,31 @@ export default function VerificationPending() {
         }
 
         if (status === "REJECTED") {
-          navigate(`/food/restaurant/onboarding?step=${onboarding?.currentStep || onboarding?.rejectionStep || 1}`, {
-            replace: true,
-            state: {
-              isRejected: true,
-              rejectionReason: onboarding?.adminRemarks || "",
-            },
-          })
+          setIsRejected(true)
+          setRejectionReason(
+            onboarding?.adminRemarks ||
+              location.state?.rejectionReason ||
+              "Please review your documents and update your registration.",
+          )
+          setResumeStep(
+            Number(onboarding?.rejectionStep || onboarding?.currentStep) || 1,
+          )
           return
         }
 
         if (status === "IN_PROGRESS" || status === "NOT_STARTED") {
-          navigate(`/food/restaurant/onboarding?step=${onboarding?.currentStep || 1}`, {
-            replace: true,
-          })
+          if (location.state?.fromRejection) return
+          navigate(
+            `/food/restaurant/onboarding?step=${onboarding?.currentStep || 1}`,
+            { replace: true, state: { fromRejection: true } },
+          )
         }
       } catch (_) {
         try {
           const response = await restaurantAPI.getCurrentRestaurant()
           const restaurant =
             response?.data?.data?.restaurant ||
-            response?.data?.restaurant ||
-            response?.data?.data?.user ||
-            response?.data?.user
+            response?.data?.restaurant
 
           if (cancelled) return
 
@@ -92,7 +90,7 @@ export default function VerificationPending() {
             navigate("/food/restaurant", { replace: true })
           }
         } catch {
-          // Keep the pending screen visible if the status check fails.
+          // Keep the current screen if status check fails.
         }
       } finally {
         if (!cancelled) setCheckingStatus(false)
@@ -115,15 +113,23 @@ export default function VerificationPending() {
       window.removeEventListener("focus", handleVisibilityOrFocus)
       document.removeEventListener("visibilitychange", handleVisibilityOrFocus)
     }
-  }, [navigate, isRejected, checkingStatus])
+  }, [navigate, location.state?.fromRejection, location.state?.rejectionReason])
+
+  const handleRefillOnboarding = () => {
+    const step = Math.min(3, Math.max(1, resumeStep || 1))
+    navigate(`/food/restaurant/onboarding?step=${step}`, {
+      replace: true,
+      state: { fromRejection: true, isRejected: true, rejectionReason },
+    })
+  }
 
   return (
     <RestaurantAuthLayout
-      title={isRejected ? "Action Required" : "Under Review"}
+      title={isRejected ? "Registration Rejected" : "Verification Pending"}
       subtitle={
         isRejected
-          ? "Your restaurant registration was not approved. Please review the reason below and try again."
-          : "Your restaurant profile has been submitted successfully. Our team is reviewing your documents and information. Please wait until verification is completed."
+          ? "Your restaurant registration was rejected by our team. Please review the reason below and refill your onboarding details."
+          : "Your restaurant profile has been submitted successfully. Our team is reviewing your documents and information."
       }
     >
       <div className="flex flex-col items-center justify-center space-y-6">
@@ -143,34 +149,46 @@ export default function VerificationPending() {
           {!isRejected ? (
             <div className="text-center">
               <p className="text-sm font-semibold text-amber-600">
-                Status: {onboardingStatus === "UNDER_REVIEW" ? "Under Review" : "Pending Review"}
+                Status:{" "}
+                {onboardingStatus === "UNDER_REVIEW" ? "Under Review" : "Pending Review"}
               </p>
-              {checkingStatus && (
-                <p className="mt-1 text-xs text-gray-400">
-                  Checking approval status...
-                </p>
-              )}
+              {checkingStatus ? (
+                <p className="mt-1 text-xs text-gray-400">Checking approval status...</p>
+              ) : null}
             </div>
-          ) : null}
-
-          {isRejected && rejectionReason && (
-            <div className="rounded-xl bg-red-50 border border-red-100 p-4">
-              <p className="text-xs font-semibold uppercase text-red-600 mb-1">Rejection Reason</p>
-              <p className="text-sm font-medium text-red-900">
-                "{rejectionReason}"
+          ) : (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
+              <p className="text-sm font-bold text-red-700">You are rejected</p>
+              <p className="mt-1 text-xs text-red-600">
+                Update your details and submit again for review.
               </p>
             </div>
           )}
 
-          {!isRejected && (
+          {isRejected ? (
+            <div className="rounded-xl border border-red-100 bg-red-50/80 p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-600">
+                Rejection reason
+              </p>
+              <p className="text-sm font-medium leading-relaxed text-red-900">
+                {rejectionReason ||
+                  "No specific reason was provided. Please verify all documents and details."}
+              </p>
+            </div>
+          ) : null}
+
+          {!isRejected ? (
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
                   <ShieldCheck className="h-4 w-4 text-emerald-600" />
                 </div>
                 <div className="text-sm text-gray-600">
-                  <p className="font-semibold text-gray-900">What's next?</p>
-                  <p className="mt-1">We'll notify you via SMS/Email once verified.</p>
+                  <p className="font-semibold text-gray-900">What&apos;s next?</p>
+                  <p className="mt-1">
+                    Please wait until verification is completed. We&apos;ll notify you once
+                    approved.
+                  </p>
                   {pendingPhone ? (
                     <p className="mt-2 text-xs font-medium text-gray-400">
                       ID: <span className="text-gray-600">{pendingPhone}</span>
@@ -179,15 +197,15 @@ export default function VerificationPending() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
-          <div className="pt-2 space-y-3">
+          <div className="space-y-3 pt-2">
             {isRejected ? (
               <Button
                 className="h-11 w-full rounded-xl bg-primary-orange text-sm font-semibold text-white shadow-md transition-colors hover:bg-primary-orange/90"
-                onClick={() => navigate("/food/restaurant/onboarding", { replace: true })}
+                onClick={handleRefillOnboarding}
               >
-                Retry Registration
+                Refill onboarding (Step {Math.min(3, Math.max(1, resumeStep || 1))})
               </Button>
             ) : (
               <Button
@@ -201,9 +219,10 @@ export default function VerificationPending() {
               </Button>
             )}
 
-            {isRejected && (
+            {isRejected ? (
               <button
-                className="w-full text-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                type="button"
+                className="w-full text-center text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
                 onClick={() => {
                   clearRestaurantPendingPhone()
                   navigate("/food/restaurant/login", { replace: true })
@@ -211,11 +230,10 @@ export default function VerificationPending() {
               >
                 Sign out
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
     </RestaurantAuthLayout>
   )
 }
-

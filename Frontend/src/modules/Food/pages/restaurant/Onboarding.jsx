@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { Label } from "@food/components/ui/label"
@@ -591,6 +591,10 @@ function TimeSelector({ label, value, onChange }) {
 export default function RestaurantOnboarding() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
+  const location = useLocation()
+  const rejectionNotice = location.state?.isRejected
+    ? String(location.state?.rejectionReason || "").trim()
+    : ""
   const [searchParams, setSearchParams] = useSearchParams()
   const [step, setStep] = useState(1)
   const [maxAllowedStep, setMaxAllowedStep] = useState(1)
@@ -3037,6 +3041,12 @@ export default function RestaurantOnboarding() {
         onEdit={() => setIsEditing(true)}
         onStepSelect={handleStepSelect}
       >
+        {rejectionNotice ? (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <p className="font-semibold">Previous registration was rejected</p>
+            <p className="mt-1 text-xs leading-relaxed text-red-700">{rejectionNotice}</p>
+          </div>
+        ) : null}
         {renderStep()}
       </OnboardingShell>
 

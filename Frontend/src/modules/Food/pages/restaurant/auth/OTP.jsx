@@ -162,8 +162,9 @@ export default function RestaurantOTP() {
           replace: true,
           state: {
             phone: pendingPhone,
-            isRejected: data.isRejected,
-            rejectionReason: data.rejectionReason,
+            isRejected: Boolean(data.isRejected),
+            rejectionReason: data.rejectionReason || "",
+            rejectionStep: data.rejectionStep || 1,
           },
         })
         return
@@ -179,13 +180,15 @@ export default function RestaurantOTP() {
         toast.success("Verification successful!")
 
         setTimeout(async () => {
-          if (data?.isRejected) {
+          if (data?.isRejected || data?.pendingApproval && data?.isRejected) {
             const rejectionStep = data?.rejectionStep || 1
-            navigate(`/food/restaurant/onboarding?step=${rejectionStep}`, {
+            navigate("/food/restaurant/pending-verification", {
               replace: true,
               state: {
                 isRejected: true,
                 rejectionReason: data?.rejectionReason || "",
+                rejectionStep,
+                phone: data?.phone || phone,
               },
             })
             return
