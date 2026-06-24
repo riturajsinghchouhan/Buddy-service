@@ -2409,6 +2409,7 @@ function RestaurantDetailsContent() {
                     onUpdateQuantity={updateItemQuantity}
                     dishCardRefs={dishCardRefs}
                     toRenderableArray={toRenderableArray}
+                  />
                 ))}
                 {loadingMoreMenu && (
                   <div className="flex justify-center items-center py-6 w-full">
