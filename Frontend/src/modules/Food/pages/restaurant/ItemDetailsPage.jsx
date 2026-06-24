@@ -1012,6 +1012,17 @@ export default function ItemDetailsPage() {
                               <SelectItem value="ml">ml</SelectItem>
                               <SelectItem value="plates">plates</SelectItem>
                               <SelectItem value="serves">serves</SelectItem>
+                              <SelectItem value="serving">serving</SelectItem>
+                              <SelectItem value="portion">portion</SelectItem>
+                              <SelectItem value="Plate">Plate</SelectItem>
+                              <SelectItem value="Serving">Serving</SelectItem>
+                              <SelectItem value="Portion">Portion</SelectItem>
+                              {variant.unit && ![
+                                "piece", "kg", "gm", "litre", "ml", "plates", "serves",
+                                "serving", "portion", "Plate", "Serving", "Portion"
+                              ].includes(variant.unit) && (
+                                <SelectItem value={variant.unit}>{variant.unit}</SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>

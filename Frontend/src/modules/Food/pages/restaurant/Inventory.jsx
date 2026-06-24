@@ -794,8 +794,16 @@ export default function Inventory() {
     }
   })
 
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [totalItemsCount, setTotalItemsCount] = useState(0)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
+
   const categoryRefs = useRef({})
   const addonImageInputRef = useRef(null)
+  const loadMoreRef = useRef(null)
 
   // Swipe gesture refs
   const touchStartX = useRef(0)
@@ -854,158 +862,255 @@ export default function Inventory() {
     fetchRestaurantProfile()
   }, [])
 
-  // Fetch menu items from API and convert to inventory format
+  // Debounce search query
   useEffect(() => {
-    const fetchMenuData = async () => {
-      try {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 400)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [searchQuery])
+
+  // Fetch menu items from API and convert to inventory format
+  const fetchMenuData = async (targetPage, shouldAppend = false) => {
+    try {
+      if (targetPage === 1) {
         setLoadingInventory(true)
-        
-        // Fetch menu from API
-        const menuResponse = await restaurantAPI.getMenu()
-        
-        if (menuResponse.data && menuResponse.data.success && menuResponse.data.data && menuResponse.data.data.menu) {
-          const menuSections = menuResponse.data.data.menu.sections || []
-          
-          // Convert menu sections to inventory categories
-          const convertedCategories = menuSections.map((section, sectionIndex) => {
-            // Collect all items from section and subsections
-            const allItems = []
-            
-            // Add direct items from section
-            if (Array.isArray(section.items)) {
-              section.items.forEach(item => {
-                  allItems.push({
-                  id: String(item.id || Date.now() + Math.random()),
-                  name: item.name || "Unnamed Item",
-                  description: item.description || "",
-                  image: item.image || "",
-                  images: item.image ? [item.image] : [],
-                  price: item.price ?? "",
-                  variants: Array.isArray(item.variants) ? item.variants : (Array.isArray(item.variations) ? item.variations : []),
-                  category: section.name || "",
-                  categoryId: section.categoryId || section.id || "",
-                  inStock: item.isAvailable !== undefined ? item.isAvailable : true,
-                  isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
-                  isVeg: item.foodType === "Veg",
-                  foodType: item.foodType || "Non-Veg",
-                  approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
-                  rejectionReason: item.rejectionReason || "",
-                  // Backend menu is generated from food_items and currently doesn't persist "recommended".
-                  // Keep as a local UI preference keyed by food item id.
-                  isRecommended: Boolean(recommendedMap?.[String(item.id)]),
-                  stockQuantity: item.stock || "Unlimited",
-                  unit: item.itemSizeUnit || "piece",
-                  expiryDate: null,
-                  lastRestocked: null,
-                })
+      } else {
+        setIsFetchingMore(true)
+      }
+
+      // Collect recommended IDs if active filter is recommended
+      let recommendedIds = []
+      if (selectedFilter === "recommended") {
+        recommendedIds = Object.keys(recommendedMap).filter((id) => recommendedMap[id])
+      }
+
+      const params = {
+        page: targetPage,
+        limit: 15,
+        search: searchQuery.trim(),
+        filter: selectedFilter,
+        recommendedIds: recommendedIds.join(",")
+      }
+
+      const menuResponse = await restaurantAPI.getMenu(params)
+
+      if (menuResponse.data && menuResponse.data.success && menuResponse.data.data && menuResponse.data.data.menu) {
+        const menuSections = menuResponse.data.data.menu.sections || []
+        const pagination = menuResponse.data.data.menu.pagination || {}
+
+        // Convert menu sections to inventory categories
+        const newConvertedCategories = menuSections.map((section, sectionIndex) => {
+          // Collect all items from section and subsections
+          const allItems = []
+
+          // Add direct items from section
+          if (Array.isArray(section.items)) {
+            section.items.forEach(item => {
+              allItems.push({
+                id: String(item.id || Date.now() + Math.random()),
+                name: item.name || "Unnamed Item",
+                description: item.description || "",
+                image: item.image || "",
+                images: item.image ? [item.image] : [],
+                price: item.price ?? "",
+                variants: Array.isArray(item.variants) ? item.variants : (Array.isArray(item.variations) ? item.variations : []),
+                category: section.name || "",
+                categoryId: section.categoryId || section.id || "",
+                inStock: item.isAvailable !== undefined ? item.isAvailable : true,
+                isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
+                isVeg: item.foodType === "Veg",
+                foodType: item.foodType || "Non-Veg",
+                approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
+                rejectionReason: item.rejectionReason || "",
+                isRecommended: Boolean(recommendedMap?.[String(item.id)]),
+                stockQuantity: item.stock || "Unlimited",
+                unit: item.itemSizeUnit || "piece",
+                expiryDate: null,
+                lastRestocked: null,
               })
-            }
-            
-            // Add items from subsections
-            if (Array.isArray(section.subsections)) {
-              section.subsections.forEach(subsection => {
-                if (Array.isArray(subsection.items)) {
-                  subsection.items.forEach(item => {
+            })
+          }
+
+          // Add items from subsections
+          if (Array.isArray(section.subsections)) {
+            section.subsections.forEach(subsection => {
+              if (Array.isArray(subsection.items)) {
+                subsection.items.forEach(item => {
                   allItems.push({
-                  id: String(item.id || Date.now() + Math.random()),
-                  name: item.name || "Unnamed Item",
-                  description: item.description || "",
-                  image: item.image || "",
-                  images: item.image ? [item.image] : [],
-                  price: item.price ?? "",
-                  variants: Array.isArray(item.variants) ? item.variants : (Array.isArray(item.variations) ? item.variations : []),
-                  category: section.name || subsection.name || "",
-                  categoryId: section.categoryId || section.id || "",
-                  inStock: item.isAvailable !== undefined ? item.isAvailable : true,
-                  isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
-                  isVeg: item.foodType === "Veg",
-                  foodType: item.foodType || "Non-Veg",
-                  approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
-                  rejectionReason: item.rejectionReason || "",
-                  isRecommended: Boolean(recommendedMap?.[String(item.id)]),
-                  stockQuantity: item.stock || "Unlimited",
-                  unit: item.itemSizeUnit || "piece",
-                  expiryDate: null,
-                  lastRestocked: null,
-                })
+                    id: String(item.id || Date.now() + Math.random()),
+                    name: item.name || "Unnamed Item",
+                    description: item.description || "",
+                    image: item.image || "",
+                    images: item.image ? [item.image] : [],
+                    price: item.price ?? "",
+                    variants: Array.isArray(item.variants) ? item.variants : (Array.isArray(item.variations) ? item.variations : []),
+                    category: section.name || subsection.name || "",
+                    categoryId: section.categoryId || section.id || "",
+                    inStock: item.isAvailable !== undefined ? item.isAvailable : true,
+                    isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
+                    isVeg: item.foodType === "Veg",
+                    foodType: item.foodType || "Non-Veg",
+                    approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
+                    rejectionReason: item.rejectionReason || "",
+                    isRecommended: Boolean(recommendedMap?.[String(item.id)]),
+                    stockQuantity: item.stock || "Unlimited",
+                    unit: item.itemSizeUnit || "piece",
+                    expiryDate: null,
+                    lastRestocked: null,
                   })
-                }
-              })
-            }
-            
-            // Use category's isEnabled from menu API, not calculated from items
-            // Category toggle should be independent of item toggles
-            // Menu snapshots are disabled on backend; treat category toggle as derived from items (all in stock).
-            const categoryInStock = allItems.length > 0 ? allItems.every(i => i.inStock) : true
-            const itemCount = allItems.length
-            
-            return {
-              id: section.id || `category-${sectionIndex}`,
-              name: section.name || "Unnamed Category",
-              description: section.description || "",
-              itemCount: itemCount,
-              inStock: categoryInStock,
-              items: allItems,
-              order: section.order !== undefined ? section.order : sectionIndex,
-            }
-          })
-
-          const nowMs = Date.now()
-          const withStockRules = convertedCategories.map((category) => {
-            const ruledItems = (category.items || []).map((item) => {
-              const rule = stockRules?.[String(item.id)] || null
-              const isActiveRule =
-                rule &&
-                (rule.mode === "manual" ||
-                  (rule.resumeAt && new Date(rule.resumeAt).getTime() > nowMs))
-
-              if (!isActiveRule) return item
-              return {
-                ...item,
-                inStock: false,
-                isAvailable: false,
-                stockRule: rule,
+                })
               }
             })
+          }
 
+          const categoryInStock = allItems.length > 0 ? allItems.every(i => i.inStock) : true
+          const itemCount = allItems.length
+
+          return {
+            id: section.id || `category-${sectionIndex}`,
+            name: section.name || "Unnamed Category",
+            description: section.description || "",
+            itemCount: itemCount,
+            inStock: categoryInStock,
+            items: allItems,
+            order: section.order !== undefined ? section.order : sectionIndex,
+          }
+        })
+
+        const nowMs = Date.now()
+        const withStockRules = newConvertedCategories.map((category) => {
+          const ruledItems = (category.items || []).map((item) => {
+            const rule = stockRules?.[String(item.id)] || null
+            const isActiveRule =
+              rule &&
+              (rule.mode === "manual" ||
+                (rule.resumeAt && new Date(rule.resumeAt).getTime() > nowMs))
+
+            if (!isActiveRule) return item
             return {
-              ...category,
-              items: ruledItems,
-              itemCount: ruledItems.length,
-              inStock: ruledItems.length > 0 ? ruledItems.every((item) => item.inStock) : true,
+              ...item,
+              inStock: false,
+              isAvailable: false,
+              stockRule: rule,
             }
           })
-          
+
+          return {
+            ...category,
+            items: ruledItems,
+            itemCount: ruledItems.length,
+            inStock: ruledItems.length > 0 ? ruledItems.every((item) => item.inStock) : true,
+          }
+        })
+
+        // Merge or replace categories list
+        if (shouldAppend) {
+          setCategories((prevCategories) => {
+            const merged = [...prevCategories]
+            withStockRules.forEach((newCat) => {
+              const existingCatIndex = merged.findIndex((c) => String(c.id) === String(newCat.id))
+              if (existingCatIndex > -1) {
+                const existingCat = merged[existingCatIndex]
+                const updatedItems = [...existingCat.items]
+
+                newCat.items.forEach((item) => {
+                  if (!updatedItems.some((it) => String(it.id) === String(item.id))) {
+                    updatedItems.push(item)
+                  }
+                })
+
+                merged[existingCatIndex] = {
+                  ...existingCat,
+                  items: updatedItems,
+                  itemCount: updatedItems.length,
+                  inStock: updatedItems.length > 0 ? updatedItems.every((item) => item.inStock) : true
+                }
+              } else {
+                merged.push(newCat)
+              }
+            })
+            return merged
+          })
+        } else {
           setCategories(withStockRules)
           setExpandedCategories(withStockRules.map(c => c.id))
-        } else {
-          // Empty menu - start fresh
+        }
+
+        const currentPage = Number(pagination.page) || targetPage
+        const totalPagesCount = Number(pagination.totalPages) || 1
+        setTotalPages(totalPagesCount)
+        setHasMore(currentPage < totalPagesCount)
+        setTotalItemsCount(pagination.totalItems || 0)
+      } else {
+        if (!shouldAppend) {
           setCategories([])
           setExpandedCategories([])
         }
-      } catch (error) {
-        // Only log and show toast if it's not a network/timeout error
-        if (error.code !== 'ERR_NETWORK' && error.code !== 'ECONNABORTED' && !error.message?.includes('timeout')) {
+        setHasMore(false)
+      }
+    } catch (error) {
+      if (error.code !== 'ERR_NETWORK' && error.code !== 'ECONNABORTED' && !error.message?.includes('timeout')) {
         debugError('Error fetching menu data:', error)
-          toast.error('Failed to load menu data')
-        } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-          // Silently handle network errors - backend is not running
-          // The axios interceptor already handles these with proper error messages
-        }
+        toast.error('Failed to load menu data')
+      }
+      if (!shouldAppend) {
         setCategories([])
         setExpandedCategories([])
-      } finally {
-        setLoadingInventory(false)
+      }
+      setHasMore(false)
+    } finally {
+      setLoadingInventory(false)
+      setIsFetchingMore(false)
+    }
+  }
+
+  // Load first page of data when dependencies change
+  useEffect(() => {
+    if (activeTab === "all-items") {
+      setPage(1)
+      fetchMenuData(1, false)
+    }
+  }, [debouncedSearchQuery, selectedFilter, activeTab])
+
+  // Load next pages
+  const loadMoreItems = () => {
+    if (isFetchingMore || !hasMore || loadingInventory) return
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchMenuData(nextPage, true)
+  }
+
+  // Setup intersection observer
+  useEffect(() => {
+    if (activeTab !== "all-items" || !hasMore || loadingInventory || isFetchingMore) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreItems()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    const target = loadMoreRef.current
+    if (target) {
+      observer.observe(target)
+    }
+
+    return () => {
+      if (target) {
+        observer.unobserve(target)
       }
     }
-    
-    fetchMenuData()
-  }, [recommendedMap])
+  }, [hasMore, page, loadingInventory, isFetchingMore, activeTab])
 
   // Note: Menu items are now displayed from menu API
   // Stock status updates should be managed through the menu API, not inventory API
-  // Auto-save disabled since we're displaying menu data, not inventory data
-
   // Fetch add-ons when add-ons tab is active
   const fetchAddons = async (showLoading = true) => {
     try {
@@ -1361,7 +1466,7 @@ export default function Inventory() {
 
     return {
       categories: categories.length,
-      total: totalItems,
+      total: activeTab === "add-ons" ? addons.length : totalItemsCount,
       inStock,
       paused,
       addons: addons.length,
@@ -1369,7 +1474,7 @@ export default function Inventory() {
       addonsPaused,
       addonsPending,
     }
-  }, [categories, totalItems, addons])
+  }, [categories, totalItemsCount, addons, activeTab])
 
   const activeFilterOptions = useMemo(
     () => (activeTab === "add-ons" ? ADDON_FILTER_OPTIONS : MENU_FILTER_OPTIONS),
@@ -1825,7 +1930,7 @@ export default function Inventory() {
       <div ref={tabBarRef} className="sticky top-[52px] lg:top-0 z-30 bg-[#f4f6f9]/95 backdrop-blur-sm py-2 px-4 -mx-4 lg:px-6 lg:-mx-6 transition-all duration-200">
         <InventoryToolbar
           activeTab={activeTab}
-          totalItems={totalItems}
+          totalItems={activeTab === "add-ons" ? addons.length : totalItemsCount}
           addonsCount={addons.length}
           onTabChange={setActiveTab}
           searchQuery={searchQuery}
@@ -2331,6 +2436,19 @@ export default function Inventory() {
             )
           })}
         </div>
+
+        {/* Infinite Scroll Trigger */}
+        {activeTab === "all-items" && (
+          <div ref={loadMoreRef} className="h-12 flex items-center justify-center py-6">
+            {isFetchingMore && (
+              <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
+                <Loader2 className="h-4 w-4 animate-spin text-[#16A34A]" />
+                <span>Loading more items...</span>
+              </div>
+            )}
+          </div>
+        )}
+
         </div>
       </div>
 

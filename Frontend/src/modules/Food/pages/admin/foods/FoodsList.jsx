@@ -991,6 +991,17 @@ export default function FoodsList() {
                             <option value="ml">ml</option>
                             <option value="plates">plates</option>
                             <option value="serves">serves</option>
+                            <option value="serving">serving</option>
+                            <option value="portion">portion</option>
+                            <option value="Plate">Plate</option>
+                            <option value="Serving">Serving</option>
+                            <option value="Portion">Portion</option>
+                            {variant.unit && ![
+                              "piece", "kg", "gm", "litre", "ml", "plates", "serves",
+                              "serving", "portion", "Plate", "Serving", "Portion"
+                            ].includes(variant.unit) && (
+                              <option value={variant.unit}>{variant.unit}</option>
+                            )}
                           </select>
                         </div>
                       </div>
