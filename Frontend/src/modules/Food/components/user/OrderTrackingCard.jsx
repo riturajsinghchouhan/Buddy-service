@@ -4,14 +4,14 @@ import { UtensilsCrossed, ChevronRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CookingAnimation = memo(() => (
-  <div className="relative w-12 h-12 flex items-center justify-center rounded-xl bg-orange-50 border border-orange-100 overflow-visible shadow-[0_4px_15px_rgba(235,89,14,0.15)] shrink-0">
-    <div className="absolute -top-3 flex gap-1.5">
-      <motion.div animate={{ opacity: [0, 0.8, 0], y: [0, -8, -12], scale: [0.8, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0, ease: "easeOut" }} className="w-1.5 h-3 bg-orange-400/60 rounded-full blur-[1px]" />
-      <motion.div animate={{ opacity: [0, 0.8, 0], y: [0, -10, -15], scale: [0.8, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.5, ease: "easeOut" }} className="w-1.5 h-3 bg-orange-400/60 rounded-full blur-[1px]" />
-      <motion.div animate={{ opacity: [0, 0.8, 0], y: [0, -8, -12], scale: [0.8, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 1, ease: "easeOut" }} className="w-1.5 h-3 bg-orange-400/60 rounded-full blur-[1px]" />
+  <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl bg-orange-50 border border-orange-100 overflow-visible shadow-[0_4px_15px_rgba(235,89,14,0.15)] shrink-0">
+    <div className="absolute -top-2 sm:-top-3 flex gap-1">
+      <motion.div animate={{ opacity: [0, 0.8, 0], y: [0, -6, -10], scale: [0.8, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0, ease: "easeOut" }} className="w-1 h-2 sm:w-1.5 sm:h-3 bg-orange-400/60 rounded-full blur-[1px]" />
+      <motion.div animate={{ opacity: [0, 0.8, 0], y: [0, -8, -12], scale: [0.8, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.5, ease: "easeOut" }} className="w-1 h-2 sm:w-1.5 sm:h-3 bg-orange-400/60 rounded-full blur-[1px]" />
+      <motion.div animate={{ opacity: [0, 0.8, 0], y: [0, -6, -10], scale: [0.8, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 1, ease: "easeOut" }} className="w-1 h-2 sm:w-1.5 sm:h-3 bg-orange-400/60 rounded-full blur-[1px]" />
     </div>
-    <motion.div animate={{ rotate: [-2, 2, -2] }} transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }} className="relative z-10 mt-1">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#16A34A] drop-shadow-sm">
+    <motion.div animate={{ rotate: [-2, 2, -2] }} transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }} className="relative z-10 mt-0.5 sm:mt-1">
+      <svg className="w-5 h-5 sm:w-[26px] sm:h-[26px] text-[#16A34A] drop-shadow-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         {/* Cooker Body */}
         <path d="M6 10h12v6a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4v-6z" />
         {/* Lid Rim */}
@@ -27,15 +27,15 @@ const CookingAnimation = memo(() => (
     </motion.div>
     {/* Flame below */}
     <motion.div animate={{ opacity: [0.4, 0.8, 0.4], scaleX: [0.8, 1.2, 0.8] }} transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-0 w-full flex justify-center z-0">
-      <div className="w-4 h-1 bg-[#16A34A] blur-[2px] rounded-full" />
+      <div className="w-3 h-[3px] sm:w-4 sm:h-1 bg-[#16A34A] blur-[2px] rounded-full" />
     </motion.div>
   </div>
 ));
 
 const DeliveryAnimation = memo(() => (
-  <div className="relative w-12 h-12 flex items-center justify-center rounded-xl bg-green-50 border border-green-100 overflow-visible shadow-[0_4px_15px_rgba(35,54,26,0.1)] shrink-0">
+  <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl bg-green-50 border border-green-100 overflow-visible shadow-[0_4px_15px_rgba(35,54,26,0.1)] shrink-0">
     {/* Animated road line */}
-    <div className="absolute bottom-2 left-0 right-0 h-[2px] overflow-hidden">
+    <div className="absolute bottom-1.5 sm:bottom-2 left-0 right-0 h-[2px] overflow-hidden">
       <motion.div 
         animate={{ x: [-20, 40] }} 
         transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
@@ -50,7 +50,7 @@ const DeliveryAnimation = memo(() => (
     >
       <div className="relative">
         {/* Scooter Body (Simple SVG) */}
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#16A34A]">
+        <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#16A34A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
           <path d="M15 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
           <path d="M5 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h12" />
@@ -59,7 +59,7 @@ const DeliveryAnimation = memo(() => (
         </svg>
         
         {/* Avatar - Floating above scooter */}
-        <div className="absolute -top-4 -right-1 w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden bg-white">
+        <div className="absolute -top-3.5 -right-0.5 sm:-top-4 sm:-right-1 w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white shadow-sm overflow-hidden bg-white">
           <img 
             src="/delivery_boy_avatar.png" 
             alt="Delivery Boy" 
@@ -478,52 +478,54 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className={`fixed ${hasBottomNav ? "bottom-20" : "bottom-6"} left-4 right-4 z-[9999]`}
+        className={`fixed ${hasBottomNav ? "bottom-20" : "bottom-6"} left-4 right-4 md:left-auto md:right-6 z-[9999] pointer-events-none`}
       >
-        <div 
-          onClick={() =>
-            navigate(
-              `/food/user/orders/${activeOrder.id || activeOrder._id || activeOrder.orderId}`,
-            )
-          }
-          className="relative bg-white/95 backdrop-blur-xl rounded-[20px] p-4 shadow-[0_8px_30px_rgba(235,89,14,0.15)] border border-orange-100/60 overflow-visible cursor-pointer group"
-        >
-          {/* Subtle gradient background mesh */}
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-50/50 via-white/40 to-white/80 opacity-60 pointer-events-none rounded-[20px]" />
-          
-          <button 
-             onClick={(e) => { e.stopPropagation(); setDismissedKey(currentOrderKey); }}
-             className="absolute top-2 right-2 p-1.5 rounded-full bg-orange-50/80 text-orange-400 hover:text-#15803D hover:bg-orange-100/80 transition-colors z-20 shadow-sm"
+        <div className="max-w-7xl md:max-w-none mx-auto md:mx-0 pointer-events-auto w-full md:w-[400px]">
+          <div 
+            onClick={() =>
+              navigate(
+                `/food/user/orders/${activeOrder.id || activeOrder._id || activeOrder.orderId}`,
+              )
+            }
+            className="bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden cursor-pointer group"
           >
-            <X className="w-3.5 h-3.5 pointer-events-none" />
-          </button>
+            <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 md:p-4">
+              {(() => {
+                const s = String(orderStatus);
+                const p = String(orderPhase);
+                const isOnTheWay = s === "picked_up" || s === "out_for_delivery" || s === "en_route_to_delivery" || p === "picked_up" || p === "en_route_to_delivery" || s === "reached_drop" || p === "at_drop";
+                
+                return isOnTheWay ? <DeliveryAnimation /> : <CookingAnimation />;
+              })()}
 
-          <div className="flex items-center gap-4 relative z-10 w-full">
-            {(() => {
-              const s = String(orderStatus);
-              const p = String(orderPhase);
-              const isOnTheWay = s === "picked_up" || s === "out_for_delivery" || s === "en_route_to_delivery" || p === "picked_up" || p === "en_route_to_delivery" || s === "reached_drop" || p === "at_drop";
-              
-              return isOnTheWay ? <DeliveryAnimation /> : <CookingAnimation />;
-            })()}
-
-            <div className="flex-1 min-w-0 pr-4">
-              <p className="text-gray-900 font-bold text-base md:text-lg truncate tracking-tight">{restaurantName}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <p className="text-gray-500 font-medium text-xs md:text-sm truncate">{statusText}</p>
-                <ChevronRight className="w-3.5 h-3.5 text-[#16A34A] shrink-0 group-hover:translate-x-1 transition-transform" />
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="text-gray-900 dark:text-white font-bold text-xs sm:text-sm md:text-lg truncate tracking-tight">{restaurantName}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <p className="text-gray-500 dark:text-zinc-400 font-medium text-[10px] sm:text-xs md:text-sm truncate">{statusText}</p>
+                  <ChevronRight className="w-3 h-3 text-[#16A34A] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </div>
-            </div>
 
-            <div className="bg-gradient-to-br from-[#16A34A] to-[#D94E0A] shadow-lg shadow-[#16A34A]/20 rounded-xl px-4 py-2 shrink-0 flex flex-col items-center justify-center border border-orange-200">
-              <p className="text-orange-50 text-[10px] font-bold uppercase tracking-wider opacity-95 leading-tight mb-[2px]">
-                arriving in
-              </p>
-              <p className="text-white text-base md:text-[17px] font-black leading-tight drop-shadow-sm">
-                {timeRemaining !== null
-                  ? `${Math.max(1, timeRemaining)} min`
-                  : "--"}
-              </p>
+              <div className="bg-gradient-to-br from-[#16A34A] to-[#15803D] dark:from-[#15803D] dark:to-[#166534] shadow-md shadow-emerald-500/10 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-5 md:py-3 shrink-0 flex flex-col items-center justify-center border border-emerald-200/20">
+                <p className="text-emerald-50 text-[8px] sm:text-[10px] font-bold uppercase tracking-wider opacity-90 leading-tight mb-0.5 whitespace-nowrap">
+                  arriving in
+                </p>
+                <p className="text-white text-xs sm:text-sm md:text-base font-black leading-tight drop-shadow-sm">
+                  {timeRemaining !== null
+                    ? `${Math.max(1, timeRemaining)} min`
+                    : "--"}
+                </p>
+              </div>
+
+              <motion.button
+                onClick={(e) => { e.stopPropagation(); setDismissedKey(currentOrderKey); }}
+                className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+              >
+                <X className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
+              </motion.button>
             </div>
           </div>
         </div>

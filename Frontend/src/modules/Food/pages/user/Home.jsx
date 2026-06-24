@@ -2783,7 +2783,7 @@ export default function Home() {
             <p className="food-landing-eyebrow mb-1">Curated for you</p>
             <h2 className="food-landing-title mb-3 sm:mb-4">Recommended</h2>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
               {recommendedForYouRestaurants.map((restaurant, index) => {
                 const restaurantSlug =
                   restaurant.slug ||
@@ -2802,7 +2802,7 @@ export default function Home() {
                         <RestaurantImageCarousel
                           restaurant={restaurant}
                           backendOrigin={BACKEND_ORIGIN}
-                          className="h-24 sm:h-28 md:h-32"
+                          className="h-40 sm:h-28 md:h-32"
                           roundedClass="rounded-t-[20px]"
                         />
                         <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-medium" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px] shadow-lg border border-white/10`}>
@@ -2860,7 +2860,7 @@ export default function Home() {
               )}
             </AnimatePresence>
             <div
-              className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 food-landing-section pt-1 items-stretch ${isLoadingFilterResults || loadingRestaurants ? "opacity-50" : "opacity-100"} transition-opacity duration-300`}>
+              className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 food-landing-section pt-1 items-stretch ${isLoadingFilterResults || loadingRestaurants ? "opacity-50" : "opacity-100"} transition-opacity duration-300`}>
               {visibleRestaurants.map((restaurant, index) => {
                 const nameStr =
                   typeof restaurant?.name === "string"
@@ -2957,7 +2957,7 @@ export default function Home() {
                               restaurant={restaurant}
                               priority={index < 3}
                               backendOrigin={BACKEND_ORIGIN}
-                              className="h-32 sm:h-40 md:h-48 lg:h-56"
+                              className="h-48 sm:h-40 md:h-48 lg:h-56"
                               roundedClass="rounded-t-[28px]"
                             />
 

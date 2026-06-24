@@ -829,11 +829,64 @@ export default function Under250() {
   return (
 
     <div className={`relative min-h-dvh bg-white dark:bg-[#0a0a0a] ${shouldShowGrayscale ? 'grayscale opacity-75' : ''}`}>
-      {/* Banner Section */}
+      {/* Mobile view banner with food-mobile-hero gradient wrapper */}
+      <div className="md:hidden food-mobile-hero">
+        <div className="food-mobile-hero__glow food-mobile-hero__glow--left" aria-hidden />
+        <div className="food-mobile-hero__glow food-mobile-hero__glow--right" aria-hidden />
+        <div className="food-mobile-hero__pattern" aria-hidden />
+        
+        <div className="pt-[calc(env(safe-area-inset-top,0px)+4.5rem)] relative w-full overflow-hidden pb-4">
+          <div
+            ref={bannerShellRef}
+            data-banner-shell="true"
+            className="relative w-full overflow-hidden h-[clamp(140px,36vw,260px)] rounded-2xl mx-auto max-w-[95%] shadow-lg"
+          >
+            {bannerImages.length > 0 && (
+              <div
+                className="absolute inset-0 z-0 overflow-hidden"
+                onTouchStart={handleBannerTouchStart}
+                onTouchMove={handleBannerTouchMove}
+                onTouchEnd={handleBannerTouchEnd}
+              >
+                <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+                  <motion.div 
+                    animate={{ x: ['-200%', '200%'] }}
+                    transition={{ duration: 3, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-20deg] w-[150%] h-full"
+                  />
+                </div>
+                <div
+                  className="flex h-full w-full transition-transform duration-500 ease-out"
+                  style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+                >
+                  {bannerImages.map((bannerImage, index) => (
+                    <div key={`${bannerImage}-${index}`} className="relative h-full w-full shrink-0">
+                      <OptimizedImage
+                        src={bannerImage}
+                        alt={`Under 250 Banner ${index + 1}`}
+                        className="w-full h-full"
+                        objectFit="cover"
+                        priority={index === 0}
+                        sizes="100vw"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {bannerImages.length === 0 && !loadingBanner && (
+              <div className="absolute top-0 left-0 right-0 bottom-0 z-0 bg-transparent overflow-hidden" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop view banner */}
       <div
         ref={bannerShellRef}
         data-banner-shell="true"
-        className="relative w-full overflow-hidden h-[clamp(200px,46vw,440px)] sm:h-[clamp(240px,42vw,520px)] md:-mt-24 lg:-mt-32"
+        className="hidden md:block relative w-full overflow-hidden h-[clamp(200px,46vw,440px)] sm:h-[clamp(240px,42vw,520px)] md:-mt-24 lg:-mt-32"
       >
         {/* Banner Image */}
         {bannerImages.length > 0 && (

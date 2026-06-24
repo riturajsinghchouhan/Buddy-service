@@ -139,7 +139,8 @@ export default function UserLayout() {
   const hideFoodHeader =
     normalizedPath.includes("/address-selector") ||
     normalizedPath.includes("/cart") ||
-    normalizedPath.includes("/checkout")
+    normalizedPath.includes("/checkout") ||
+    isProfileRoot
 
   const isFoodHome =
     normalizedPath === "/" ||
@@ -163,11 +164,11 @@ export default function UserLayout() {
                 {showFoodMobileHeader && (
                   <div
                     className={`md:hidden z-[100] ${
-                      isFoodHome ? "fixed top-0 left-0 right-0 pointer-events-none" : "sticky top-0"
+                      (isFoodHome || normalizedPath === "/dining" || normalizedPath === "/user/dining" || normalizedPath === "/under-250" || normalizedPath === "/user/under-250") ? "fixed top-0 left-0 right-0 pointer-events-none" : "sticky top-0"
                     }`}
                   >
                     <div className="pointer-events-auto">
-                      <FoodUserHeader variant={isFoodHome ? "home" : undefined} />
+                      <FoodUserHeader variant={isFoodHome ? "home" : (normalizedPath.includes("/dining") ? "dining" : (normalizedPath.includes("/under-250") ? "under250" : undefined))} />
                     </div>
                   </div>
                 )}

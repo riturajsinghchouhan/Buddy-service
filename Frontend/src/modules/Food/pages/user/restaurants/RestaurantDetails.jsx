@@ -187,10 +187,18 @@ function RestaurantDetailsContent() {
   const getDishQuantity = (item, preferredVariantId = "") => {
     const variants = getFoodVariants(item)
     if (variants.length > 0 && !preferredVariantId) {
-      return variants.reduce((sum, variant) => {
+      const activeVariants = variants.map(variant => {
         const lineItemId = getLineItemIdForDish(item, variant)
-        return sum + (quantities[lineItemId] || 0)
-      }, 0)
+        return quantities[lineItemId] || 0
+      }).filter(qty => qty > 0)
+
+      if (activeVariants.length === 0) return 0
+      if (activeVariants.length > 1) {
+        // Different variants exist in cart, return 1 as requested
+        return 1
+      }
+      // Only one variant exists, return its quantity
+      return activeVariants[0]
     }
 
     const variant = getVariantForDish(item, preferredVariantId)
@@ -2431,6 +2439,7 @@ function RestaurantDetailsContent() {
       <FloatingMenuFab
         hidden={showFilterSheet || showMenuSheet || showMenuOptionsSheet}
         onClick={() => setShowMenuSheet(true)}
+        hasCart={cart && cart.length > 0}
       />
 
       {/* Menu Categories Bottom Sheet - Rendered via Portal */}

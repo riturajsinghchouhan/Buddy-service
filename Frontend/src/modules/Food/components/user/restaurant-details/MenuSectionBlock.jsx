@@ -283,13 +283,13 @@ export function RestaurantFssaiBadge({ registrationNumber, logoSrc }) {
   )
 }
 
-export function FloatingMenuFab({ hidden, onClick }) {
+export function FloatingMenuFab({ hidden, onClick, hasCart }) {
   if (hidden) return null
   return (
     <button
       type="button"
       onClick={onClick}
-      className="fixed bottom-24 right-5 z-[60] sm:bottom-8 flex items-center gap-2 bg-[#16A34A] hover:bg-[#15803D] text-white px-5 py-3.5 rounded-2xl font-bold text-sm shadow-[0_8px_30px_rgba(22,163,74,0.35)] border border-white/20 transition-all hover:scale-105 active:scale-95"
+      className={`fixed ${hasCart ? 'bottom-36' : 'bottom-24'} right-5 z-[60] sm:bottom-8 flex items-center gap-2 bg-[#16A34A] hover:bg-[#15803D] text-white px-5 py-3.5 rounded-2xl font-bold text-sm shadow-[0_8px_30px_rgba(22,163,74,0.35)] border border-white/20 transition-all hover:scale-105 active:scale-95`}
     >
       <Utensils className="h-4 w-4" />
       Menu

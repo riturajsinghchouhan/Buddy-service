@@ -44,16 +44,14 @@ function QuantityControl({ quantity, disabled, onDecrement, onIncrement, addLabe
 
 function ItemMetaBadges({ item, priceLabel }) {
   const variantCount = (item?.variants?.length || item?.variations?.length || 0)
+  const rating = item?.rating || item?.avgRating || 4.2
 
   return (
     <div className="flex flex-wrap items-center gap-2 mt-2">
       <span className="text-base font-extrabold text-gray-900 dark:text-white">{priceLabel}</span>
-      {item.preparationTime && (
-        <span className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
-          <Clock className="h-3 w-3" />
-          {item.preparationTime}
-        </span>
-      )}
+      <span className="inline-flex items-center gap-0.5 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 px-2 py-0.5 text-[11px] font-bold text-yellow-700 dark:text-yellow-400 border border-yellow-100 dark:border-yellow-900/30">
+        ★ {rating.toFixed ? (typeof rating === 'number' ? rating.toFixed(1) : rating) : rating}
+      </span>
       {variantCount > 1 && (
         <span className="inline-flex rounded-lg bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
           {variantCount} options
@@ -186,19 +184,8 @@ export function MenuDishListCard({
             <h3 className="font-bold text-gray-900 dark:text-white text-[15px] sm:text-base leading-snug line-clamp-2">
               {item.name}
             </h3>
-            {item.categoryName && (
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5 line-clamp-1">
-                {item.categoryName}
-              </p>
-            )}
           </div>
         </div>
-
-        {item.description && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1 leading-relaxed">
-            {item.description}
-          </p>
-        )}
 
         <div className="flex items-end justify-between gap-3 mt-auto pt-2">
           <ItemMetaBadges item={item} priceLabel={priceLabel} />

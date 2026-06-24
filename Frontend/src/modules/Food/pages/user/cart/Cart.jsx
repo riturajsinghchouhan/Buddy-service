@@ -2050,13 +2050,16 @@ function Cart() {
       <CartSavingsBanner amount={savings} rupeeSymbol={RUPEE_SYMBOL} />
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden pb-44 md:pb-52">
-        <div className="mx-auto max-w-2xl px-4 py-4 space-y-4">
-          <CartItemsCard
-            items={cart}
-            rupeeSymbol={RUPEE_SYMBOL}
-            onUpdateQuantity={updateQuantity}
-            onAddMore={handleBack}
-          />
+        <div className="mx-auto max-w-5xl px-4 py-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Items, Notes, Addons */}
+            <div className="lg:col-span-7 space-y-4">
+              <CartItemsCard
+                items={cart}
+                rupeeSymbol={RUPEE_SYMBOL}
+                onUpdateQuantity={updateQuantity}
+                onAddMore={handleBack}
+              />
 
               {/* Note & Cutlery */}
               <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-4 shadow-sm dark:border-gray-800 dark:bg-[#141414] flex flex-col sm:flex-row gap-3">
@@ -2187,7 +2190,10 @@ function Cart() {
                   )}
                 </div>
               )}
+            </div>
 
+            {/* Right Column: Coupon, Delivery, Address, Contact, Bill Details */}
+            <div className="lg:col-span-5 space-y-4">
               {/* Coupon Section */}
               <div className="rounded-3xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-[#141414] flex flex-col">
                 {deliveryFee === 0 && (
@@ -2554,7 +2560,7 @@ function Cart() {
                   </div>
                 )}
               </div>
-{/* Bill Details */}
+              {/* Bill Details */}
               <div className="rounded-3xl border border-gray-100 bg-white px-4 md:px-6 py-5 shadow-sm dark:border-gray-800 dark:bg-[#141414]">
                 <button
                   onClick={() => setShowBillDetails(!showBillDetails)}
@@ -2707,7 +2713,8 @@ function Cart() {
                   </div>
                 )}
               </div>
-
+            </div>
+          </div>
         </div>
       </div>
 
