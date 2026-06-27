@@ -1524,27 +1524,36 @@ export const publicGetOnce = (url, config = {}) => {
 
 const getPublicRestaurantsOnce = (params = {}, config = {}) => {
   const { noCache, ...axiosConfig } = config || {};
+  const scopeHome = String(params.scope || "").toLowerCase() === "home";
+  const maxLimit = scopeHome ? 15 : 100;
+  const defaultLimit = scopeHome ? 12 : 20;
+  const keyParams = { page: 1, limit: defaultLimit, ...params };
+  delete keyParams._ts;
+  if (keyParams.page != null) {
+    keyParams.page = Math.max(1, parseInt(keyParams.page, 10) || 1);
+  }
+  if (keyParams.limit != null) {
+    keyParams.limit = Math.min(
+      Math.max(parseInt(keyParams.limit, 10) || defaultLimit, 1),
+      maxLimit,
+    );
+  }
+  if (keyParams.lat != null && Number.isFinite(Number(keyParams.lat))) {
+    keyParams.lat = Math.round(Number(keyParams.lat) * 1000) / 1000;
+  }
+  if (keyParams.lng != null && Number.isFinite(Number(keyParams.lng))) {
+    keyParams.lng = Math.round(Number(keyParams.lng) * 1000) / 1000;
+  }
   if (noCache) {
     return apiClient.get("/food/restaurant/restaurants", {
-      params: { limit: 1000, ...params },
+      params: keyParams,
       ...axiosConfig,
     });
-  }
-  const keyParams = { limit: 1000, ...params };
-  // `_ts` is an explicit cache-buster in many call sites; ignore it for dedupe purposes.
-  if (keyParams && typeof keyParams === "object") {
-    delete keyParams._ts;
-    if (keyParams.lat != null && Number.isFinite(Number(keyParams.lat))) {
-      keyParams.lat = Math.round(Number(keyParams.lat) * 1000) / 1000;
-    }
-    if (keyParams.lng != null && Number.isFinite(Number(keyParams.lng))) {
-      keyParams.lng = Math.round(Number(keyParams.lng) * 1000) / 1000;
-    }
   }
   const key = `restaurants:${stableStringify(keyParams)}`;
   return publicRestaurantsCache.getOrCreate(key, () =>
     apiClient.get("/food/restaurant/restaurants", {
-      params: { limit: 1000, ...params },
+      params: keyParams,
       ...axiosConfig,
     }),
   );
@@ -1552,7 +1561,7 @@ const getPublicRestaurantsOnce = (params = {}, config = {}) => {
 
 const getPublicRestaurantMenuOnce = (id, config = {}) => {
   const safeId = String(id || "").trim();
-  const { noCache, ...axiosConfig } = config || {};
+  const { noCache, params, ...axiosConfig } = config || {};
   if (!safeId) {
     return Promise.resolve({
       data: { success: false, data: null },
@@ -1562,14 +1571,17 @@ const getPublicRestaurantMenuOnce = (id, config = {}) => {
       config: {},
     });
   }
+  const requestParams = params && typeof params === "object" ? params : undefined;
   if (noCache) {
     return apiClient.get(`/food/restaurant/restaurants/${safeId}/menu`, {
+      params: requestParams,
       ...axiosConfig,
     });
   }
-  const key = `menu:${safeId}`;
+  const key = `menu:${safeId}:${stableStringify(requestParams || { page: 1 })}`;
   return publicRestaurantMenuCache.getOrCreate(key, () =>
     apiClient.get(`/food/restaurant/restaurants/${safeId}/menu`, {
+      params: requestParams,
       ...axiosConfig,
     }),
   );
@@ -2378,6 +2390,18 @@ export const orderAPI = {
         typeof payload.meta === "object"
       ) {
         const meta = payload.meta;
+        const pagination = {
+          total: Number(meta.total || 0),
+          page: Number(meta.page || 1),
+          limit: Number(meta.limit || params.limit || 20),
+          totalPages: Number(meta.totalPages || 1),
+          hasNextPage: Boolean(
+            meta.hasNextPage ?? meta.page < (meta.totalPages || 1),
+          ),
+          hasPreviousPage: Boolean(
+            meta.hasPreviousPage ?? meta.hasPrevPage ?? meta.page > 1,
+          ),
+        };
         return {
           ...res,
           data: {
@@ -2385,12 +2409,25 @@ export const orderAPI = {
             data: {
               ...payload,
               orders: payload.data,
-              pagination: {
-                total: Number(meta.total || 0),
-                page: Number(meta.page || 1),
-                limit: Number(meta.limit || params.limit || 20),
-                pages: Number(meta.totalPages || 1),
-              },
+              pagination,
+            },
+          },
+        };
+      }
+
+      if (
+        payload &&
+        typeof payload === "object" &&
+        payload.pagination &&
+        Array.isArray(payload.data)
+      ) {
+        return {
+          ...res,
+          data: {
+            ...res.data,
+            data: {
+              ...payload,
+              orders: payload.data,
             },
           },
         };

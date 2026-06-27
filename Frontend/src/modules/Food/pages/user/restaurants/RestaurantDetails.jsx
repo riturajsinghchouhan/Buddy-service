@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, Component, useMemo } from "react"
+import { useState, useEffect, useRef, Component, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
+import { normalizePagination } from "@food/utils/pagination"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { restaurantAPI, diningAPI, orderAPI } from "@food/api"
@@ -210,12 +211,19 @@ function RestaurantDetailsContent() {
   const [selectedMenuCategory, setSelectedMenuCategory] = useState("all")
   const dishCardRefs = useRef({})
 
-  const [menuPage, setMenuPage] = useState(1)
-  const [hasMoreMenu, setHasMoreMenu] = useState(false)
+  const [menuPagination, setMenuPagination] = useState({
+    page: 1,
+    limit: 15,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
   const [loadingMoreMenu, setLoadingMoreMenu] = useState(false)
   const menuLookupIdsRef = useRef([])
   const resolvedMenuLookupIdRef = useRef(null)
   const currentMenuPageRef = useRef(1)
+  const menuLoadMoreRef = useRef(null)
 
   const getLineItemIdForDish = (item, variant = null) =>
     buildCartLineId(item?.id || item?._id || "", variant?.id || variant?._id || "")
@@ -363,11 +371,11 @@ function RestaurantDetailsContent() {
     return () => clearInterval(intervalId)
   }, [])
 
-  const loadMoreMenu = async () => {
-    if (loadingMoreMenu || !hasMoreMenu || !resolvedMenuLookupIdRef.current) return
+  const loadMoreMenu = useCallback(async () => {
+    if (loadingMoreMenu || !menuPagination.hasNextPage || !resolvedMenuLookupIdRef.current) return
 
     setLoadingMoreMenu(true)
-    const nextPage = currentMenuPageRef.current + 1
+    const nextPage = menuPagination.page + 1
     debugLog('? Fetching menu page:', nextPage)
 
     try {
@@ -410,27 +418,38 @@ function RestaurantDetailsContent() {
           }
         })
 
-        const pagination = response.data.data.menu.pagination || {}
-        setHasMoreMenu(pagination.hasMore === true)
-        setMenuPage(nextPage)
-        currentMenuPageRef.current = nextPage
+        const pagination = normalizePagination(response.data.data.menu.pagination)
+        setMenuPagination(pagination)
+        currentMenuPageRef.current = pagination.page
       }
     } catch (error) {
       debugError('? Error fetching more menu items:', error)
     } finally {
       setLoadingMoreMenu(false)
     }
-  }
+  }, [loadingMoreMenu, menuPagination.hasNextPage, menuPagination.page])
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 300) {
+    if (!menuPagination.hasNextPage || loadingMoreMenu) return
+    const target = menuLoadMoreRef.current
+    if (!target || typeof window === 'undefined') return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (!entry?.isIntersecting) return
         loadMoreMenu()
-      }
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [hasMoreMenu, loadingMoreMenu])
+      },
+      {
+        root: null,
+        rootMargin: '300px 0px',
+        threshold: 0.01,
+      },
+    )
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [menuPagination.hasNextPage, loadingMoreMenu, loadMoreMenu])
 
   useEffect(() => {
     if (restaurant) {
@@ -923,38 +942,19 @@ function RestaurantDetailsContent() {
                   ].map(normalize).filter(Boolean)
                 )
 
-                const FETCH_LIMIT = 100
-                const firstResponse = await orderAPI.getOrders({ limit: FETCH_LIMIT, page: 1 })
-                let allOrders = []
-                let totalPages = 1
+                const ORDERS_CHECK_LIMIT = 30
+                const ordersResponse = await orderAPI.getOrders({ limit: ORDERS_CHECK_LIMIT, page: 1 })
+                let recentOrders = []
 
-                if (firstResponse?.data?.success && firstResponse?.data?.data?.orders) {
-                  allOrders = firstResponse.data.data.orders || []
-                  totalPages = firstResponse.data.data?.pagination?.pages || 1
-                } else if (firstResponse?.data?.orders) {
-                  allOrders = firstResponse.data.orders || []
-                  totalPages = firstResponse.data?.pagination?.pages || 1
-                } else if (Array.isArray(firstResponse?.data?.data)) {
-                  allOrders = firstResponse.data.data || []
+                if (ordersResponse?.data?.success && ordersResponse?.data?.data?.orders) {
+                  recentOrders = ordersResponse.data.data.orders || []
+                } else if (ordersResponse?.data?.orders) {
+                  recentOrders = ordersResponse.data.orders || []
+                } else if (Array.isArray(ordersResponse?.data?.data)) {
+                  recentOrders = ordersResponse.data.data || []
                 }
 
-                if (totalPages > 1) {
-                  const pagePromises = []
-                  for (let p = 2; p <= totalPages; p += 1) {
-                    pagePromises.push(orderAPI.getOrders({ limit: FETCH_LIMIT, page: p }))
-                  }
-
-                  const pageResponses = await Promise.all(pagePromises)
-                  const remainingOrders = pageResponses.flatMap((resp) => {
-                    if (resp?.data?.success && resp?.data?.data?.orders) return resp.data.data.orders || []
-                    if (resp?.data?.orders) return resp.data.orders || []
-                    if (Array.isArray(resp?.data?.data)) return resp.data.data || []
-                    return []
-                  })
-                  allOrders = [...allOrders, ...remainingOrders]
-                }
-
-                hasPreviousOrderForRestaurant = allOrders.some((order) => {
+                hasPreviousOrderForRestaurant = recentOrders.some((order) => {
                   const orderRestaurantField = order?.restaurantId
                   const candidateIds = [
                     order?.restaurantId,
@@ -1133,10 +1133,9 @@ function RestaurantDetailsContent() {
                   })
                   .filter(Boolean)
 
-                 const pagination = menuResponse.data.data.menu.pagination || {}
-                setHasMoreMenu(pagination.hasMore === true)
-                setMenuPage(1)
-                currentMenuPageRef.current = 1
+                 const pagination = normalizePagination(menuResponse.data.data.menu.pagination)
+                setMenuPagination(pagination)
+                currentMenuPageRef.current = pagination.page
 
                 setRestaurant(prev => ({
                   ...prev,
@@ -2419,6 +2418,13 @@ function RestaurantDetailsContent() {
                     <div className="animate-spin rounded-full h-8 w-8 border-[#16A34A] dark:border-[#15803D]"></div>
                     <span className="ml-3 text-sm text-gray-500">Loading more items...</span>
                   </div>
+                )}
+                {menuPagination.hasNextPage && (
+                  <div
+                    ref={menuLoadMoreRef}
+                    className="h-1 w-full"
+                    aria-hidden="true"
+                  />
                 )}
               </>
             )}

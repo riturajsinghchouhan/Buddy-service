@@ -238,6 +238,7 @@ function Cart() {
 
   const [sendCutlery, setSendCutlery] = useState(true)
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
+  const placeOrderInFlightRef = useRef(false)
   const [showBillDetails, setShowBillDetails] = useState(true)
   const [showPlacingOrder, setShowPlacingOrder] = useState(false)
   const [deliveryOption, setDeliveryOption] = useState("standard")
@@ -1577,7 +1578,16 @@ function Cart() {
   }
 
 
+  const releasePlaceOrderLock = () => {
+    placeOrderInFlightRef.current = false
+    setIsPlacingOrder(false)
+  }
+
   const handlePlaceOrder = async () => {
+    if (placeOrderInFlightRef.current || isPlacingOrder) {
+      return
+    }
+
     if (!hasSavedAddress) {
       toast.error("Please choose a delivery location to continue")
       openLocationSelector()
@@ -1609,6 +1619,7 @@ function Cart() {
       }
     }
 
+    placeOrderInFlightRef.current = true
     setIsPlacingOrder(true)
 
     try {
@@ -1681,7 +1692,7 @@ function Cart() {
           }))
         });
         alert('Error: Restaurant information is missing. Please refresh the page and try again.');
-        setIsPlacingOrder(false);
+        releasePlaceOrderLock();
         return;
       }
 
@@ -1716,7 +1727,7 @@ function Cart() {
         if (invalidItems.length > 0) {
           debugError('? Invalid cart items found - missing restaurant info!', invalidItems);
           alert('Error: Some items are missing restaurant information. Please refresh and try again.');
-          setIsPlacingOrder(false);
+          releasePlaceOrderLock();
           return;
         }
       }
@@ -1731,7 +1742,7 @@ function Cart() {
             finalRestaurantName: finalRestaurantName
           });
           alert(`Error: Cart items belong to "${cartRestaurantName}" but restaurant data shows "${finalRestaurantName}". Please refresh the page and try again.`);
-          setIsPlacingOrder(false);
+          releasePlaceOrderLock();
           return;
         }
       }
@@ -1782,7 +1793,7 @@ function Cart() {
       // Check wallet balance if wallet payment selected
       if (selectedPaymentMethod === "wallet" && walletBalance < total) {
         toast.error(`Insufficient wallet balance. Required: ${RUPEE_SYMBOL}${total.toFixed(0)}, Available: ${RUPEE_SYMBOL}${walletBalance.toFixed(0)}`)
-        setIsPlacingOrder(false)
+        releasePlaceOrderLock()
         return
       }
 
@@ -1816,7 +1827,7 @@ function Cart() {
         } catch {
           // ignore
         }
-        setIsPlacingOrder(false)
+        releasePlaceOrderLock()
         return
       }
 
@@ -1843,7 +1854,7 @@ function Cart() {
         } catch {
           // ignore
         }
-        setIsPlacingOrder(false)
+        releasePlaceOrderLock()
         // Refresh wallet balance
         try {
           const walletResponse = await userAPI.getWallet()
@@ -1950,7 +1961,7 @@ function Cart() {
               try {
                 window.localStorage.removeItem('scheduled_order_time')
               } catch { }
-              setIsPlacingOrder(false)
+              releasePlaceOrderLock()
             } else {
               throw new Error(verifyResponse.data.message || "Payment verification failed")
             }
@@ -1963,7 +1974,7 @@ function Cart() {
               error?.message ||
               "Payment verification failed. Please contact support."
             alert(errorMessage)
-            setIsPlacingOrder(false)
+            releasePlaceOrderLock()
           }
         },
         onError: async (error) => {
@@ -1988,7 +1999,7 @@ function Cart() {
           } else {
             toast.info("Payment was cancelled. No order has been placed.")
           }
-          setIsPlacingOrder(false)
+          releasePlaceOrderLock()
         },
         onClose: async () => {
           if (paymentHandled) return
@@ -2007,7 +2018,7 @@ function Cart() {
               toast.warning("Payment was not completed. If you see a pending order, please cancel it manually.")
             }
           }
-          setIsPlacingOrder(false)
+          releasePlaceOrderLock()
         }
       })
     } catch (error) {
@@ -2057,7 +2068,7 @@ function Cart() {
       }
 
       alert(errorMessage)
-      setIsPlacingOrder(false)
+      releasePlaceOrderLock()
     }
   }
 
@@ -2925,7 +2936,7 @@ function Cart() {
               <button
                 onClick={() => {
                   setShowPlacingOrder(false)
-                  setIsPlacingOrder(false)
+                  releasePlaceOrderLock()
                 }}
                 className="w-full text-right"
               >
