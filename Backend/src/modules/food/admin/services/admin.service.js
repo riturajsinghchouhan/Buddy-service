@@ -41,6 +41,13 @@ import {
     checkRestaurantPhoneAvailability,
     checkRestaurantEmailAvailability,
 } from '../../restaurant/services/restaurantCreation.service.js';
+import {
+    getOutletTimingsForRestaurant,
+    parseOutletTimingsInput,
+    legacyRestaurantToOutletTimings,
+    upsertOutletTimingsForRestaurant,
+    getDefaultOutletTimingsShape,
+} from '../../restaurant/services/outletTimings.service.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurantWithdrawal.model.js';
 import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
@@ -2218,10 +2225,18 @@ export async function getRestaurantReviews(query = {}) {
 
 export async function getRestaurantById(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    return FoodRestaurant.findById(id)
-        .select('-__v')
-        .populate('zoneId', 'name zoneName serviceLocation isActive')
-        .lean();
+    const [restaurant, timings] = await Promise.all([
+        FoodRestaurant.findById(id)
+            .select('-__v')
+            .populate('zoneId', 'name zoneName serviceLocation isActive')
+            .lean(),
+        getOutletTimingsForRestaurant(id).catch(() => ({ outletTimings: getDefaultOutletTimingsShape() })),
+    ]);
+    if (!restaurant) return null;
+    return {
+        ...restaurant,
+        outletTimings: timings?.outletTimings || getDefaultOutletTimingsShape(),
+    };
 }
 
 export async function getRestaurantAnalytics(restaurantId) {
@@ -2440,12 +2455,14 @@ export async function updateRestaurantById(id, body = {}) {
         }
     }
 
-    if (body.openingTime !== undefined) doc.openingTime = normalizeRestaurantTime(body.openingTime) || '';
-    if (body.closingTime !== undefined) doc.closingTime = normalizeRestaurantTime(body.closingTime) || '';
-    validateOpeningClosingTimes(doc.openingTime, doc.closingTime);
-    if (body.openDays !== undefined && Array.isArray(body.openDays)) {
-        doc.openDays = body.openDays.map(d => toStr(d)).filter(Boolean);
+    if (body.outletTimings !== undefined) {
+        const outletTimings = parseOutletTimingsInput(body.outletTimings);
+        if (!outletTimings) {
+            throw new ValidationError('outletTimings must be an object keyed by day name');
+        }
+        await upsertOutletTimingsForRestaurant(id, outletTimings);
     }
+
     if (body.offer !== undefined) doc.offer = toStr(body.offer);
 
     if (body.estimatedDeliveryTime !== undefined) {
@@ -2498,7 +2515,10 @@ export async function updateRestaurantById(id, body = {}) {
     }
 
     await doc.save();
-    return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
+    const updated = await FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
+    if (!updated) return null;
+    const { outletTimings } = await getOutletTimingsForRestaurant(id);
+    return { ...updated, outletTimings };
 }
 
 export async function updateRestaurantStatus(id, body = {}) {
@@ -2842,7 +2862,16 @@ export async function updateCategory(id, body) {
             doc.zoneId = new mongoose.Types.ObjectId(raw);
         }
     }
-    if (body.isActive !== undefined) doc.isActive = body.isActive !== false;
+    if (body.isActive !== undefined) {
+        const nextActive = body.isActive !== false;
+        if (nextActive) {
+            doc.isActive = true;
+            doc.adminDeactivated = false;
+        } else {
+            doc.isActive = false;
+            doc.adminDeactivated = true;
+        }
+    }
     if (body.sortOrder !== undefined) doc.sortOrder = Number(body.sortOrder) || 0;
     if (!doc.createdByRestaurantId && doc.restaurantId) {
         doc.createdByRestaurantId = doc.restaurantId;
@@ -2855,7 +2884,7 @@ export async function deleteCategory(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const inUse = await FoodItem.countDocuments({ categoryId: id });
     if (inUse > 0) {
-        throw new ValidationError('Cannot delete category while it has items');
+        throw new ValidationError('This category has items. Deactivate it instead of deleting.');
     }
     const existing = await FoodCategory.findById(id).lean();
     if (!existing) return null;
@@ -2872,7 +2901,10 @@ export async function toggleCategoryStatus(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const doc = await FoodCategory.findById(id);
     if (!doc) return null;
-    doc.isActive = !doc.isActive;
+    const currentlyVisible = doc.isActive !== false && doc.adminDeactivated !== true;
+    const nextActive = !currentlyVisible;
+    doc.isActive = nextActive;
+    doc.adminDeactivated = !nextActive;
     if (!doc.createdByRestaurantId && doc.restaurantId) {
         doc.createdByRestaurantId = doc.restaurantId;
     }
@@ -3353,9 +3385,12 @@ export async function createRestaurantByAdmin(body) {
         ? body.menuImages.map((m) => toUrl(m)).filter(Boolean)
         : [];
 
-    const normalizedOpeningTime = normalizeRestaurantTime(body.openingTime) || '09:00';
-    const normalizedClosingTime = normalizeRestaurantTime(body.closingTime) || '22:00';
-    validateOpeningClosingTimes(normalizedOpeningTime, normalizedClosingTime);
+    const outletTimings = parseOutletTimingsInput(body.outletTimings)
+        || legacyRestaurantToOutletTimings({
+            openDays: Array.isArray(body.openDays) ? body.openDays : [],
+            openingTime: normalizeRestaurantTime(body.openingTime) || '09:00',
+            closingTime: normalizeRestaurantTime(body.closingTime) || '22:00',
+        });
 
     const doc = {
         restaurantName: toStr(body.restaurantName) || toStr(body.name),
@@ -3374,9 +3409,6 @@ export async function createRestaurantByAdmin(body) {
         pincode: toStr(loc.pincode),
         landmark: toStr(loc.landmark),
         cuisines: Array.isArray(body.cuisines) ? body.cuisines : [],
-        openingTime: normalizedOpeningTime,
-        closingTime: normalizedClosingTime,
-        openDays: Array.isArray(body.openDays) ? body.openDays : [],
         panNumber: toStr(body.panNumber),
         nameOnPan: toStr(body.nameOnPan),
         gstRegistered: Boolean(body.gstRegistered),
@@ -3446,7 +3478,10 @@ export async function createRestaurantByAdmin(body) {
     }
 
     const restaurant = await createRestaurant(doc, { source: CREATION_SOURCE.ADMIN });
-    return restaurant.toObject ? restaurant.toObject() : restaurant;
+    const restaurantObject = restaurant.toObject ? restaurant.toObject() : restaurant;
+    await upsertOutletTimingsForRestaurant(restaurantObject._id, outletTimings);
+    const { outletTimings: savedOutletTimings } = await getOutletTimingsForRestaurant(restaurantObject._id);
+    return { ...restaurantObject, outletTimings: savedOutletTimings };
 }
 
 export async function checkRestaurantPhoneForAdmin(phone) {

@@ -191,17 +191,7 @@ export function transformRestaurantApiList(
       location: restaurant.location,
       isActive: restaurant.isActive !== false,
       isAcceptingOrders: restaurant.isAcceptingOrders !== false,
-      openDays: Array.isArray(restaurant.openDays) ? restaurant.openDays : [],
-      deliveryTimings: restaurant.deliveryTimings || null,
       outletTimings: restaurant.outletTimings || null,
-      openingTime:
-        restaurant.openingTime ||
-        restaurant?.deliveryTimings?.openingTime ||
-        null,
-      closingTime:
-        restaurant.closingTime ||
-        restaurant?.deliveryTimings?.closingTime ||
-        null,
     };
   });
 

@@ -114,19 +114,10 @@ const restaurantSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    openingTime: {
-      type: String,
-    },
-    closingTime: {
-      type: String,
-    },
-    openDays: {
-      type: [String],
-      default: [],
-    } /**
+    /**
      * Operational toggle controlled by restaurant dashboard.
      * When false, restaurant is shown as offline / not accepting orders even within open hours.
-     */,
+     */
     isAcceptingOrders: {
       type: Boolean,
       default: true,

@@ -71,6 +71,8 @@ export async function invalidateAfterAdminRestaurantMutation() {
 }
 
 export async function invalidateAfterAdminCategoryMutation() {
+    await invalidateFoodRestaurantMenuCaches();
+    await invalidateFoodRestaurantListCaches();
     await invalidateFoodSearchCaches();
 }
 

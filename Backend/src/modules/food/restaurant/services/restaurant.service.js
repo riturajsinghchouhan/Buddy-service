@@ -22,7 +22,11 @@ import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodDiningRestaurant } from '../../dining/models/diningRestaurant.model.js';
 import {
     getDefaultOutletTimingsShape,
-    getOutletTimingsMapForRestaurants
+    getOutletTimingsMapForRestaurants,
+    getOutletTimingsForRestaurant,
+    parseOutletTimingsInput,
+    legacyRestaurantToOutletTimings,
+    upsertOutletTimingsForRestaurant,
 } from './outletTimings.service.js';
 import {
     createRestaurant,
@@ -196,9 +200,6 @@ const toRestaurantProfile = (doc) => {
         profileImage: doc.profileImage ? { url: doc.profileImage } : null,
         menuImages,
         coverImages,
-        openingTime: normalizeRestaurantTime(doc.openingTime) || null,
-        closingTime: normalizeRestaurantTime(doc.closingTime) || null,
-        openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
         estimatedDeliveryTime: doc.estimatedDeliveryTime || '',
         estimatedDeliveryTimeMinutes:
             Number.isFinite(Number(doc.estimatedDeliveryTimeMinutes))
@@ -301,6 +302,7 @@ export const registerRestaurant = async (payload, files) => {
         longitude,
         zoneId,
         cuisines,
+        outletTimings: outletTimingsPayload,
         openingTime,
         closingTime,
         openDays,
@@ -372,18 +374,13 @@ export const registerRestaurant = async (payload, files) => {
         throw new ValidationError('Menu PDF is required');
     }
 
-    const normalizedOpeningTime = normalizeRestaurantTime(openingTime);
-    const normalizedClosingTime = normalizeRestaurantTime(closingTime);
-    const openingMinutes = timeToMinutes(normalizedOpeningTime);
-    const closingMinutes = timeToMinutes(normalizedClosingTime);
-    if (openingMinutes !== null && closingMinutes !== null) {
-        if (openingMinutes === closingMinutes) {
-            throw new ValidationError('Opening time and closing time cannot be same');
-        }
-        if (closingMinutes < openingMinutes) {
-            throw new ValidationError('Closing time cannot be less than opening time');
-        }
-    }
+    const outletTimings = parseOutletTimingsInput(outletTimingsPayload)
+        || legacyRestaurantToOutletTimings({
+            openDays: openDays || [],
+            openingTime,
+            closingTime,
+        });
+
     const estimatedDeliveryTimeText = String(estimatedDeliveryTime || '').trim();
     const estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText);
 
@@ -418,9 +415,6 @@ export const registerRestaurant = async (payload, files) => {
                 landmark: landmark || ''
             },
             cuisines: cuisines || [],
-            openingTime: normalizedOpeningTime || undefined,
-            closingTime: normalizedClosingTime || undefined,
-            openDays: openDays || [],
             estimatedDeliveryTime: estimatedDeliveryTimeText || undefined,
             estimatedDeliveryTimeMinutes: estimatedDeliveryTimeMinutes ?? undefined,
             panNumber,
@@ -440,6 +434,8 @@ export const registerRestaurant = async (payload, files) => {
             imagePublicIds,
             ...images
         }, { source: CREATION_SOURCE.LEGACY_REGISTER });
+
+        await upsertOutletTimingsForRestaurant(restaurant._id, outletTimings);
 
         try {
             const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
@@ -492,9 +488,6 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'profileImage',
                 'coverImages',
                 'menuImages',
-                'openingTime',
-                'closingTime',
-                'openDays',
                 'estimatedDeliveryTime',
                 'estimatedDeliveryTimeMinutes',
                 'diningSettings',
@@ -533,7 +526,12 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
             ].join(' ')
         )
         .lean();
-    return toRestaurantProfile(doc);
+    if (!doc) return null;
+    const { outletTimings } = await getOutletTimingsForRestaurant(restaurantId);
+    return {
+        ...toRestaurantProfile(doc),
+        outletTimings,
+    };
 };
 
 export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingOrders) => {
@@ -910,36 +908,10 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         }
     }
 
-    if (body.openingTime !== undefined) {
-        update.openingTime = normalizeRestaurantTime(body.openingTime) || '';
-    }
-    if (body.closingTime !== undefined) {
-        update.closingTime = normalizeRestaurantTime(body.closingTime) || '';
-    }
-    if (body.openDays !== undefined) {
-        if (!Array.isArray(body.openDays)) {
-            throw new ValidationError('openDays must be an array');
-        }
-        update.openDays = body.openDays
-            .map((day) => String(day || '').trim())
-            .filter(Boolean)
-            .slice(0, 7);
-    }
     if (body.estimatedDeliveryTime !== undefined) {
         const estimatedDeliveryTimeText = String(body.estimatedDeliveryTime || '').trim();
         update.estimatedDeliveryTime = estimatedDeliveryTimeText;
         update.estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText) ?? undefined;
-    }
-
-    const openingMinutes = body.openingTime !== undefined ? timeToMinutes(update.openingTime) : null;
-    const closingMinutes = body.closingTime !== undefined ? timeToMinutes(update.closingTime) : null;
-    if (openingMinutes !== null && closingMinutes !== null) {
-        if (openingMinutes === closingMinutes) {
-            throw new ValidationError('Opening time and closing time cannot be same');
-        }
-        if (closingMinutes < openingMinutes) {
-            throw new ValidationError('Closing time cannot be less than opening time');
-        }
     }
 
     if (body.menuImages !== undefined) {
@@ -1688,9 +1660,6 @@ export const listApprovedRestaurants = async (query = {}) => {
                 totalRatings: normalizeTotalRatingsValue(r.totalRatings),
                 profileImage: r.profileImage ? { url: r.profileImage } : null,
                 coverImages: Array.isArray(r.coverImages) ? r.coverImages : [],
-                openingTime: r.openingTime || null,
-                closingTime: r.closingTime || null,
-                openDays: Array.isArray(r.openDays) ? r.openDays : [],
                 menuImages: Array.isArray(r.menuImages) ? r.menuImages : [],
                 outletTimings: outletTimingsMap.get(rid) || defaultOutletTimings
             };
@@ -1723,11 +1692,17 @@ export const listApprovedRestaurants = async (query = {}) => {
         restaurantIds.length
             ? (async () => {
                 const { FoodItem } = await import('../../admin/models/food.model.js');
-                return FoodItem.find({
+                const { buildFoodVisibleCategoryFilter } = await import('../../shared/categoryWorkflow.js');
+                const featuredFilter = {
                     restaurantId: { $in: restaurantIds },
                     approvalStatus: 'approved',
                     image: { $ne: '' }
-                })
+                };
+                const visibleCategoryFilter = await buildFoodVisibleCategoryFilter();
+                if (visibleCategoryFilter) {
+                    featuredFilter.$and = [...(featuredFilter.$and || []), visibleCategoryFilter];
+                }
+                return FoodItem.find(featuredFilter)
                     .select('name image price restaurantId')
                     .sort({ createdAt: -1 })
                     .lean();
@@ -1763,9 +1738,6 @@ export const listApprovedRestaurants = async (query = {}) => {
             totalRatings: normalizeTotalRatingsValue(r.totalRatings),
             profileImage: r.profileImage ? { url: r.profileImage } : null,
             coverImages: Array.isArray(r.coverImages) ? r.coverImages : [],
-            openingTime: r.openingTime || null,
-            closingTime: r.closingTime || null,
-            openDays: Array.isArray(r.openDays) ? r.openDays : [],
             // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
             menuImages: Array.isArray(r.menuImages) ? r.menuImages : [],
             featuredItems: featuredItemsMap.get(rid) || [],

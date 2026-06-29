@@ -4,6 +4,8 @@ import { FoodOrder, FoodSettings } from '../models/order.model.js';
 import { logger } from '../../../../utils/logger.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
+import { attachOutletTimingsToRestaurants } from '../../restaurant/services/outletTimings.service.js';
+import { getRestaurantOrderableStatus } from '../../shared/utils/restaurantAvailability.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodFeeSettings } from '../../admin/models/feeSettings.model.js';
@@ -153,7 +155,10 @@ export async function createOrder(userId, dto) {
 
   if (restaurants.length === 0) throw new ValidationError("Restaurants not found");
 
-  for (const r of restaurants) {
+  const restaurantsWithTimings = await attachOutletTimingsToRestaurants(restaurants);
+  const now = new Date();
+
+  for (const r of restaurantsWithTimings) {
     if (
       r.status !== "approved" ||
       r.profileReviewStatus === "pending" ||
@@ -161,9 +166,16 @@ export async function createOrder(userId, dto) {
     ) {
       throw new ValidationError(`Restaurant ${r.name || r.restaurantName} is not accepting orders`);
     }
+
+    const orderable = getRestaurantOrderableStatus(r, now);
+    if (!orderable.isOrderable) {
+      throw new ValidationError(
+        `Restaurant ${r.name || r.restaurantName} is closed right now. Please try again during open hours.`,
+      );
+    }
   }
 
-  const mainRestaurant = restaurants[0];
+  const mainRestaurant = restaurantsWithTimings[0];
   const settings = await getDispatchSettings();
   const dispatchMode = settings.dispatchMode;
 

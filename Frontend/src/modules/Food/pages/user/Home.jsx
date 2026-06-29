@@ -1806,8 +1806,9 @@ export default function Home() {
         slug: restaurant?.slug || restaurant?.restaurantId || restaurantId,
         offer: null,
         pureVegRestaurant: restaurant?.pureVegRestaurant === true,
-        isActive: true,
-        isAcceptingOrders: true,
+        isActive: restaurant?.isActive !== false,
+        isAcceptingOrders: restaurant?.isAcceptingOrders !== false,
+        outletTimings: restaurant?.outletTimings || null,
       };
     });
 
