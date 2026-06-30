@@ -203,6 +203,19 @@ export const requestOtpUnified = async ({ phone, role }) => {
   }
 
   const normalizedRole = normalizeRoleKey(role);
+
+  if (normalizedRole === ROLE_USER) {
+    const user = await FoodUser.findOne({ 
+      $or: [
+        { phone: phoneLast10 },
+        { phone: { $regex: new RegExp(phoneLast10 + '$') } }
+      ]
+    });
+    if (user && user.isActive === false) {
+      throw new AuthError('Your account has been deactivated. Please contact support.');
+    }
+  }
+
   const otp = await createOrUpdateOtp(phoneLast10);
   logger.info(`[unified-auth] OTP requested for ${phoneLast10} (role=${normalizedRole})`);
 
@@ -266,6 +279,17 @@ export const verifyOtpUnified = async ({
 
   // === Branch on role =====================================================
   if (normalizedRole === ROLE_USER) {
+    // Find if there's an existing FoodUser that is deactivated before doing anything
+    const existingFoodUser = await FoodUser.findOne({ 
+      $or: [
+        { phone: phoneLast10 },
+        { phone: { $regex: new RegExp(phoneLast10 + '$') } }
+      ]
+    });
+    if (existingFoodUser && existingFoodUser.isActive === false) {
+      throw new AuthError('Your account has been deactivated. Please contact support.');
+    }
+
     const [foodUser, taxiUser] = await Promise.all([
       ensureFoodUserForIdentity(identity, { name: trimmedName }),
       ensureTaxiUserForIdentity(identity, { name: trimmedName }),
