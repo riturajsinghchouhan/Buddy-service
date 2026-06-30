@@ -28,36 +28,45 @@ import DriverPageLoader from "../components/DriverPageLoader";
 import {
   FIELD_LIMITS,
   prepareOnboardingStepState,
+  STEP_MEDIA_PATHS,
   setByPath,
   validateOnboardingImageFile,
   validateOnboardingStep,
 } from "../utils/onboardingValidation";
 
-const buildSteps = (services = []) => {
-  const steps = [{ key: "services", label: "Services", Icon: CheckCircle2 }];
-  if (services.includes("food")) {
-    steps.push({ key: "vehicle_food", label: "Food", Icon: Bike });
+const buildSteps = (services = [], resubmitServices = null) => {
+  const steps = [];
+  const needsFoodVehicle = services.includes("food") || services.includes("quickCommerce");
+  const needsTaxiVehicle = services.includes("taxi");
+
+  if (!resubmitServices) {
+    steps.push({ key: "services", label: "Services", Icon: CheckCircle2 });
   }
-  if (services.includes("taxi")) {
+  if (needsFoodVehicle && (!resubmitServices || resubmitServices.some((s) => s === "food" || s === "quickCommerce"))) {
+    steps.push({ key: "vehicle_food", label: "Delivery", Icon: Bike });
+  }
+  if (needsTaxiVehicle && (!resubmitServices || resubmitServices.includes("taxi"))) {
     steps.push({ key: "vehicle_taxi", label: "Taxi", Icon: Car });
   }
-  steps.push(
-    { key: "basics", label: "About You", Icon: User },
-    { key: "kyc", label: "KYC", Icon: IdCard },
-    { key: "bank", label: "Bank", Icon: Banknote },
-    { key: "selfie", label: "Selfie", Icon: Camera },
-  );
+  if (!resubmitServices) {
+    steps.push(
+      { key: "basics", label: "About You", Icon: User },
+      { key: "kyc", label: "KYC", Icon: IdCard },
+      { key: "bank", label: "Bank", Icon: Banknote },
+    );
+  }
+  steps.push({ key: "selfie", label: resubmitServices ? "Submit" : "Selfie", Icon: Camera });
   return steps;
 };
 
 const STEP_META = {
   services: {
     title: "What do you want to drive for?",
-    subtitle: "Pick one or both. You can add the other service later from home.",
+    subtitle: "Pick one or more services. Food and Quick Commerce share the same delivery profile.",
   },
   vehicle_food: {
-    title: "Food delivery vehicle",
-    subtitle: "Choose your two-wheeler and enter the registration number.",
+    title: "Delivery vehicle",
+    subtitle: "Used for Food and Quick Commerce deliveries.",
   },
   vehicle_taxi: {
     title: "Your taxi vehicle",
@@ -106,7 +115,7 @@ export default function OnboardingWizard() {
   const [state, setState] = useState({
     onboardingServices: [],
     foodVehicle: { type: "bike", number: "", make: "", model: "", color: "", photoUrl: "", rcUrl: "", insuranceUrl: "" },
-    taxiVehicle: { type: "", vehicleTypeId: "", name: "", number: "", make: "", model: "", color: "", photoUrl: "", rcUrl: "", insuranceUrl: "" },
+    taxiVehicle: { type: "", vehicleTypeId: "", name: "", number: "", make: "", model: "", color: "", photoUrl: "", rcUrl: "", insuranceUrl: "", commercialPermitUrl: "", pucUrl: "" },
     basics: { name: "", email: "", gender: "", city: "" },
     kyc: {
       aadhaar: { number: "", documentUrl: "", backDocumentUrl: "" },
@@ -130,6 +139,8 @@ export default function OnboardingWizard() {
   const [bootLoading, setBootLoading] = useState(true);
   const [stepLoading, setStepLoading] = useState(false);
   const [pendingUploads, setPendingUploads] = useState({});
+  const [resubmitMode, setResubmitMode] = useState(false);
+  const [rejectedServices, setRejectedServices] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,14 +150,28 @@ export default function OnboardingWizard() {
         if (cancelled) return;
         const data = res?.data?.data || res?.data || {};
 
-        if (data?.onboardingComplete) {
+        if (data?.onboardingLocked) {
           navigate("/driver/home", { replace: true });
           return;
         }
 
+        if (data?.onboardingComplete && !data?.resubmitAllowed) {
+          navigate("/driver/home", { replace: true });
+          return;
+        }
+
+        setResubmitMode(Boolean(data?.resubmitAllowed));
+        setRejectedServices(
+          Array.isArray(data?.rejectedServices)
+            ? data.rejectedServices
+            : [],
+        );
+
         const services = Array.isArray(data?.onboardingServices) ? data.onboardingServices : [];
-        const steps = buildSteps(services);
-        const stepIdx = resolveStepIndex(data?.onboardingStep, steps);
+        const steps = buildSteps(services, data?.resubmitAllowed ? data.rejectedServices || [] : null);
+        const stepIdx = data?.resubmitAllowed
+          ? 0
+          : resolveStepIndex(data?.onboardingStep, steps);
         setActiveIdx(stepIdx);
         setFurthestIdx(stepIdx);
 
@@ -191,6 +216,8 @@ export default function OnboardingWizard() {
             photoUrl: taxiVehicle.photoUrl || "",
             rcUrl: taxiVehicle.rcUrl || "",
             insuranceUrl: taxiVehicle.insuranceUrl || "",
+            commercialPermitUrl: taxiVehicle.commercialPermitUrl || "",
+            pucUrl: taxiVehicle.pucUrl || "",
           },
           basics: {
             name: data?.basics?.name || prev.basics.name,
@@ -283,7 +310,10 @@ export default function OnboardingWizard() {
     };
   }, [state.onboardingServices.includes("taxi")]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const steps = useMemo(() => buildSteps(state.onboardingServices), [state.onboardingServices]);
+  const steps = useMemo(
+    () => buildSteps(state.onboardingServices, resubmitMode ? rejectedServices : null),
+    [state.onboardingServices, resubmitMode, rejectedServices],
+  );
 
   useEffect(() => {
     setActiveIdx((idx) => Math.min(idx, Math.max(steps.length - 1, 0)));
@@ -359,10 +389,10 @@ export default function OnboardingWizard() {
     }
 
     let finalState = { ...state };
-    const hasMedia = current.key === "kyc" || current.key === "selfie";
-    const hasPending = Object.keys(pendingUploads).some((path) => path.startsWith(`${current.key}.`));
+    const stepMediaPaths = STEP_MEDIA_PATHS[current.key] || [];
+    const hasStepMedia = stepMediaPaths.length > 0;
 
-    if (hasMedia || hasPending) {
+    if (hasStepMedia) {
       setStepLoading(true);
       try {
         finalState = await prepareOnboardingStepState(
@@ -374,6 +404,9 @@ export default function OnboardingWizard() {
         setState(finalState);
         setPendingUploads((prev) => {
           const next = { ...prev };
+          stepMediaPaths.forEach((path) => {
+            delete next[path];
+          });
           Object.keys(next).forEach((path) => {
             if (path.startsWith(`${current.key}.`)) delete next[path];
           });
@@ -404,6 +437,10 @@ export default function OnboardingWizard() {
         name: finalState.taxiVehicle.name,
         make: finalState.taxiVehicle.make,
         model: finalState.taxiVehicle.model,
+        rcUrl: finalState.taxiVehicle.rcUrl,
+        insuranceUrl: finalState.taxiVehicle.insuranceUrl,
+        commercialPermitUrl: finalState.taxiVehicle.commercialPermitUrl,
+        pucUrl: finalState.taxiVehicle.pucUrl,
       });
     } else if (current.key === "basics") {
       await persistAndAdvance(driverOnboardingAPI.saveBasics, finalState.basics);
@@ -441,9 +478,16 @@ export default function OnboardingWizard() {
       setStepLoading(true);
       try {
         await driverOnboardingAPI.saveSelfie({ selfieUrl: finalState.selfie.selfieUrl });
-        await driverOnboardingAPI.complete(finalState.onboardingServices);
+        const completeRes = await driverOnboardingAPI.complete(finalState.onboardingServices);
+        const wasResubmit = Boolean(
+          completeRes?.data?.data?.resubmitted ?? completeRes?.data?.resubmitted,
+        );
         invalidateDriverGuardCache();
-        toast.success("Onboarding submitted for approval");
+        toast.success(
+          wasResubmit || resubmitMode
+            ? "Application resubmitted for approval"
+            : "Onboarding submitted for approval",
+        );
         navigate("/driver/home", { replace: true });
       } catch (err) {
         toast.error(getApiErrorMessage(err, "Could not submit"));
@@ -469,7 +513,7 @@ export default function OnboardingWizard() {
         <div className="sticky top-0 z-20 shrink-0 bg-gradient-to-br from-[#1f3a23] via-[#2a4e2f] to-[#3a6b41] px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[11px] text-[#9bc78a] font-bold uppercase tracking-[0.2em]">
-              Partner Onboarding
+              {resubmitMode ? "Update & Resubmit" : "Partner Onboarding"}
             </p>
             <span className="text-[11px] font-bold text-white/60 bg-white/10 px-2.5 py-1 rounded-full">
               {activeIdx + 1}/{steps.length}
@@ -515,6 +559,12 @@ export default function OnboardingWizard() {
 
           <h2 className="text-xl font-black tracking-tight">{meta.title}</h2>
           <p className="text-[13px] text-white/60 mt-1 leading-relaxed">{meta.subtitle}</p>
+          {resubmitMode ? (
+            <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] font-medium text-amber-100">
+              Update the fields flagged by admin, then submit again. Your existing application will be
+              updated — no new account is created.
+            </p>
+          ) : null}
         </div>
 
         {/* Step body — scrollable middle */}
@@ -544,6 +594,21 @@ export default function OnboardingWizard() {
                     Icon={Bike}
                     title="Food Delivery"
                     subtitle="Deliver restaurant orders nearby"
+                  />
+                  <ServiceToggle
+                    checked={state.onboardingServices.includes("quickCommerce")}
+                    onChange={(checked) => {
+                      markTouched("onboardingServices");
+                      setState((s) => ({
+                        ...s,
+                        onboardingServices: checked
+                          ? Array.from(new Set([...s.onboardingServices, "quickCommerce"]))
+                          : s.onboardingServices.filter((x) => x !== "quickCommerce"),
+                      }));
+                    }}
+                    Icon={Bike}
+                    title="Quick Commerce"
+                    subtitle="Deliver groceries and quick-commerce orders"
                   />
                   <ServiceToggle
                     checked={state.onboardingServices.includes("taxi")}
@@ -744,6 +809,50 @@ export default function OnboardingWizard() {
                     onBlur={() => markTouched("taxiVehicle.model")}
                     error={showErr("taxiVehicle.model")}
                     placeholder="e.g. Swift Dzire, Indica"
+                  />
+                  <DocumentUpload
+                    label="RC document"
+                    hint="Registration certificate"
+                    value={state.taxiVehicle.rcUrl}
+                    error={showErr("taxiVehicle.rcUrl")}
+                    onChange={(preview, file) => {
+                      setField("taxiVehicle.rcUrl", preview);
+                      setPendingUploads((p) => ({ ...p, "taxiVehicle.rcUrl": file }));
+                      markTouched("taxiVehicle.rcUrl");
+                    }}
+                  />
+                  <DocumentUpload
+                    label="Insurance"
+                    hint="Valid vehicle insurance"
+                    value={state.taxiVehicle.insuranceUrl}
+                    error={showErr("taxiVehicle.insuranceUrl")}
+                    onChange={(preview, file) => {
+                      setField("taxiVehicle.insuranceUrl", preview);
+                      setPendingUploads((p) => ({ ...p, "taxiVehicle.insuranceUrl": file }));
+                      markTouched("taxiVehicle.insuranceUrl");
+                    }}
+                  />
+                  <DocumentUpload
+                    label="Commercial permit"
+                    hint="Mandatory for taxi operations"
+                    value={state.taxiVehicle.commercialPermitUrl}
+                    error={showErr("taxiVehicle.commercialPermitUrl")}
+                    onChange={(preview, file) => {
+                      setField("taxiVehicle.commercialPermitUrl", preview);
+                      setPendingUploads((p) => ({ ...p, "taxiVehicle.commercialPermitUrl": file }));
+                      markTouched("taxiVehicle.commercialPermitUrl");
+                    }}
+                  />
+                  <DocumentUpload
+                    label="PUC certificate"
+                    hint="Pollution under control certificate"
+                    value={state.taxiVehicle.pucUrl}
+                    error={showErr("taxiVehicle.pucUrl")}
+                    onChange={(preview, file) => {
+                      setField("taxiVehicle.pucUrl", preview);
+                      setPendingUploads((p) => ({ ...p, "taxiVehicle.pucUrl": file }));
+                      markTouched("taxiVehicle.pucUrl");
+                    }}
                   />
                 </>
               )}
@@ -993,7 +1102,7 @@ export default function OnboardingWizard() {
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <span>{activeIdx === steps.length - 1 ? "Submit for Approval" : "Save & Continue"}</span>
+                <span>{activeIdx === steps.length - 1 ? (resubmitMode ? "Resubmit for Approval" : "Submit for Approval") : "Save & Continue"}</span>
                 <ChevronRight className="w-5 h-5" />
               </>
             )}

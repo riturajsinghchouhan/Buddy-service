@@ -3709,62 +3709,10 @@ export async function expireExpiredOffers() {
 }
 // ----- Delivery join requests -----
 export async function getDeliveryJoinRequests(query) {
-    const { status = 'pending', page = 1, limit = 1000, search, zone, vehicleType } = query;
-    const filter = {};
-    if (status === 'pending') filter.status = 'pending';
-    else if (status === 'denied' || status === 'rejected') filter.status = 'rejected';
-    else filter.status = status;
-
-    const andParts = [];
-    if (search && typeof search === 'string' && search.trim()) {
-        const term = search.trim();
-        andParts.push({
-            $or: [
-                { name: { $regex: term, $options: 'i' } },
-                { phone: { $regex: term, $options: 'i' } }
-            ]
-        });
-    }
-    if (zone && zone.trim()) {
-        const z = zone.trim();
-        andParts.push({
-            $or: [
-                { city: { $regex: z, $options: 'i' } },
-                { state: { $regex: z, $options: 'i' } },
-                { address: { $regex: z, $options: 'i' } }
-            ]
-        });
-    }
-    if (andParts.length) filter.$and = andParts;
-    if (vehicleType && vehicleType.trim()) {
-        filter.vehicleType = { $regex: vehicleType.trim(), $options: 'i' };
-    }
-
-    const skip = Math.max(0, (Number(page) || 1) - 1) * Math.max(1, Math.min(1000, Number(limit) || 100));
-    const limitNum = Math.max(1, Math.min(1000, Number(limit) || 100));
-
-    const list = await FoodDeliveryPartner.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
-        .lean();
-
-    const requests = list.map((doc, index) => ({
-        _id: doc._id,
-        sl: skip + index + 1,
-        name: doc.name || '',
-        email: doc.email || '',
-        phone: doc.phone || '',
-        zone: doc.city || doc.state || doc.address || '',
-        jobType: doc.jobType || '',
-        vehicleType: doc.vehicleType || '',
-        status: doc.status === 'rejected' ? 'denied' : doc.status,
-        rejectionReason: doc.rejectionReason || undefined,
-        profilePhoto: doc.profilePhoto || null,
-        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null
-    }));
-
-    return { requests };
+    const { getJoinRequests, ONBOARDING_SERVICES } = await import('../../../../core/identity/driverOnboardingAdmin.service.js');
+    const { service: svcParam, ...rest } = query || {};
+    const svc = svcParam && ONBOARDING_SERVICES.includes(String(svcParam)) ? String(svcParam) : 'food';
+    return getJoinRequests(svc, rest);
 }
 
 export function getDeliveryWalletsStub() {
@@ -4566,9 +4514,12 @@ const buildDeliveryPartnerDetail = (partner, identity = null) => {
         rejectionReason: partner.rejectionReason || null,
         rejectedAt: partner.rejectedAt || null,
         approvedAt: partner.approvedAt || null,
+        submissionHistory: Array.isArray(partner.submissionHistory) ? partner.submissionHistory : [],
+        isResubmission: Array.isArray(partner.submissionHistory) && partner.submissionHistory.length > 0,
         onboardingServices: Array.isArray(identity?.onboardingServices)
             ? identity.onboardingServices
             : [],
+        serviceStatuses: identity?.serviceStatuses || null,
         onboardingComplete: Boolean(identity?.onboardingComplete),
         profileImage: selfieUrl ? { url: selfieUrl } : partner.profilePhoto ? { url: partner.profilePhoto } : null,
         profilePhoto: selfieUrl || partner.profilePhoto || null,
@@ -4646,6 +4597,8 @@ const buildDeliveryPartnerDetail = (partner, identity = null) => {
                   photoUrl: pickText(taxiVehicle.photoUrl) || null,
                   rcUrl: pickText(taxiVehicle.rcUrl) || null,
                   insuranceUrl: pickText(taxiVehicle.insuranceUrl) || null,
+                  commercialPermitUrl: pickText(taxiVehicle.commercialPermitUrl) || null,
+                  pucUrl: pickText(taxiVehicle.pucUrl) || null,
               }
             : null,
     };
@@ -4660,7 +4613,21 @@ export async function getDeliveryPartnerById(id) {
         identity = await BuddyIdentity.findById(partner.identityId).lean();
     }
 
-    return buildDeliveryPartnerDetail(partner, identity);
+    const detail = buildDeliveryPartnerDetail(partner, identity);
+
+    if (identity) {
+        const { getEffectiveServiceStatus, ONBOARDING_SERVICES } = await import(
+            '../../../../core/identity/driverOnboardingAdmin.service.js'
+        );
+        const { Driver } = await import('../../../taxi/driver/models/Driver.js');
+        const driver = await Driver.findOne({ identityId: identity._id }).lean();
+        detail.serviceStatuses = ONBOARDING_SERVICES.reduce((acc, svc) => {
+            acc[svc] = getEffectiveServiceStatus(identity, svc, partner, driver);
+            return acc;
+        }, {});
+    }
+
+    return detail;
 }
 
 export async function updateDeliveryPartner(id, payload) {
@@ -4739,53 +4706,22 @@ export async function getDeliverymanReviews(query = {}) {
     return { reviews, total, page, limit };
 }
 
-export async function approveDeliveryPartner(id) {
-    const partner = await FoodDeliveryPartner.findById(id);
-    if (!partner) return null;
-    partner.status = 'approved';
-    partner.approvedAt = new Date();
-    partner.rejectedAt = undefined;
-    partner.rejectionReason = undefined;
-    await partner.save();
+export async function approveDeliveryPartner(id, service = 'food') {
+    const { approveDriverService } = await import('../../../../core/identity/driverOnboardingAdmin.service.js');
+    const row = await approveDriverService(id, service || 'food');
+    if (!row) return null;
 
-    // Mirror approval to the linked taxi Driver so the same human is approved
-    // for both pipelines after a single admin action.
-    try {
-        const { Driver } = await import('../../../taxi/driver/models/Driver.js');
-        const lookup = partner.identityId
-            ? { identityId: partner.identityId }
-            : partner.phone
-                ? { phone: partner.phone }
-                : null;
-        if (lookup) {
-            await Driver.updateOne(lookup, {
-                $set: { approve: true, status: 'approved' },
-            });
-        }
-    } catch (err) {
-        console.warn('[admin.approveDeliveryPartner] could not sync taxi driver:', err?.message || err);
+    const partner = row.partnerId
+        ? await FoodDeliveryPartner.findById(row.partnerId)
+        : await FoodDeliveryPartner.findOne({ identityId: row.identityId });
+
+    if (!partner) {
+        return row;
     }
 
-    try {
-        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
-        await notifyOwnerSafely(
-            { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
-            {
-                title: 'Welcome Aboard! Ã°Å¸Å¡Â²',
-                body: `Your delivery partner application has been approved. You can now go online and start earning!`,
-                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
-                data: {
-                    type: 'onboarding_approved',
-                    partnerId: String(partner._id)
-                }
-            }
-        );
-    } catch (e) {
-        console.error('Failed to send delivery partner approval notification:', e);
-    }
-
-    // Referral crediting: on approval, credit the referrer partner's pocket balance via DeliveryBonusTransaction.
-    try {
+    // Referral crediting only for food service approval
+    if ((service || 'food') === 'food') {
+        try {
         const referrerId = partner.referredBy ? String(partner.referredBy) : '';
         if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
             const already = await FoodReferralLog.findOne({ refereeId: partner._id, role: 'DELIVERY_PARTNER' }).lean();
@@ -4823,28 +4759,49 @@ export async function approveDeliveryPartner(id) {
                 }
             }
         }
-    } catch (e) {
+        } catch (e) {
         // Never fail approval due to referral errors.
         // eslint-disable-next-line no-console
         console.warn('Referral crediting failed (delivery approval):', e?.message || e);
+        }
     }
+
+    try {
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
+            {
+                title: 'Welcome Aboard!',
+                body: `Your ${service || 'food'} application has been approved. You can now go online and start earning!`,
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'onboarding_approved',
+                    partnerId: String(partner._id),
+                    service: service || 'food',
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send delivery partner approval notification:', e);
+    }
+
     return partner.toObject();
 }
 
-export async function rejectDeliveryPartner(id, reason) {
+export async function rejectDeliveryPartner(id, reason, service = 'food') {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    const updated = await FoodDeliveryPartner.findByIdAndUpdate(
-        id,
-        {
-            $set: {
-                status: 'rejected',
-                rejectedAt: new Date(),
-                rejectionReason: typeof reason === 'string' ? reason.trim() : undefined,
-                approvedAt: null
-            }
-        },
-        { new: true }
-    ).lean();
+    const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (!normalizedReason) {
+        throw new ValidationError('Rejection reason is required');
+    }
+
+    const { rejectDriverService } = await import('../../../../core/identity/driverOnboardingAdmin.service.js');
+    const row = await rejectDriverService(id, service || 'food', normalizedReason);
+    if (!row) return null;
+
+    const updated = row.partnerId
+        ? await FoodDeliveryPartner.findById(row.partnerId).lean()
+        : await FoodDeliveryPartner.findOne({ identityId: row.identityId }).lean();
 
     if (updated) {
         try {
@@ -4852,13 +4809,14 @@ export async function rejectDeliveryPartner(id, reason) {
             await notifyOwnerSafely(
                 { ownerType: 'DELIVERY_PARTNER', ownerId: updated._id },
                 {
-                    title: 'Onboarding Update Ã°Å¸â€œâ€¹',
-                    body: `Your application to join as a delivery partner was rejected. Reason: ${reason || 'Incomplete documents'}.`,
+                    title: 'Onboarding Update',
+                    body: `Your ${service || 'food'} application was rejected. Reason: ${normalizedReason}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
                         type: 'onboarding_rejected',
                         partnerId: String(updated._id),
-                        reason: reason || ''
+                        service: service || 'food',
+                        reason: normalizedReason,
                     }
                 }
             );

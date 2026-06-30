@@ -191,6 +191,13 @@ export const buildValidators = () => ({
       maxLen("Vehicle model", FIELD_LIMITS.vehicleModel),
       matches(RE_VEHICLE_TEXT, "Use letters and numbers only"),
     ),
+    "taxiVehicle.rcUrl": compose(required("RC document"), matches(RE_URL, "Upload RC document")),
+    "taxiVehicle.insuranceUrl": compose(required("Insurance document"), matches(RE_URL, "Upload insurance document")),
+    "taxiVehicle.commercialPermitUrl": compose(
+      required("Commercial permit"),
+      matches(RE_URL, "Upload commercial permit"),
+    ),
+    "taxiVehicle.pucUrl": compose(required("PUC certificate"), matches(RE_URL, "Upload PUC certificate")),
   },
   selfie: {
     "selfie.selfieUrl": compose(required("Selfie"), matches(RE_URL, "Please take or upload a selfie")),
@@ -271,6 +278,12 @@ export const STEP_MEDIA_PATHS = {
     "kyc.aadhaar.backDocumentUrl",
     "kyc.pan.documentUrl",
     "kyc.drivingLicense.documentUrl",
+  ],
+  vehicle_taxi: [
+    "taxiVehicle.rcUrl",
+    "taxiVehicle.insuranceUrl",
+    "taxiVehicle.commercialPermitUrl",
+    "taxiVehicle.pucUrl",
   ],
   selfie: ["selfie.selfieUrl"],
 };

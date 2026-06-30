@@ -102,21 +102,39 @@ function VehicleBlock({ title, vehicle, icon: Icon }) {
         <DetailField label="Model" value={vehicle.model} />
         {vehicle.color ? <DetailField label="Color" value={vehicle.color} /> : null}
       </div>
-      {(vehicle.photoUrl || vehicle.rcUrl || vehicle.insuranceUrl) && (
+      {(vehicle.photoUrl || vehicle.rcUrl || vehicle.insuranceUrl || vehicle.commercialPermitUrl || vehicle.pucUrl) && (
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {vehicle.photoUrl ? <DocPreview title="Vehicle photo" url={vehicle.photoUrl} /> : null}
           {vehicle.rcUrl ? <DocPreview title="RC document" url={vehicle.rcUrl} /> : null}
           {vehicle.insuranceUrl ? <DocPreview title="Insurance" url={vehicle.insuranceUrl} /> : null}
+          {vehicle.commercialPermitUrl ? <DocPreview title="Commercial permit" url={vehicle.commercialPermitUrl} /> : null}
+          {vehicle.pucUrl ? <DocPreview title="PUC certificate" url={vehicle.pucUrl} /> : null}
         </div>
       )}
     </div>
   )
 }
 
-export default function DeliveryPartnerJoinDetailModal({ open, onOpenChange, details, loading }) {
+const SERVICE_LABELS = {
+  food: "Food",
+  quickCommerce: "Quick Commerce",
+  taxi: "Taxi",
+};
+
+export default function DeliveryPartnerJoinDetailModal({
+  open,
+  onOpenChange,
+  details,
+  loading,
+  adminService = "food",
+  onApproveService,
+  onRejectService,
+  processingService = null,
+}) {
   const profileUrl = details?.profileImage?.url || details?.profilePhoto || null
   const bank = details?.documents?.bankDetails
   const services = Array.isArray(details?.onboardingServices) ? details.onboardingServices : []
+  const serviceStatuses = details?.serviceStatuses || {}
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -171,15 +189,21 @@ export default function DeliveryPartnerJoinDetailModal({ open, onOpenChange, det
                     <DetailField label="Availability" value={details.availabilityStatus} />
                   </div>
                   {services.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {services.map((svc) => (
-                        <span
-                          key={svc}
-                          className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-700"
-                        >
-                          {svc}
-                        </span>
-                      ))}
+                    <div className="mt-3 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Services</p>
+                      <div className="flex flex-wrap gap-2">
+                        {services.map((svc) => {
+                          const status = serviceStatuses?.[svc]?.status || "pending"
+                          return (
+                            <span
+                              key={svc}
+                              className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusBadgeClass(status === "denied" ? "rejected" : status)}`}
+                            >
+                              {SERVICE_LABELS[svc] || svc} · {status}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </div>
                   ) : null}
                   {details.rejectionReason ? (
@@ -270,6 +294,39 @@ export default function DeliveryPartnerJoinDetailModal({ open, onOpenChange, det
                   <DetailField label="Rejected at" value={formatDate(details.rejectedAt)} />
                 </div>
               </Section>
+
+              {Array.isArray(details.submissionHistory) && details.submissionHistory.length > 0 ? (
+                <Section title="Submission history" icon={ShieldCheck}>
+                  <div className="space-y-3">
+                    {details.submissionHistory.map((entry, index) => (
+                      <div
+                        key={`${entry.resubmittedAt || entry.submittedAt || index}`}
+                        className="rounded-lg border border-slate-200 bg-white p-3 text-sm"
+                      >
+                        <p className="font-semibold text-slate-900">
+                          Submission {index + 1}
+                          {entry.status ? ` · ${entry.status}` : ""}
+                        </p>
+                        {entry.submittedAt ? (
+                          <p className="mt-1 text-slate-600">
+                            Submitted: {formatDate(entry.submittedAt)}
+                          </p>
+                        ) : null}
+                        {entry.resubmittedAt ? (
+                          <p className="mt-1 text-slate-600">
+                            Resubmitted: {formatDate(entry.resubmittedAt)}
+                          </p>
+                        ) : null}
+                        {entry.previousRejectionReason ? (
+                          <p className="mt-2 rounded-md bg-red-50 px-2 py-1.5 text-red-700">
+                            Previous rejection: {entry.previousRejectionReason}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              ) : null}
             </div>
           ) : (
             <p className="py-12 text-center text-sm text-slate-500">No details available.</p>
@@ -277,6 +334,26 @@ export default function DeliveryPartnerJoinDetailModal({ open, onOpenChange, det
         </div>
 
         <DialogFooter className="shrink-0 border-t border-slate-200 px-4 py-4 sm:px-6">
+          {details && onApproveService && onRejectService && services.includes(adminService) ? (
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={processingService === adminService}
+                onClick={() => onRejectService(adminService)}
+                className="w-full rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100 sm:w-auto disabled:opacity-60"
+              >
+                Reject {SERVICE_LABELS[adminService]}
+              </button>
+              <button
+                type="button"
+                disabled={processingService === adminService}
+                onClick={() => onApproveService(adminService)}
+                className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 sm:w-auto disabled:opacity-60"
+              >
+                Approve {SERVICE_LABELS[adminService]}
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => onOpenChange(false)}
