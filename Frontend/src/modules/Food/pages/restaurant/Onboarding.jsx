@@ -690,7 +690,7 @@ export default function RestaurantOnboarding() {
     const safeStep = requested > allowedCap ? allowedCap : requested
     setStep(safeStep)
     if (replaceUrl) {
-      setSearchParams({ step: String(safeStep) }, { replace: true })
+      setSearchParams({ step: String(safeStep) }, { replace: true, state: location.state })
     }
     window.scrollTo({ top: 0, behavior: "instant" })
   }
@@ -1288,7 +1288,7 @@ export default function RestaurantOnboarding() {
 
         desiredStep = Math.min(allowedStep, Math.max(1, Number(desiredStep) || 1))
         setStep(desiredStep)
-        setSearchParams({ step: String(desiredStep) }, { replace: true })
+        setSearchParams({ step: String(desiredStep) }, { replace: true, state: location.state })
 
       } catch (err) {
         debugError("Onboarding hydration failed:", err)

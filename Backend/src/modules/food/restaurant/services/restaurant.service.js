@@ -1042,17 +1042,13 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
             delete directUpdate._directLocationOnly;
             delete pendingUpdate._directLocationOnly;
         }
+    }
 
-        if (body.zoneSelectionUpdate === true) {
-            for (const key of ['zoneId', 'city', 'area']) {
-                if (pendingUpdate[key] !== undefined) {
-                    directUpdate[key] = pendingUpdate[key];
-                    delete pendingUpdate[key];
-                }
-            }
-            if (pendingUpdate.location) {
-                directUpdate.location = pendingUpdate.location;
-                delete pendingUpdate.location;
+    if (body.zoneSelectionUpdate === true) {
+        for (const key of ['zoneId', 'city', 'area', 'location', 'addressLine1', 'addressLine2', 'state', 'pincode', 'landmark']) {
+            if (pendingUpdate[key] !== undefined) {
+                directUpdate[key] = pendingUpdate[key];
+                delete pendingUpdate[key];
             }
         }
     }

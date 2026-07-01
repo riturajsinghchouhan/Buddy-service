@@ -116,12 +116,16 @@ export async function invalidateAfterDiningAdminMutation() {
  * @param {() => Promise<void>} invalidatorFn
  */
 export function withFoodCacheInvalidation(invalidatorFn) {
-    return async (req, res, next) => {
-        try {
-            await invalidatorFn();
-        } catch (err) {
-            logger.warn(`Food cache invalidation skipped: ${err?.message || err}`);
-        }
+    return (req, res, next) => {
+        res.on('finish', async () => {
+            if (res.statusCode < 400) {
+                try {
+                    await invalidatorFn();
+                } catch (err) {
+                    logger.warn(`Food cache invalidation skipped: ${err?.message || err}`);
+                }
+            }
+        });
         next();
     };
 }
